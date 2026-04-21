@@ -33,3 +33,15 @@ export function loadVendorScopes(): Record<string, VendorScope> {
   }
   return scopes;
 }
+
+const API_BASE = 'https://api.honeybook.com';
+
+export async function fetchApiVersion(): Promise<number> {
+  const override = process.env.HONEYBOOK_API_VERSION;
+  if (override) return Number(override);
+  const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`);
+  const text = await res.text();
+  const m = /"api_version":\s*(\d+)/.exec(text);
+  if (!m) throw new Error(`Could not parse api_version from /api/gon response: ${text.slice(0, 200)}`);
+  return Number(m[1]);
+}

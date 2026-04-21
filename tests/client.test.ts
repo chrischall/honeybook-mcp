@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadVendorScopes } from '../src/client.js';
+import { vi } from 'vitest';
+import { loadVendorScopes, fetchApiVersion } from '../src/client.js';
 
 describe('loadVendorScopes', () => {
   const originalEnv = { ...process.env };
@@ -84,5 +85,34 @@ describe('loadVendorScopes', () => {
     process.env.HB_VENUE_AUTH_TOKEN = 'a';
     // user_id, trusted_device, fingerprint, portal_origin all missing
     expect(() => loadVendorScopes()).toThrow(/venue.*HB_VENUE_USER_ID/);
+  });
+});
+
+describe('fetchApiVersion', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.HONEYBOOK_API_VERSION;
+  });
+
+  it('uses HONEYBOOK_API_VERSION when set', async () => {
+    process.env.HONEYBOOK_API_VERSION = '9999';
+    const spy = vi.spyOn(globalThis, 'fetch');
+    expect(await fetchApiVersion()).toBe(9999);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('fetches /api/gon and parses the JSONP callback', async () => {
+    const body = '/**/parseGon({"api_version":2578,"version":"36.122.376"})';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(body, { status: 200 })
+    );
+    expect(await fetchApiVersion()).toBe(2578);
+  });
+
+  it('throws when the callback body is unparseable', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('nope', { status: 200 })
+    );
+    await expect(fetchApiVersion()).rejects.toThrow(/api_version/);
   });
 });
