@@ -36,7 +36,6 @@
     "build": "tsc && npm run bundle",
     "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --external:dotenv --external:puppeteer-core --outfile=dist/bundle.js",
     "dev": "node --env-file=.env dist/index.js",
-    "auth": "node scripts/setup-auth.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

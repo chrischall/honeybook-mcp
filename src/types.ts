@@ -16,21 +16,6 @@ export interface HBListEnvelope<T> {
 }
 
 /**
- * Per-vendor auth scope loaded from HB_<SLUG>_* env vars.
- * One of these per entry in HONEYBOOK_VENDORS.
- */
-export interface VendorScope {
-  slug: string;
-  label: string;
-  authToken: string;
-  userId: string;
-  trustedDevice: string;
-  fingerprint: string;
-  /** The vendor's branded portal origin, e.g. https://thesilkveileventsbyivy.hbportal.co */
-  portalOrigin: string;
-}
-
-/**
  * Auth session captured via magic-link Puppeteer capture (v2).
  */
 export interface CapturedSession {

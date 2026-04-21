@@ -9,7 +9,6 @@ multiple vendors, with deep-link fallback for signing and paying.
 npm run build        # tsc + esbuild bundle
 npm test             # vitest run
 npm run test:watch   # vitest in watch mode
-npm run auth         # Puppeteer magic-link capture
 ```
 
 ## Architecture
@@ -17,40 +16,45 @@ npm run auth         # Puppeteer magic-link capture
 ```
 src/
   index.ts               MCP server entry — registers tool modules, stdio transport
-  client.ts              HoneyBookClient — per-vendor auth, headers, request/retry
-  types.ts               HBListEnvelope<T>, ToolResult, VendorScope, FileType
+  client.ts              HoneyBookClient — per-session auth, headers, request/retry
+                         getActiveClient() — reads from sessionStore
+  sessions.ts            SessionStore — disk-persisted session cache + Puppeteer capture
+                         normalizeOrigin, serializeSessions, deserializeSessions (pure helpers)
+  types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, FileType
   tools/
-    vendors.ts           list_vendors (env-only, no API call)
+    sessions.ts          use_magic_link, list_active_sessions
     workspace_files.ts   list_workspace_files, get_workspace_file
     workspaces.ts        get_workspace
     payment_methods.ts   list_payment_methods
     contracts.ts         sign_contract (deep-link fallback + confirm guard)
     invoices.ts          pay_invoice (deep-link fallback + confirm guard)
-scripts/
-  setup-auth.mjs         Puppeteer-based magic-link capture
 ```
 
-## Environment
+## Session Flow
 
-One HoneyBook vendor = one auth scope. Configure via slugged env vars:
+No env vars required. Sessions are captured at runtime:
+
+1. User calls `use_magic_link` with a URL from a vendor's HoneyBook email.
+2. A headless Chrome window opens, follows the link, extracts auth state from
+   localStorage.jStorage and the first api.honeybook.com request header.
+3. Session is stored in memory + `~/.honeybook-mcp/sessions.json` (mode 0600).
+4. All tools default to the most-recently-activated session; pass `origin` to
+   target a specific vendor when multiple sessions are active.
+
+Optional env vars:
 
 ```
-HONEYBOOK_VENDORS=silk_veil,photog
-HB_SILK_VEIL_LABEL=The Silk Veil Events by Ivy
-HB_SILK_VEIL_PORTAL_ORIGIN=https://thesilkveileventsbyivy.hbportal.co
-HB_SILK_VEIL_AUTH_TOKEN=<43 chars, from localStorage.jStorage.HB_AUTH_TOKEN>
-HB_SILK_VEIL_USER_ID=<24-char ObjectId>
-HB_SILK_VEIL_TRUSTED_DEVICE=<64 chars>
-HB_SILK_VEIL_FINGERPRINT=<32-char FingerprintJS hash, captured from first API request>
-# ...repeat per slug
+HONEYBOOK_API_VERSION=2578     # pin instead of auto-fetching from /api/gon
+HONEYBOOK_SHOW_BROWSER=1       # show Puppeteer window (debugging)
+PUPPETEER_EXECUTABLE_PATH=...  # override Chrome path
 ```
-
-`npm run auth` populates these automatically.
 
 ## Testing
 
 Tests live in `tests/`. `client.request` is mocked via `vi.spyOn(globalThis, 'fetch')`;
-tool handlers mock `getClientFor` to inject a fake client. No live API in CI.
+tool handlers mock `getActiveClient` to inject a fake client. No live API in CI.
+`sessions.ts` pure helpers (normalizeOrigin, serialize/deserialize) are unit-tested
+directly. `SessionStore.activate()` (which needs Puppeteer) is not tested.
 
 ## Plugin / Marketplace
 
@@ -79,7 +83,8 @@ Handled automatically by the Cut & Bump GitHub Action. Do NOT manually bump.
 ## Gotchas
 
 - **ESM + NodeNext**: `.ts` source imports use `.js` extensions.
-- **`hb-api-fingerprint` is a FingerprintJS signal** — session-constant and captured once at auth time. If HoneyBook rotates accepted fingerprints, users re-run `npm run auth`.
-- **`HB_AUTH_TOKEN` is opaque (not JWT)** — no client-side TTL; server can revoke at will. Expired sessions throw a clear "run npm run auth" error.
-- **Write tools return deep links** to the portal in v1 (sign/pay flows require browser-side device/SCA handling that a headless MCP can't replay cleanly). Sniffing during a real sign/pay action is a v2 task.
-- **Per-vendor tools** take an optional `vendor` arg. When only one vendor is configured, it's inferred.
+- **`hb-api-fingerprint` is a FingerprintJS signal** — session-constant and captured once at auth time. If HoneyBook rotates accepted fingerprints, users re-run `use_magic_link`.
+- **`HB_AUTH_TOKEN` is opaque (not JWT)** — no client-side TTL; server can revoke at will. Expired sessions throw a clear "re-run use_magic_link" error.
+- **Write tools return deep links** to the portal in v2 (sign/pay flows require browser-side device/SCA handling that a headless MCP can't replay cleanly).
+- **Per-vendor tools** take an optional `origin` arg. When only one session is active, it is inferred.
+- **puppeteer-core is a runtime dep** but externalized in the esbuild bundle (`--external:puppeteer-core`). It must be installed in the deployment environment.

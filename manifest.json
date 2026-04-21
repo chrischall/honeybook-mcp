@@ -24,22 +24,12 @@
     "mcp_config": {
       "command": "node",
       "args": ["${__dirname}/dist/bundle.js"],
-      "env": {
-        "HONEYBOOK_VENDORS": "${user_config.vendors}"
-      }
-    }
-  },
-  "user_config": {
-    "vendors": {
-      "type": "string",
-      "title": "HoneyBook Vendors",
-      "description": "Comma-separated slug list (e.g. silk_veil,photog). Per-vendor HB_<SLUG>_* secrets must be added to your Claude config's env block separately — see README.md for details.",
-      "required": true,
-      "sensitive": false
+      "env": {}
     }
   },
   "tools": [
-    { "name": "list_vendors", "description": "Connected HoneyBook vendors" },
+    { "name": "use_magic_link", "description": "Capture a magic-link session" },
+    { "name": "list_active_sessions", "description": "Active HoneyBook sessions" },
     { "name": "list_workspace_files", "description": "Files from one vendor (contracts, invoices, etc.)" },
     { "name": "get_workspace_file", "description": "One file's full detail" },
     { "name": "get_workspace", "description": "Workspace detail with status flags" },

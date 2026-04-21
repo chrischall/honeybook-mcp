@@ -13,15 +13,7 @@
       "identifier": "honeybook-mcp",
       "version": "0.1.0",
       "transport": { "type": "stdio" },
-      "environmentVariables": [
-        {
-          "name": "HONEYBOOK_VENDORS",
-          "description": "Comma-separated list of vendor slugs (e.g. silk_veil,photog). Each slug must have matching HB_<SLUG>_AUTH_TOKEN, HB_<SLUG>_USER_ID, HB_<SLUG>_TRUSTED_DEVICE, HB_<SLUG>_FINGERPRINT, and HB_<SLUG>_PORTAL_ORIGIN env vars. Run `npm run auth` to capture.",
-          "isRequired": true,
-          "format": "string",
-          "isSecret": false
-        }
-      ]
+      "environmentVariables": []
     }
   ]
 }

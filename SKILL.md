@@ -5,7 +5,7 @@ description: This skill should be used when the user asks about HoneyBook client
 
 # honeybook-mcp
 
-MCP server for HoneyBook's client portal — 7 tools for viewing contracts and invoices across multiple wedding vendors, with deep-link fallback for signing and paying.
+MCP server for HoneyBook's client portal — 8 tools for viewing contracts and invoices across multiple wedding vendors, with magic-link session capture and deep-link fallback for signing and paying.
 
 - **Source:** [github.com/chrischall/honeybook-mcp](https://github.com/chrischall/honeybook-mcp)
 
@@ -13,34 +13,34 @@ MCP server for HoneyBook's client portal — 7 tools for viewing contracts and i
 
 ### Option A — Claude Code
 
-Run `npm run auth` to capture a magic-link session for each vendor, then add to `.mcp.json`:
+Add to `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "honeybook": {
       "command": "node",
-      "args": ["/absolute/path/to/honeybook-mcp/dist/bundle.js"],
-      "env": { "HONEYBOOK_VENDORS": "silk_veil" }
+      "args": ["/absolute/path/to/honeybook-mcp/dist/bundle.js"]
     }
   }
 }
 ```
 
-Per-vendor env vars (`HB_<SLUG>_*`) live in `.env` or Claude Desktop's env block.
+No env vars required. Activate a session by calling `use_magic_link` in Claude.
 
 ### Option B — from source
 
 ```bash
 git clone https://github.com/chrischall/honeybook-mcp
-cd honeybook-mcp && npm install && npm run build && npm run auth
+cd honeybook-mcp && npm install && npm run build
 ```
 
 ## Tools
 
 | Tool                   | What it does                                          |
 |------------------------|-------------------------------------------------------|
-| `list_vendors`         | Connected vendors from env                            |
+| `use_magic_link`       | Capture a session from a vendor magic-link URL        |
+| `list_active_sessions` | Show currently active portal sessions                 |
 | `list_workspace_files` | All files one vendor has shared (filter by type)      |
 | `get_workspace_file`   | Full detail for one file                              |
 | `get_workspace`        | Workspace detail + status flags                       |
@@ -50,6 +50,7 @@ cd honeybook-mcp && npm install && npm run build && npm run auth
 
 ## Workflows
 
+- **First time with a vendor** → user pastes magic-link URL → `use_magic_link` → session captured
 - **"What contracts haven't I signed?"** → `list_workspace_files` with `file_type=agreement`, filter by `is_file_accepted=false`
 - **"Summarize my HB status with Silk Veil"** → `get_workspace` (status flags) + `list_workspace_files`
 - **"Send me a link to sign the photographer's contract"** → `list_workspace_files` → `sign_contract` with `confirm:true`
@@ -58,6 +59,7 @@ cd honeybook-mcp && npm install && npm run build && npm run auth
 ## Notes
 
 - All tools hit `api.honeybook.com/api/v2/*` with 8 custom `hb-api-*` headers
-- Each vendor = separate auth scope (per-vendor magic link)
-- `sign_contract` / `pay_invoice` return deep links in v1 — actual signing/paying requires browser-side device/SCA handling
-- Token expires → re-run `npm run auth`
+- Sessions are captured via Puppeteer from magic-link URLs and cached in `~/.honeybook-mcp/sessions.json` (mode 0600)
+- Each vendor = separate session keyed by portal origin
+- `sign_contract` / `pay_invoice` return deep links — actual signing/paying requires browser-side device/SCA handling
+- Session expires → re-run `use_magic_link` with a fresh URL from the vendor's email
