@@ -36,6 +36,9 @@ export function loadVendorScopes(): Record<string, VendorScope> {
 
 const API_BASE = 'https://api.honeybook.com';
 
+const clientCache = new Map<string, HoneyBookClient>();
+const moduleState: { apiVersionPromise: Promise<number> | null } = { apiVersionPromise: null };
+
 export async function fetchApiVersion(): Promise<number> {
   const override = process.env.HONEYBOOK_API_VERSION;
   if (override) return Number(override);
@@ -102,6 +105,7 @@ export class HoneyBookClient {
           const parsed = JSON.parse(text) as { error_data?: { server_api_version?: number } };
           const fresh = parsed.error_data?.server_api_version ?? (await fetchApiVersion());
           this.apiVersion = fresh;
+          moduleState.apiVersionPromise = Promise.resolve(fresh);
         } catch {
           this.apiVersion = await fetchApiVersion();
         }
@@ -117,15 +121,17 @@ export class HoneyBookClient {
   }
 }
 
-const clientCache = new Map<string, HoneyBookClient>();
-let apiVersionPromise: Promise<number> | null = null;
-
 export function resetClientsForTest(): void {
   clientCache.clear();
-  apiVersionPromise = null;
+  moduleState.apiVersionPromise = null;
 }
 
 export async function getClientFor(vendor?: string): Promise<HoneyBookClient> {
+  // Fast path: if vendor is explicitly provided and already cached, skip env reload.
+  if (vendor) {
+    const cached = clientCache.get(vendor);
+    if (cached) return cached;
+  }
   const scopes = loadVendorScopes();
   const slugs = Object.keys(scopes);
   if (slugs.length === 0) {
@@ -151,8 +157,8 @@ export async function getClientFor(vendor?: string): Promise<HoneyBookClient> {
   }
   const existing = clientCache.get(slug);
   if (existing) return existing;
-  if (!apiVersionPromise) apiVersionPromise = fetchApiVersion();
-  const apiVersion = await apiVersionPromise;
+  if (!moduleState.apiVersionPromise) moduleState.apiVersionPromise = fetchApiVersion();
+  const apiVersion = await moduleState.apiVersionPromise;
   const client = new HoneyBookClient(scopes[slug]!, apiVersion);
   clientCache.set(slug, client);
   return client;
@@ -161,4 +167,9 @@ export async function getClientFor(vendor?: string): Promise<HoneyBookClient> {
 export function listConfiguredVendors(): { slug: string; label: string }[] {
   const scopes = loadVendorScopes();
   return Object.values(scopes).map((s) => ({ slug: s.slug, label: s.label }));
+}
+
+/** Test-only — do not use in production code. Returns the currently cached api version, if any. */
+export async function currentModuleApiVersion(): Promise<number | null> {
+  return moduleState.apiVersionPromise ? await moduleState.apiVersionPromise : null;
 }

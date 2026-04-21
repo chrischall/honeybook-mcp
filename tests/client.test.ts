@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { vi } from 'vitest';
-import { loadVendorScopes, fetchApiVersion, HoneyBookClient, getClientFor, resetClientsForTest } from '../src/client.js';
+import { loadVendorScopes, fetchApiVersion, HoneyBookClient, getClientFor, resetClientsForTest, currentModuleApiVersion } from '../src/client.js';
 
 describe('loadVendorScopes', () => {
   const originalEnv = { ...process.env };
@@ -224,19 +224,52 @@ describe('HoneyBookClient.request', () => {
     expect(secondHeaders['hb-api-client-version']).toBe('9999');
   });
 
-  it('retries once after a 429 with a 2s backoff', async () => {
-    vi.useFakeTimers();
+  it('updates module-level api version after version-retry so next client inherits the fix', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    fetchSpy.mockResolvedValueOnce(new Response('', { status: 429 }));
+    // First call errors with wrong version
+    fetchSpy.mockResolvedValueOnce(
+      new Response('{"error":true,"error_type":"HBWrongAPIVersionError","error_data":{"server_api_version":9999}}', {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    // Retry succeeds
     fetchSpy.mockResolvedValueOnce(
       new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
     );
     const client = new HoneyBookClient(scope, 2578);
-    const p = client.request('GET', '/api/v2/users/uid_24');
-    await vi.advanceTimersByTimeAsync(2000);
-    await p;
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+    await client.request('GET', '/api/v2/users/uid_24');
+
+    // moduleState.apiVersionPromise should now resolve to 9999
+    expect(await currentModuleApiVersion()).toBe(9999);
+
+    // A second client created using the module-level version should send the corrected version
+    fetchSpy.mockResolvedValueOnce(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const version = (await currentModuleApiVersion()) ?? 2578;
+    const client2 = new HoneyBookClient(scope, version);
+    await client2.request('GET', '/api/v2/users/uid_24');
+    const secondCallHeaders = fetchSpy.mock.calls[2]![1]!.headers as Record<string, string>;
+    expect(secondCallHeaders['hb-api-client-version']).toBe('9999');
+  });
+
+  it('retries once after a 429 with a 2s backoff', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('', { status: 429 }));
+      fetchSpy.mockResolvedValueOnce(
+        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+      );
+      const client = new HoneyBookClient(scope, 2578);
+      const p = client.request('GET', '/api/v2/users/uid_24');
+      await vi.advanceTimersByTimeAsync(2000);
+      await p;
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -287,5 +320,23 @@ describe('getClientFor', () => {
     process.env.HB_A_FINGERPRINT = 'x';
     process.env.HB_A_PORTAL_ORIGIN = 'https://a.hbportal.co';
     await expect(getClientFor('nonexistent')).rejects.toThrow(/nonexistent.*not in HONEYBOOK_VENDORS/);
+  });
+
+  it('returns cached client without re-reading env when vendor is explicitly passed', async () => {
+    process.env.HONEYBOOK_VENDORS = 'a,b';
+    for (const v of ['A', 'B']) {
+      process.env[`HB_${v}_AUTH_TOKEN`] = 'x';
+      process.env[`HB_${v}_USER_ID`] = 'x';
+      process.env[`HB_${v}_TRUSTED_DEVICE`] = 'x';
+      process.env[`HB_${v}_FINGERPRINT`] = 'x';
+      process.env[`HB_${v}_PORTAL_ORIGIN`] = `https://${v.toLowerCase()}.hbportal.co`;
+    }
+    // First call populates cache for 'a'
+    const first = await getClientFor('a');
+    // Break vendor 'b's config
+    delete process.env.HB_B_AUTH_TOKEN;
+    // Second call for 'a' should still succeed (shouldn't touch b's env)
+    const second = await getClientFor('a');
+    expect(second).toBe(first);
   });
 });
