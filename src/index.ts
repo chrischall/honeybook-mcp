@@ -16,6 +16,7 @@ import { registerWorkspaceFileTools } from './tools/workspace_files.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
 import { registerPaymentMethodTools } from './tools/payment_methods.js';
 import { registerContractTools } from './tools/contracts.js';
+import { registerInvoiceTools } from './tools/invoices.js';
 
 const server = new McpServer({
   name: 'honeybook-mcp',
@@ -27,6 +28,7 @@ registerWorkspaceFileTools(server);
 registerWorkspaceTools(server);
 registerPaymentMethodTools(server);
 registerContractTools(server);
+registerInvoiceTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
