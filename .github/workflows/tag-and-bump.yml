@@ -1,42 +1,69 @@
-name: Cut & Bump
+name: Tag & Bump
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   cut-and-bump:
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - uses: actions/setup-node@v6.3.0
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 22
+          cache: npm
+
       - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - name: Read current version
-        id: ver
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Tag current version
+
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.ver.outputs.version }}" -m "v${{ steps.ver.outputs.version }}"
-      - name: Bump patch in all four files
+
+      - name: Tag current version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          git tag "v${CURRENT}"
+          echo "TAGGED_VERSION=${CURRENT}" >> "$GITHUB_ENV"
+
+      - name: Bump patch version
         run: |
           npm version patch --no-git-tag-version
-          NEW=$(node -p "require('./package.json').version")
-          node -e "const f=require('fs');const p='src/index.ts';const s=f.readFileSync(p,'utf8');f.writeFileSync(p,s.replace(/version:\s*'[^']+'/,\"version: '$NEW'\"))"
-          node -e "const f=require('fs');const p='manifest.json';const m=JSON.parse(f.readFileSync(p,'utf8'));m.version='$NEW';f.writeFileSync(p,JSON.stringify(m,null,2)+'\n')"
-          node -e "const f=require('fs');const p='server.json';const s=JSON.parse(f.readFileSync(p,'utf8'));s.version='$NEW';if(s.packages&&s.packages[0])s.packages[0].version='$NEW';f.writeFileSync(p,JSON.stringify(s,null,2)+'\n')"
-      - name: Commit bump and push
+          NEXT=$(node -p "require('./package.json').version")
+          echo "NEXT_VERSION=${NEXT}" >> "$GITHUB_ENV"
+
+          sed -i "s/version: '${TAGGED_VERSION}'/version: '${NEXT}'/" src/index.ts
+
+          # All JSON version files (manifest.json, server.json, .claude-plugin/*)
+          node -e "
+            const fs = require('fs');
+            for (const f of ['manifest.json', 'server.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
+              if (!fs.existsSync(f)) continue;
+              const o = JSON.parse(fs.readFileSync(f, 'utf8'));
+              if (o.version !== undefined) o.version = '${NEXT}';
+              if (o.metadata?.version !== undefined) o.metadata.version = '${NEXT}';
+              if (Array.isArray(o.packages)) o.packages.forEach(p => { if (p.version !== undefined) p.version = '${NEXT}'; });
+              if (Array.isArray(o.plugins)) o.plugins.forEach(p => { if (p.version !== undefined) p.version = '${NEXT}'; });
+              fs.writeFileSync(f, JSON.stringify(o, null, 2) + '\n');
+            }
+          "
+
+      - name: Rebuild
+        run: npm run build
+
+      - name: Commit and push
         run: |
-          git add package.json package-lock.json src/index.ts manifest.json server.json
-          git commit -m "chore: bump to $(node -p "require('./package.json').version")"
-          git push origin HEAD --tags
+          git add -A
+          git commit -m "chore: bump version to v${NEXT_VERSION}"
+          git push origin main
+          git push origin "v${TAGGED_VERSION}"

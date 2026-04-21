@@ -2,33 +2,111 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-node@v6.3.0
         with:
-          ref: ${{ github.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: sed -i '/always-auth/d' "$NPM_CONFIG_USERCONFIG"
+
       - run: npm ci
       - run: npm run build
-      - run: npm test
-      - name: Package mcpb bundle
-        run: npx -y @anthropic-ai/mcpb pack
+
+      - name: Extract version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      # Sync in-repo version files to match the tag.
+      - name: Sync version files to $VERSION
+        run: |
+          node -e "
+            const fs = require('fs');
+            for (const f of ['manifest.json', 'server.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
+              if (!fs.existsSync(f)) continue;
+              const o = JSON.parse(fs.readFileSync(f, 'utf8'));
+              if (o.version !== undefined) o.version = '$VERSION';
+              if (o.metadata?.version !== undefined) o.metadata.version = '$VERSION';
+              if (Array.isArray(o.packages)) o.packages.forEach(p => { if (p.version !== undefined) p.version = '$VERSION'; });
+              if (Array.isArray(o.plugins)) o.plugins.forEach(p => { if (p.version !== undefined) p.version = '$VERSION'; });
+              fs.writeFileSync(f, JSON.stringify(o, null, 2) + '\n');
+            }
+          "
+
+      - name: Package skill
+        run: |
+          python3 - <<'EOF'
+          import zipfile, pathlib, os
+
+          version = os.environ["VERSION"]
+          skill_name = "honeybook-mcp"
+          out = pathlib.Path(f"{skill_name}-{version}.skill")
+
+          with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+              zf.write(pathlib.Path("SKILL.md"), f"{skill_name}/SKILL.md")
+
+          print(f"Packaged {out} ({out.stat().st_size} bytes)")
+          EOF
+
+      - name: Build .mcpb bundle
+        run: |
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+            m.version = '$VERSION';
+            fs.writeFileSync('manifest.json', JSON.stringify(m, null, 2) + '\n');
+          "
+          npx @anthropic-ai/mcpb pack
+          mv honeybook-mcp.mcpb "honeybook-mcp-${VERSION}.mcpb"
+
       - name: Publish to npm
-        run: npm publish
+        run: npm publish --access public --provenance
+
+      # ─── modelcontextprotocol/registry (PulseMCP auto-ingests weekly) ───
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry (OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
+
+      # ─── ClawHub (OpenClaw skill registry) — conditional on CLAWHUB_TOKEN ───
+      - name: Publish skill to ClawHub
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          if [ -z "$CLAWHUB_TOKEN" ]; then
+            echo "CLAWHUB_TOKEN not set — skipping ClawHub publish."
+            exit 0
+          fi
+          npx --yes clawhub login --token "$CLAWHUB_TOKEN"
+          npx --yes clawhub skill publish . --version "${VERSION}"
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.0
         with:
           files: |
-            *.mcpb
+            honeybook-mcp-${{ env.VERSION }}.skill
+            honeybook-mcp-${{ env.VERSION }}.mcpb
+          generate_release_notes: true
