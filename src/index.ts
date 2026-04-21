@@ -14,6 +14,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerVendorTools } from './tools/vendors.js';
 import { registerWorkspaceFileTools } from './tools/workspace_files.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
+import { registerPaymentMethodTools } from './tools/payment_methods.js';
 
 const server = new McpServer({
   name: 'honeybook-mcp',
@@ -23,6 +24,7 @@ const server = new McpServer({
 registerVendorTools(server);
 registerWorkspaceFileTools(server);
 registerWorkspaceTools(server);
+registerPaymentMethodTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
