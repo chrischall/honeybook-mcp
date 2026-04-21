@@ -13,6 +13,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerVendorTools } from './tools/vendors.js';
 import { registerWorkspaceFileTools } from './tools/workspace_files.js';
+import { registerWorkspaceTools } from './tools/workspaces.js';
 
 const server = new McpServer({
   name: 'honeybook-mcp',
@@ -21,6 +22,7 @@ const server = new McpServer({
 
 registerVendorTools(server);
 registerWorkspaceFileTools(server);
+registerWorkspaceTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
