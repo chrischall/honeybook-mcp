@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "honeybook": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/bundle.js"],
+      "env": {
+        "HONEYBOOK_VENDORS": "${HONEYBOOK_VENDORS}"
+      }
+    }
+  }
+}

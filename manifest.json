@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/dxt/main/dist/mcpb-manifest.schema.json",
+  "manifest_version": "0.3",
+  "name": "honeybook-mcp",
+  "display_name": "HoneyBook",
+  "version": "0.1.0",
+  "description": "HoneyBook client-portal MCP — view wedding-vendor contracts and invoices",
+  "author": {
+    "name": "Chris Chall",
+    "email": "chris.c.hall@gmail.com",
+    "url": "https://github.com/chrischall"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrischall/honeybook-mcp"
+  },
+  "homepage": "https://github.com/chrischall/honeybook-mcp",
+  "support": "https://github.com/chrischall/honeybook-mcp/issues",
+  "license": "MIT",
+  "keywords": ["honeybook", "wedding", "contracts", "invoices"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/bundle.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/bundle.js"],
+      "env": {
+        "HONEYBOOK_VENDORS": "${user_config.vendors}"
+      }
+    }
+  },
+  "user_config": {
+    "vendors": {
+      "type": "string",
+      "title": "HoneyBook Vendors",
+      "description": "Comma-separated slug list (e.g. silk_veil,photog). Per-vendor HB_<SLUG>_* secrets must be added to your Claude config's env block separately — see README.md for details.",
+      "required": true,
+      "sensitive": false
+    }
+  },
+  "tools": [
+    { "name": "list_vendors", "description": "Connected HoneyBook vendors" },
+    { "name": "list_workspace_files", "description": "Files from one vendor (contracts, invoices, etc.)" },
+    { "name": "get_workspace_file", "description": "One file's full detail" },
+    { "name": "get_workspace", "description": "Workspace detail with status flags" },
+    { "name": "list_payment_methods", "description": "Saved payment methods" },
+    { "name": "sign_contract", "description": "Deep link to sign a contract in the portal" },
+    { "name": "pay_invoice", "description": "Deep link to pay an invoice in the portal" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=20.6.0" }
+  }
+}
