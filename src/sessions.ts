@@ -165,9 +165,20 @@ class SessionStore {
         throw new Error('No HB_AUTH_TOKEN found — did the magic link fail to load?');
       }
 
+      // If HB_CURR_USER wasn't populated yet (common in headless mode), fall
+      // back to the portal subdomain as a readable label.
+      let companyName = captured.companyName;
+      if (!companyName) {
+        try {
+          companyName = new URL(captured.portalOrigin).hostname.split('.')[0] ?? '';
+        } catch {
+          companyName = '';
+        }
+      }
+
       const session: CapturedSession = {
         portalOrigin: normalizeOrigin(captured.portalOrigin),
-        companyName: captured.companyName,
+        companyName,
         authToken: captured.authToken,
         userId: captured.userId,
         trustedDevice: captured.trustedDevice,
