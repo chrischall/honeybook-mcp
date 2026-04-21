@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "honeybook-mcp",
   "display_name": "HoneyBook",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HoneyBook client-portal MCP — view wedding-vendor contracts and invoices",
   "author": {
     "name": "Chris Chall",
@@ -17,28 +17,65 @@
   "homepage": "https://github.com/chrischall/honeybook-mcp",
   "support": "https://github.com/chrischall/honeybook-mcp/issues",
   "license": "MIT",
-  "keywords": ["honeybook", "wedding", "contracts", "invoices"],
+  "keywords": [
+    "honeybook",
+    "wedding",
+    "contracts",
+    "invoices"
+  ],
   "server": {
     "type": "node",
     "entry_point": "dist/bundle.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/bundle.js"],
+      "args": [
+        "${__dirname}/dist/bundle.js"
+      ],
       "env": {}
     }
   },
   "tools": [
-    { "name": "use_magic_link", "description": "Capture a magic-link session" },
-    { "name": "list_active_sessions", "description": "Active HoneyBook sessions" },
-    { "name": "list_workspace_files", "description": "Files from one vendor (contracts, invoices, etc.)" },
-    { "name": "get_workspace_file", "description": "One file's full detail" },
-    { "name": "get_workspace", "description": "Workspace detail with status flags" },
-    { "name": "list_payment_methods", "description": "Saved payment methods" },
-    { "name": "sign_contract", "description": "Deep link to sign a contract in the portal" },
-    { "name": "pay_invoice", "description": "Deep link to pay an invoice in the portal" }
+    {
+      "name": "use_magic_link",
+      "description": "Capture a magic-link session"
+    },
+    {
+      "name": "list_active_sessions",
+      "description": "Active HoneyBook sessions"
+    },
+    {
+      "name": "list_workspace_files",
+      "description": "Files from one vendor (contracts, invoices, etc.)"
+    },
+    {
+      "name": "get_workspace_file",
+      "description": "One file's full detail"
+    },
+    {
+      "name": "get_workspace",
+      "description": "Workspace detail with status flags"
+    },
+    {
+      "name": "list_payment_methods",
+      "description": "Saved payment methods"
+    },
+    {
+      "name": "sign_contract",
+      "description": "Deep link to sign a contract in the portal"
+    },
+    {
+      "name": "pay_invoice",
+      "description": "Deep link to pay an invoice in the portal"
+    }
   ],
   "compatibility": {
-    "platforms": ["darwin", "win32", "linux"],
-    "runtimes": { "node": ">=20.6.0" }
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=20.6.0"
+    }
   }
 }

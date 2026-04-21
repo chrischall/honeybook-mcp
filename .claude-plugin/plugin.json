@@ -1,7 +1,7 @@
 {
   "name": "honeybook",
   "displayName": "HoneyBook",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HoneyBook client-portal MCP for Claude — view wedding-vendor contracts and invoices via MCP",
   "author": {
     "name": "Chris Chall",
@@ -10,7 +10,13 @@
   "homepage": "https://github.com/chrischall/honeybook-mcp",
   "repository": "https://github.com/chrischall/honeybook-mcp",
   "license": "MIT",
-  "keywords": ["honeybook", "wedding", "contracts", "invoices", "mcp"],
+  "keywords": [
+    "honeybook",
+    "wedding",
+    "contracts",
+    "invoices",
+    "mcp"
+  ],
   "skills": "./skills/",
   "mcp": "./.mcp.json"
 }
