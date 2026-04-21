@@ -122,42 +122,45 @@ async function main() {
 
 async function captureFromMagicLink(browser, url) {
   const page = await browser.newPage();
-  const fingerprintPromise = new Promise((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(
-      () => rejectPromise(new Error('Timed out waiting for first api.honeybook.com request (30s).')),
-      30000
-    );
-    const onRequest = (req) => {
-      const u = req.url();
-      if (u.includes('api.honeybook.com/api/v2/')) {
-        const fp = req.headers()['hb-api-fingerprint'];
-        if (fp) {
-          clearTimeout(timer);
-          page.off('request', onRequest);
-          resolvePromise(fp);
+  try {
+    const fingerprintPromise = new Promise((resolvePromise, rejectPromise) => {
+      const timer = setTimeout(
+        () => rejectPromise(new Error('Timed out waiting for first api.honeybook.com request (30s).')),
+        30000
+      );
+      const onRequest = (req) => {
+        const u = req.url();
+        if (u.includes('api.honeybook.com/api/v2/')) {
+          const fp = req.headers()['hb-api-fingerprint'];
+          if (fp) {
+            clearTimeout(timer);
+            page.off('request', onRequest);
+            resolvePromise(fp);
+          }
         }
-      }
-    };
-    page.on('request', onRequest);
-  });
-  await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+      };
+      page.on('request', onRequest);
+    });
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-  const fingerprint = await fingerprintPromise;
-  const captured = await page.evaluate(() => {
-    const j = JSON.parse(localStorage.getItem('jStorage') || '{}');
-    const user = j.HB_CURR_USER || {};
-    const company = (user.company && user.company.company_name) || '';
-    return {
-      authToken: j.HB_AUTH_TOKEN,
-      userId: j.HB_AUTH_USER_ID,
-      trustedDevice: j.HB_TRUSTED_DEVICE,
-      companyName: company,
-      portalOrigin: location.origin,
-    };
-  });
-  await page.close();
-  if (!captured.authToken) throw new Error('No HB_AUTH_TOKEN found — did the magic link fail to load?');
-  return { ...captured, fingerprint };
+    const fingerprint = await fingerprintPromise;
+    const captured = await page.evaluate(() => {
+      const j = JSON.parse(localStorage.getItem('jStorage') || '{}');
+      const user = j.HB_CURR_USER || {};
+      const company = (user.company && user.company.company_name) || '';
+      return {
+        authToken: j.HB_AUTH_TOKEN,
+        userId: j.HB_AUTH_USER_ID,
+        trustedDevice: j.HB_TRUSTED_DEVICE,
+        companyName: company,
+        portalOrigin: location.origin,
+      };
+    });
+    if (!captured.authToken) throw new Error('No HB_AUTH_TOKEN found — did the magic link fail to load?');
+    return { ...captured, fingerprint };
+  } finally {
+    await page.close().catch(() => {});
+  }
 }
 
 function resolveChromePath() {

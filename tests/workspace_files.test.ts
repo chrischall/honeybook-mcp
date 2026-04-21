@@ -66,6 +66,16 @@ describe('workspace_files tools', () => {
     expect(clientModule.getClientFor).toHaveBeenCalledWith('photog');
   });
 
+  it('listWorkspaceFiles: prepends a pagination notice when last_page is false', async () => {
+    fakeClient.request.mockResolvedValueOnce({
+      data: [MOCK_FILE],
+      cur_page: 1,
+      last_page: false,
+    });
+    const result = await listWorkspaceFiles({});
+    expect(result.content[0].text).toMatch(/more results exist/);
+  });
+
   it('getWorkspaceFile: hits /workspace_files/{id}', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_FILE);
     const result = await getWorkspaceFile({ file_id: '69db9c003d1e6f0030c46242' });

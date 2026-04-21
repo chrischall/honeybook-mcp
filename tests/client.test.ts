@@ -271,6 +271,25 @@ describe('HoneyBookClient.request', () => {
       vi.useRealTimers();
     }
   });
+
+  it('throws "Rate limited" after two consecutive 429s', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValue(new Response('', { status: 429 }));
+      const client = new HoneyBookClient(scope, 2578);
+      // Attach a catch synchronously so the rejection during fake-timer
+      // advancement doesn't briefly register as unhandled.
+      const caught = client.request('GET', '/api/v2/users/uid_24').catch((e) => e);
+      await vi.advanceTimersByTimeAsync(2000);
+      const err = await caught;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(/Rate limited by HoneyBook API/);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('getClientFor', () => {

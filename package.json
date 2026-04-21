@@ -30,7 +30,7 @@
   },
   "type": "module",
   "bin": {
-    "honeybook-mcp": "dist/index.js"
+    "honeybook-mcp": "dist/bundle.js"
   },
   "scripts": {
     "build": "tsc && npm run bundle",

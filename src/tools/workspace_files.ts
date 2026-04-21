@@ -16,7 +16,8 @@ export async function listWorkspaceFiles(args: {
   const filtered = args.file_type
     ? res.data.filter((f) => f.file_type === args.file_type)
     : res.data;
-  return { content: [{ type: 'text', text: JSON.stringify(filtered, null, 2) }] };
+  const prefix = res.last_page === false ? '// NOTE: more results exist on later pages; pagination is not yet wired up.\n' : '';
+  return { content: [{ type: 'text', text: prefix + JSON.stringify(filtered, null, 2) }] };
 }
 
 export async function getWorkspaceFile(args: {
