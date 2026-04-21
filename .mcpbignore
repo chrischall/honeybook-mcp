@@ -1,0 +1,36 @@
+# Source
+src/
+tests/
+scripts/
+
+# Dev tooling
+node_modules/
+coverage/
+tsconfig.json
+vitest.config.ts
+*.test.ts
+*.skill
+
+# Plugin/marketplace files (shipped via npm files array, not mcpb)
+.claude-plugin/
+skills/
+plugin.json
+.mcp.json
+
+# Docs (dev artifacts)
+docs/
+
+# GitHub/CI
+.github/
+
+# Local config
+.claude/
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# The ignore file itself
+.mcpbignore
