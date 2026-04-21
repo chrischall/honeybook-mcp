@@ -11,7 +11,7 @@ try {
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { registerVendorTools } from './tools/vendors.js';
+import { registerSessionTools } from './tools/sessions.js';
 import { registerWorkspaceFileTools } from './tools/workspace_files.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
 import { registerPaymentMethodTools } from './tools/payment_methods.js';
@@ -23,7 +23,7 @@ const server = new McpServer({
   version: '0.1.0',
 });
 
-registerVendorTools(server);
+registerSessionTools(server);
 registerWorkspaceFileTools(server);
 registerWorkspaceTools(server);
 registerPaymentMethodTools(server);

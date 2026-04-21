@@ -3,11 +3,21 @@ import * as clientModule from '../src/client.js';
 import { listPaymentMethods } from '../src/tools/payment_methods.js';
 
 describe('listPaymentMethods', () => {
-  let fakeClient: { request: ReturnType<typeof vi.fn>; scope: { slug: string; userId: string } };
+  let fakeClient: {
+    request: ReturnType<typeof vi.fn>;
+    scope: { portalOrigin: string; companyName: string; userId: string };
+  };
 
   beforeEach(() => {
-    fakeClient = { request: vi.fn(), scope: { slug: 'silk_veil', userId: 'uid_24' } };
-    vi.spyOn(clientModule, 'getClientFor').mockResolvedValue(
+    fakeClient = {
+      request: vi.fn(),
+      scope: {
+        portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co',
+        companyName: 'The Silk Veil Events by Ivy',
+        userId: 'uid_24',
+      },
+    };
+    vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
       fakeClient as unknown as clientModule.HoneyBookClient
     );
   });

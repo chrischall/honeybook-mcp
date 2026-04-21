@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getClientFor } from '../client.js';
+import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 interface InvoiceFile {
@@ -13,10 +13,10 @@ interface InvoiceFile {
 
 export async function payInvoice(args: {
   file_id: string;
-  vendor?: string;
+  origin?: string;
   confirm?: boolean;
 }): Promise<ToolResult> {
-  const client = await getClientFor(args.vendor);
+  const client = await getActiveClient(args.origin);
   const file = await client.request<InvoiceFile>('GET', `/api/v2/workspace_files/${args.file_id}`);
   if (file.file_type !== 'invoice') {
     throw new Error(
@@ -58,9 +58,19 @@ export function registerInvoiceTools(server: McpServer): void {
       description:
         'Pay an invoice from a vendor. In v1 this returns a deep link to the HoneyBook portal instead of paying headlessly. Requires confirm:true.',
       inputSchema: {
-        file_id: z.string().describe('The invoice file _id from list_workspace_files (file_type=invoice).'),
-        vendor: z.string().optional().describe('Vendor slug.'),
-        confirm: z.boolean().optional().describe('Must be true to proceed. Without this, tool returns a preview.'),
+        file_id: z
+          .string()
+          .describe('The invoice file _id from list_workspace_files (file_type=invoice).'),
+        origin: z
+          .string()
+          .optional()
+          .describe(
+            'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
+          ),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe('Must be true to proceed. Without this, tool returns a preview.'),
       },
       annotations: { destructiveHint: true },
     },

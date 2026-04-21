@@ -21,11 +21,21 @@ const MOCK_FILE = {
 };
 
 describe('workspace_files tools', () => {
-  let fakeClient: { request: ReturnType<typeof vi.fn>; scope: { slug: string; userId: string } };
+  let fakeClient: {
+    request: ReturnType<typeof vi.fn>;
+    scope: { portalOrigin: string; companyName: string; userId: string };
+  };
 
   beforeEach(() => {
-    fakeClient = { request: vi.fn(), scope: { slug: 'silk_veil', userId: 'uid_24' } };
-    vi.spyOn(clientModule, 'getClientFor').mockResolvedValue(
+    fakeClient = {
+      request: vi.fn(),
+      scope: {
+        portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co',
+        companyName: 'The Silk Veil Events by Ivy',
+        userId: 'uid_24',
+      },
+    };
+    vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
       fakeClient as unknown as clientModule.HoneyBookClient
     );
   });
@@ -60,10 +70,10 @@ describe('workspace_files tools', () => {
     expect(parsed[0]._id).toBe('other_id');
   });
 
-  it('listWorkspaceFiles: passes vendor through to getClientFor', async () => {
+  it('listWorkspaceFiles: passes origin through to getActiveClient', async () => {
     fakeClient.request.mockResolvedValueOnce({ data: [], cur_page: null, last_page: true });
-    await listWorkspaceFiles({ vendor: 'photog' });
-    expect(clientModule.getClientFor).toHaveBeenCalledWith('photog');
+    await listWorkspaceFiles({ origin: 'https://photog.hbportal.co' });
+    expect(clientModule.getActiveClient).toHaveBeenCalledWith('https://photog.hbportal.co');
   });
 
   it('listWorkspaceFiles: prepends a pagination notice when last_page is false', async () => {

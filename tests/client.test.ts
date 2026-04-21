@@ -7,6 +7,7 @@ import {
   currentModuleApiVersion,
 } from '../src/client.js';
 import * as sessionsModule from '../src/sessions.js';
+import { sessionStore } from '../src/sessions.js';
 import type { CapturedSession } from '../src/types.js';
 
 const MOCK_SESSION: CapturedSession = {
