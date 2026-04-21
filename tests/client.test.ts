@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { vi } from 'vitest';
-import { loadVendorScopes, fetchApiVersion } from '../src/client.js';
+import { loadVendorScopes, fetchApiVersion, HoneyBookClient } from '../src/client.js';
 
 describe('loadVendorScopes', () => {
   const originalEnv = { ...process.env };
@@ -114,5 +114,128 @@ describe('fetchApiVersion', () => {
       new Response('nope', { status: 200 })
     );
     await expect(fetchApiVersion()).rejects.toThrow(/api_version/);
+  });
+});
+
+describe('HoneyBookClient.request', () => {
+  const scope = {
+    slug: 'silk_veil',
+    label: 'Silk Veil',
+    authToken: 'tok_43',
+    userId: 'uid_24',
+    trustedDevice: 'td_64',
+    fingerprint: 'fp_32',
+    portalOrigin: 'https://sv.hbportal.co',
+  };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('sends the 8 required headers on a GET', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    await client.request('GET', '/api/v2/users/uid_24');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe('https://api.honeybook.com/api/v2/users/uid_24');
+    const h = init!.headers as Record<string, string>;
+    expect(h['hb-api-auth-token']).toBe('tok_43');
+    expect(h['hb-api-user-id']).toBe('uid_24');
+    expect(h['hb-trusted-device']).toBe('td_64');
+    expect(h['hb-api-client-version']).toBe('2578');
+    expect(h['hb-api-fingerprint']).toBe('fp_32');
+    expect(h['hb-admin-login']).toBe('false');
+    expect(h['accept']).toBe('application/json, text/plain, */*');
+    expect(h['hb-api-duplicate-calls-prevention-uuid']).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    );
+  });
+
+  it('parses JSON response bodies', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ _id: 'abc' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    const res = await client.request<{ _id: string }>('GET', '/api/v2/users/uid_24');
+    expect(res).toEqual({ _id: 'abc' });
+  });
+
+  it('sends JSON body on POST with content-type header', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    await client.request('POST', '/api/v2/workspace_files/x/sign', { signature: 'yes' });
+    const [, init] = fetchSpy.mock.calls[0];
+    const h = init!.headers as Record<string, string>;
+    expect(h['content-type']).toBe('application/json');
+    expect(init!.body).toBe(JSON.stringify({ signature: 'yes' }));
+  });
+
+  it('throws on non-2xx with status and truncated body', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('server exploded', { status: 500, statusText: 'Internal Server Error' })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
+      /500 Internal Server Error.*server exploded/
+    );
+  });
+
+  it('throws a clear auth message on 401', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"error":true,"error_type":"HBAuthenticationError"}', {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
+      /HoneyBook auth expired for vendor "silk_veil".*npm run auth/
+    );
+  });
+
+  it('re-fetches api version and retries once on HBWrongAPIVersionError', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    fetchSpy.mockResolvedValueOnce(
+      new Response('{"error":true,"error_type":"HBWrongAPIVersionError","error_data":{"server_api_version":9999}}', {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ _id: 'ok' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    const res = await client.request<{ _id: string }>('GET', '/api/v2/users/uid_24');
+    expect(res).toEqual({ _id: 'ok' });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const secondHeaders = fetchSpy.mock.calls[1]![1]!.headers as Record<string, string>;
+    expect(secondHeaders['hb-api-client-version']).toBe('9999');
+  });
+
+  it('retries once after a 429 with a 2s backoff', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    fetchSpy.mockResolvedValueOnce(new Response('', { status: 429 }));
+    fetchSpy.mockResolvedValueOnce(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const client = new HoneyBookClient(scope, 2578);
+    const p = client.request('GET', '/api/v2/users/uid_24');
+    await vi.advanceTimersByTimeAsync(2000);
+    await p;
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });

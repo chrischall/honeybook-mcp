@@ -45,3 +45,74 @@ export async function fetchApiVersion(): Promise<number> {
   if (!m) throw new Error(`Could not parse api_version from /api/gon response: ${text.slice(0, 200)}`);
   return Number(m[1]);
 }
+
+export class HoneyBookClient {
+  public readonly scope: VendorScope;
+  private apiVersion: number;
+
+  constructor(scope: VendorScope, apiVersion: number) {
+    this.scope = scope;
+    this.apiVersion = apiVersion;
+  }
+
+  async request<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+    path: string,
+    body?: unknown,
+    isVersionRetry = false,
+    isRateRetry = false
+  ): Promise<T> {
+    const headers: Record<string, string> = {
+      accept: 'application/json, text/plain, */*',
+      'hb-api-auth-token': this.scope.authToken,
+      'hb-api-user-id': this.scope.userId,
+      'hb-trusted-device': this.scope.trustedDevice,
+      'hb-api-client-version': String(this.apiVersion),
+      'hb-api-fingerprint': this.scope.fingerprint,
+      'hb-api-duplicate-calls-prevention-uuid': crypto.randomUUID(),
+      'hb-admin-login': 'false',
+    };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+    if (response.status === 401) {
+      throw new Error(
+        `HoneyBook auth expired for vendor "${this.scope.slug}". ` +
+          `Run \`npm run auth\` to capture a fresh session.`
+      );
+    }
+
+    if (response.status === 429) {
+      if (!isRateRetry) {
+        await new Promise<void>((r) => setTimeout(r, 2000));
+        return this.request<T>(method, path, body, isVersionRetry, true);
+      }
+      throw new Error('Rate limited by HoneyBook API');
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      if (text.includes('HBWrongAPIVersionError') && !isVersionRetry) {
+        try {
+          const parsed = JSON.parse(text) as { error_data?: { server_api_version?: number } };
+          const fresh = parsed.error_data?.server_api_version ?? (await fetchApiVersion());
+          this.apiVersion = fresh;
+        } catch {
+          this.apiVersion = await fetchApiVersion();
+        }
+        return this.request<T>(method, path, body, true, isRateRetry);
+      }
+      throw new Error(
+        `HoneyBook API error ${response.status} ${response.statusText} for ${method} ${path}: ${text.slice(0, 200)}`
+      );
+    }
+
+    const text = await response.text();
+    return (text ? JSON.parse(text) : null) as T;
+  }
+}
