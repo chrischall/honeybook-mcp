@@ -1,43 +1,11 @@
-import type { VendorScope } from './types.js';
-
-const REQUIRED_FIELDS = ['AUTH_TOKEN', 'USER_ID', 'TRUSTED_DEVICE', 'FINGERPRINT', 'PORTAL_ORIGIN'] as const;
-
-export function loadVendorScopes(): Record<string, VendorScope> {
-  const list = process.env.HONEYBOOK_VENDORS;
-  if (!list) return {};
-  const slugs = list
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  const scopes: Record<string, VendorScope> = {};
-  for (const slug of slugs) {
-    const UP = slug.toUpperCase();
-    const get = (suffix: string) => process.env[`HB_${UP}_${suffix}`];
-    for (const field of REQUIRED_FIELDS) {
-      if (!get(field)) {
-        throw new Error(
-          `Vendor "${slug}": missing required env var HB_${UP}_${field}. ` +
-            `Run \`npm run auth\` to capture credentials for this vendor.`
-        );
-      }
-    }
-    scopes[slug] = {
-      slug,
-      label: get('LABEL') || slug,
-      authToken: get('AUTH_TOKEN')!,
-      userId: get('USER_ID')!,
-      trustedDevice: get('TRUSTED_DEVICE')!,
-      fingerprint: get('FINGERPRINT')!,
-      portalOrigin: get('PORTAL_ORIGIN')!.replace(/\/$/, ''),
-    };
-  }
-  return scopes;
-}
+import type { CapturedSession } from './types.js';
+import { sessionStore } from './sessions.js';
 
 const API_BASE = 'https://api.honeybook.com';
 
+// Cache keyed by portalOrigin
 const clientCache = new Map<string, HoneyBookClient>();
-const moduleState: { apiVersionPromise: Promise<number> | null } = { apiVersionPromise: null };
+export const moduleState: { apiVersionPromise: Promise<number> | null } = { apiVersionPromise: null };
 
 export async function fetchApiVersion(): Promise<number> {
   const override = process.env.HONEYBOOK_API_VERSION;
@@ -50,10 +18,10 @@ export async function fetchApiVersion(): Promise<number> {
 }
 
 export class HoneyBookClient {
-  public readonly scope: VendorScope;
+  public readonly scope: CapturedSession;
   private apiVersion: number;
 
-  constructor(scope: VendorScope, apiVersion: number) {
+  constructor(scope: CapturedSession, apiVersion: number) {
     this.scope = scope;
     this.apiVersion = apiVersion;
   }
@@ -85,8 +53,8 @@ export class HoneyBookClient {
 
     if (response.status === 401) {
       throw new Error(
-        `HoneyBook auth expired for vendor "${this.scope.slug}". ` +
-          `Run \`npm run auth\` to capture a fresh session.`
+        `HoneyBook auth expired for portal "${this.scope.companyName}" (${this.scope.portalOrigin}). ` +
+          `Use the \`use_magic_link\` tool to capture a fresh session.`
       );
     }
 
@@ -121,52 +89,37 @@ export class HoneyBookClient {
   }
 }
 
+export function clearClientCache(): void {
+  clientCache.clear();
+}
+
 export function resetClientsForTest(): void {
   clientCache.clear();
   moduleState.apiVersionPromise = null;
 }
 
-export async function getClientFor(vendor?: string): Promise<HoneyBookClient> {
-  // Fast path: if vendor is explicitly provided and already cached, skip env reload.
-  if (vendor) {
-    const cached = clientCache.get(vendor);
-    if (cached) return cached;
-  }
-  const scopes = loadVendorScopes();
-  const slugs = Object.keys(scopes);
-  if (slugs.length === 0) {
+export async function getActiveClient(origin?: string): Promise<HoneyBookClient> {
+  const session = sessionStore.get(origin);
+  if (!session) {
+    const active = sessionStore.list();
+    if (active.length === 0) {
+      throw new Error(
+        'No active HoneyBook session. Use the `use_magic_link` tool with a magic-link URL from a vendor\'s email to activate one.'
+      );
+    }
     throw new Error(
-      'No HoneyBook vendors configured. Set HONEYBOOK_VENDORS and run `npm run auth` to populate credentials.'
+      `No active session for origin "${origin}". Active origins: ${active.map((s) => s.portalOrigin).join(', ')}`
     );
   }
-  let slug: string;
-  if (!vendor) {
-    if (slugs.length > 1) {
-      throw new Error(
-        `Multiple vendors configured (${slugs.join(', ')}). Please specify the \`vendor\` argument.`
-      );
-    }
-    slug = slugs[0]!;
-  } else {
-    if (!scopes[vendor]) {
-      throw new Error(
-        `Vendor "${vendor}" not in HONEYBOOK_VENDORS. Configured: ${slugs.join(', ') || '(none)'}.`
-      );
-    }
-    slug = vendor;
-  }
-  const existing = clientCache.get(slug);
-  if (existing) return existing;
+
+  const cached = clientCache.get(session.portalOrigin);
+  if (cached) return cached;
+
   if (!moduleState.apiVersionPromise) moduleState.apiVersionPromise = fetchApiVersion();
   const apiVersion = await moduleState.apiVersionPromise;
-  const client = new HoneyBookClient(scopes[slug]!, apiVersion);
-  clientCache.set(slug, client);
+  const client = new HoneyBookClient(session, apiVersion);
+  clientCache.set(session.portalOrigin, client);
   return client;
-}
-
-export function listConfiguredVendors(): { slug: string; label: string }[] {
-  const scopes = loadVendorScopes();
-  return Object.values(scopes).map((s) => ({ slug: s.slug, label: s.label }));
 }
 
 /** Test-only — do not use in production code. Returns the currently cached api version, if any. */

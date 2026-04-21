@@ -1,92 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { vi } from 'vitest';
-import { loadVendorScopes, fetchApiVersion, HoneyBookClient, getClientFor, resetClientsForTest, currentModuleApiVersion } from '../src/client.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  fetchApiVersion,
+  HoneyBookClient,
+  getActiveClient,
+  resetClientsForTest,
+  currentModuleApiVersion,
+} from '../src/client.js';
+import * as sessionsModule from '../src/sessions.js';
+import type { CapturedSession } from '../src/types.js';
 
-describe('loadVendorScopes', () => {
-  const originalEnv = { ...process.env };
-
-  beforeEach(() => {
-    for (const k of Object.keys(process.env)) {
-      if (k.startsWith('HB_') || k === 'HONEYBOOK_VENDORS') delete process.env[k];
-    }
-  });
-
-  afterEach(() => {
-    for (const k of Object.keys(process.env)) {
-      if (k.startsWith('HB_') || k === 'HONEYBOOK_VENDORS') delete process.env[k];
-    }
-    Object.assign(process.env, originalEnv);
-  });
-
-  it('returns empty map when HONEYBOOK_VENDORS is unset', () => {
-    expect(loadVendorScopes()).toEqual({});
-  });
-
-  it('parses a single vendor from slug-prefixed env vars', () => {
-    process.env.HONEYBOOK_VENDORS = 'silk_veil';
-    process.env.HB_SILK_VEIL_LABEL = 'The Silk Veil Events by Ivy';
-    process.env.HB_SILK_VEIL_AUTH_TOKEN = 'tok_43';
-    process.env.HB_SILK_VEIL_USER_ID = 'uid_24';
-    process.env.HB_SILK_VEIL_TRUSTED_DEVICE = 'td_64';
-    process.env.HB_SILK_VEIL_FINGERPRINT = 'fp_32';
-    process.env.HB_SILK_VEIL_PORTAL_ORIGIN = 'https://thesilkveileventsbyivy.hbportal.co';
-    const scopes = loadVendorScopes();
-    expect(scopes).toEqual({
-      silk_veil: {
-        slug: 'silk_veil',
-        label: 'The Silk Veil Events by Ivy',
-        authToken: 'tok_43',
-        userId: 'uid_24',
-        trustedDevice: 'td_64',
-        fingerprint: 'fp_32',
-        portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co',
-      },
-    });
-  });
-
-  it('strips trailing slash from PORTAL_ORIGIN', () => {
-    process.env.HONEYBOOK_VENDORS = 'x';
-    process.env.HB_X_AUTH_TOKEN = 'a';
-    process.env.HB_X_USER_ID = 'b';
-    process.env.HB_X_TRUSTED_DEVICE = 'c';
-    process.env.HB_X_FINGERPRINT = 'd';
-    process.env.HB_X_PORTAL_ORIGIN = 'https://x.hbportal.co/';
-    expect(loadVendorScopes().x?.portalOrigin).toBe('https://x.hbportal.co');
-  });
-
-  it('trims whitespace and ignores empty slugs', () => {
-    process.env.HONEYBOOK_VENDORS = ' silk_veil , , photog ';
-    process.env.HB_SILK_VEIL_AUTH_TOKEN = 'a';
-    process.env.HB_SILK_VEIL_USER_ID = 'b';
-    process.env.HB_SILK_VEIL_TRUSTED_DEVICE = 'c';
-    process.env.HB_SILK_VEIL_FINGERPRINT = 'd';
-    process.env.HB_SILK_VEIL_PORTAL_ORIGIN = 'https://sv.hbportal.co';
-    process.env.HB_PHOTOG_AUTH_TOKEN = 'a2';
-    process.env.HB_PHOTOG_USER_ID = 'b2';
-    process.env.HB_PHOTOG_TRUSTED_DEVICE = 'c2';
-    process.env.HB_PHOTOG_FINGERPRINT = 'd2';
-    process.env.HB_PHOTOG_PORTAL_ORIGIN = 'https://p.hbportal.co';
-    const scopes = loadVendorScopes();
-    expect(Object.keys(scopes).sort()).toEqual(['photog', 'silk_veil']);
-  });
-
-  it('defaults label to slug when HB_<SLUG>_LABEL is missing', () => {
-    process.env.HONEYBOOK_VENDORS = 'photog';
-    process.env.HB_PHOTOG_AUTH_TOKEN = 'a';
-    process.env.HB_PHOTOG_USER_ID = 'b';
-    process.env.HB_PHOTOG_TRUSTED_DEVICE = 'c';
-    process.env.HB_PHOTOG_FINGERPRINT = 'd';
-    process.env.HB_PHOTOG_PORTAL_ORIGIN = 'https://p.hbportal.co';
-    expect(loadVendorScopes().photog?.label).toBe('photog');
-  });
-
-  it('throws with a clear message when a required field is missing', () => {
-    process.env.HONEYBOOK_VENDORS = 'venue';
-    process.env.HB_VENUE_AUTH_TOKEN = 'a';
-    // user_id, trusted_device, fingerprint, portal_origin all missing
-    expect(() => loadVendorScopes()).toThrow(/venue.*HB_VENUE_USER_ID/);
-  });
-});
+const MOCK_SESSION: CapturedSession = {
+  portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co',
+  companyName: 'The Silk Veil Events by Ivy',
+  authToken: 'tok_43',
+  userId: 'uid_24',
+  trustedDevice: 'td_64',
+  fingerprint: 'fp_32',
+  capturedAt: 1745000000000,
+};
 
 describe('fetchApiVersion', () => {
   afterEach(() => {
@@ -118,16 +49,6 @@ describe('fetchApiVersion', () => {
 });
 
 describe('HoneyBookClient.request', () => {
-  const scope = {
-    slug: 'silk_veil',
-    label: 'Silk Veil',
-    authToken: 'tok_43',
-    userId: 'uid_24',
-    trustedDevice: 'td_64',
-    fingerprint: 'fp_32',
-    portalOrigin: 'https://sv.hbportal.co',
-  };
-
   afterEach(() => vi.restoreAllMocks());
 
   it('sends the 8 required headers on a GET', async () => {
@@ -137,7 +58,7 @@ describe('HoneyBookClient.request', () => {
         headers: { 'content-type': 'application/json' },
       })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     await client.request('GET', '/api/v2/users/uid_24');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
@@ -162,7 +83,7 @@ describe('HoneyBookClient.request', () => {
         headers: { 'content-type': 'application/json' },
       })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     const res = await client.request<{ _id: string }>('GET', '/api/v2/users/uid_24');
     expect(res).toEqual({ _id: 'abc' });
   });
@@ -171,7 +92,7 @@ describe('HoneyBookClient.request', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     await client.request('POST', '/api/v2/workspace_files/x/sign', { signature: 'yes' });
     const [, init] = fetchSpy.mock.calls[0];
     const h = init!.headers as Record<string, string>;
@@ -183,7 +104,7 @@ describe('HoneyBookClient.request', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('server exploded', { status: 500, statusText: 'Internal Server Error' })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
       /500 Internal Server Error.*server exploded/
     );
@@ -196,9 +117,9 @@ describe('HoneyBookClient.request', () => {
         headers: { 'content-type': 'application/json' },
       })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
-      /HoneyBook auth expired for vendor "silk_veil".*npm run auth/
+      /HoneyBook auth expired for portal "The Silk Veil Events by Ivy".*use_magic_link/
     );
   });
 
@@ -216,7 +137,7 @@ describe('HoneyBookClient.request', () => {
         headers: { 'content-type': 'application/json' },
       })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     const res = await client.request<{ _id: string }>('GET', '/api/v2/users/uid_24');
     expect(res).toEqual({ _id: 'ok' });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -226,29 +147,24 @@ describe('HoneyBookClient.request', () => {
 
   it('updates module-level api version after version-retry so next client inherits the fix', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    // First call errors with wrong version
     fetchSpy.mockResolvedValueOnce(
       new Response('{"error":true,"error_type":"HBWrongAPIVersionError","error_data":{"server_api_version":9999}}', {
         status: 400,
         headers: { 'content-type': 'application/json' },
       })
     );
-    // Retry succeeds
     fetchSpy.mockResolvedValueOnce(
       new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
     );
-    const client = new HoneyBookClient(scope, 2578);
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
     await client.request('GET', '/api/v2/users/uid_24');
-
-    // moduleState.apiVersionPromise should now resolve to 9999
     expect(await currentModuleApiVersion()).toBe(9999);
 
-    // A second client created using the module-level version should send the corrected version
     fetchSpy.mockResolvedValueOnce(
       new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
     );
     const version = (await currentModuleApiVersion()) ?? 2578;
-    const client2 = new HoneyBookClient(scope, version);
+    const client2 = new HoneyBookClient(MOCK_SESSION, version);
     await client2.request('GET', '/api/v2/users/uid_24');
     const secondCallHeaders = fetchSpy.mock.calls[2]![1]!.headers as Record<string, string>;
     expect(secondCallHeaders['hb-api-client-version']).toBe('9999');
@@ -262,7 +178,7 @@ describe('HoneyBookClient.request', () => {
       fetchSpy.mockResolvedValueOnce(
         new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
       );
-      const client = new HoneyBookClient(scope, 2578);
+      const client = new HoneyBookClient(MOCK_SESSION, 2578);
       const p = client.request('GET', '/api/v2/users/uid_24');
       await vi.advanceTimersByTimeAsync(2000);
       await p;
@@ -277,9 +193,7 @@ describe('HoneyBookClient.request', () => {
     try {
       const fetchSpy = vi.spyOn(globalThis, 'fetch');
       fetchSpy.mockResolvedValue(new Response('', { status: 429 }));
-      const client = new HoneyBookClient(scope, 2578);
-      // Attach a catch synchronously so the rejection during fake-timer
-      // advancement doesn't briefly register as unhandled.
+      const client = new HoneyBookClient(MOCK_SESSION, 2578);
       const caught = client.request('GET', '/api/v2/users/uid_24').catch((e) => e);
       await vi.advanceTimersByTimeAsync(2000);
       const err = await caught;
@@ -292,70 +206,48 @@ describe('HoneyBookClient.request', () => {
   });
 });
 
-describe('getClientFor', () => {
-  afterEach(() => {
-    resetClientsForTest();
-    for (const k of Object.keys(process.env)) {
-      if (k.startsWith('HB_') || k === 'HONEYBOOK_VENDORS' || k === 'HONEYBOOK_API_VERSION') delete process.env[k];
-    }
-  });
-
+describe('getActiveClient', () => {
   beforeEach(() => {
+    resetClientsForTest();
+    sessionStore.resetForTest();
     process.env.HONEYBOOK_API_VERSION = '2578';
   });
 
-  it('returns the only configured vendor when slug is omitted', async () => {
-    process.env.HONEYBOOK_VENDORS = 'silk_veil';
-    process.env.HB_SILK_VEIL_AUTH_TOKEN = 'a';
-    process.env.HB_SILK_VEIL_USER_ID = 'b';
-    process.env.HB_SILK_VEIL_TRUSTED_DEVICE = 'c';
-    process.env.HB_SILK_VEIL_FINGERPRINT = 'd';
-    process.env.HB_SILK_VEIL_PORTAL_ORIGIN = 'https://sv.hbportal.co';
-    const c = await getClientFor();
-    expect(c.scope.slug).toBe('silk_veil');
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetClientsForTest();
+    sessionStore.resetForTest();
+    delete process.env.HONEYBOOK_API_VERSION;
   });
 
-  it('throws when no vendors configured', async () => {
-    await expect(getClientFor()).rejects.toThrow(/HONEYBOOK_VENDORS/);
+  it('throws with helpful message when no sessions are active', async () => {
+    await expect(getActiveClient()).rejects.toThrow(/use_magic_link/);
   });
 
-  it('throws when multiple vendors exist and slug is omitted', async () => {
-    process.env.HONEYBOOK_VENDORS = 'a,b';
-    for (const v of ['A', 'B']) {
-      process.env[`HB_${v}_AUTH_TOKEN`] = 'x';
-      process.env[`HB_${v}_USER_ID`] = 'x';
-      process.env[`HB_${v}_TRUSTED_DEVICE`] = 'x';
-      process.env[`HB_${v}_FINGERPRINT`] = 'x';
-      process.env[`HB_${v}_PORTAL_ORIGIN`] = `https://${v.toLowerCase()}.hbportal.co`;
-    }
-    await expect(getClientFor()).rejects.toThrow(/specify the `vendor` argument/);
+  it('throws with origin list when origin is specified but no sessions active', async () => {
+    // No sessions loaded
+    await expect(getActiveClient('https://unknown.hbportal.co')).rejects.toThrow(/use_magic_link/);
   });
 
-  it('throws when slug is not in HONEYBOOK_VENDORS', async () => {
-    process.env.HONEYBOOK_VENDORS = 'a';
-    process.env.HB_A_AUTH_TOKEN = 'x';
-    process.env.HB_A_USER_ID = 'x';
-    process.env.HB_A_TRUSTED_DEVICE = 'x';
-    process.env.HB_A_FINGERPRINT = 'x';
-    process.env.HB_A_PORTAL_ORIGIN = 'https://a.hbportal.co';
-    await expect(getClientFor('nonexistent')).rejects.toThrow(/nonexistent.*not in HONEYBOOK_VENDORS/);
+  it('throws with active origins when requested origin is unknown', async () => {
+    vi.spyOn(sessionsModule.sessionStore, 'get').mockReturnValue(null);
+    vi.spyOn(sessionsModule.sessionStore, 'list').mockReturnValue([MOCK_SESSION]);
+    await expect(getActiveClient('https://unknown.hbportal.co')).rejects.toThrow(
+      /No active session for origin.*thesilkveileventsbyivy/
+    );
   });
 
-  it('returns cached client without re-reading env when vendor is explicitly passed', async () => {
-    process.env.HONEYBOOK_VENDORS = 'a,b';
-    for (const v of ['A', 'B']) {
-      process.env[`HB_${v}_AUTH_TOKEN`] = 'x';
-      process.env[`HB_${v}_USER_ID`] = 'x';
-      process.env[`HB_${v}_TRUSTED_DEVICE`] = 'x';
-      process.env[`HB_${v}_FINGERPRINT`] = 'x';
-      process.env[`HB_${v}_PORTAL_ORIGIN`] = `https://${v.toLowerCase()}.hbportal.co`;
-    }
-    // First call populates cache for 'a'
-    const first = await getClientFor('a');
-    // Break vendor 'b's config
-    delete process.env.HB_B_AUTH_TOKEN;
-    // Second call for 'a' should still succeed (shouldn't touch b's env)
-    const second = await getClientFor('a');
-    expect(second).toBe(first);
+  it('returns a HoneyBookClient for the most-recent session when no origin given', async () => {
+    vi.spyOn(sessionsModule.sessionStore, 'get').mockReturnValue(MOCK_SESSION);
+    const client = await getActiveClient();
+    expect(client).toBeInstanceOf(HoneyBookClient);
+    expect(client.scope.portalOrigin).toBe(MOCK_SESSION.portalOrigin);
+  });
+
+  it('caches the client by portalOrigin on repeated calls', async () => {
+    vi.spyOn(sessionsModule.sessionStore, 'get').mockReturnValue(MOCK_SESSION);
+    const c1 = await getActiveClient();
+    const c2 = await getActiveClient();
+    expect(c1).toBe(c2);
   });
 });
