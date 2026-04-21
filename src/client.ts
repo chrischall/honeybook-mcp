@@ -116,3 +116,49 @@ export class HoneyBookClient {
     return (text ? JSON.parse(text) : null) as T;
   }
 }
+
+const clientCache = new Map<string, HoneyBookClient>();
+let apiVersionPromise: Promise<number> | null = null;
+
+export function resetClientsForTest(): void {
+  clientCache.clear();
+  apiVersionPromise = null;
+}
+
+export async function getClientFor(vendor?: string): Promise<HoneyBookClient> {
+  const scopes = loadVendorScopes();
+  const slugs = Object.keys(scopes);
+  if (slugs.length === 0) {
+    throw new Error(
+      'No HoneyBook vendors configured. Set HONEYBOOK_VENDORS and run `npm run auth` to populate credentials.'
+    );
+  }
+  let slug: string;
+  if (!vendor) {
+    if (slugs.length > 1) {
+      throw new Error(
+        `Multiple vendors configured (${slugs.join(', ')}). Please specify the \`vendor\` argument.`
+      );
+    }
+    slug = slugs[0]!;
+  } else {
+    if (!scopes[vendor]) {
+      throw new Error(
+        `Vendor "${vendor}" not in HONEYBOOK_VENDORS. Configured: ${slugs.join(', ') || '(none)'}.`
+      );
+    }
+    slug = vendor;
+  }
+  const existing = clientCache.get(slug);
+  if (existing) return existing;
+  if (!apiVersionPromise) apiVersionPromise = fetchApiVersion();
+  const apiVersion = await apiVersionPromise;
+  const client = new HoneyBookClient(scopes[slug]!, apiVersion);
+  clientCache.set(slug, client);
+  return client;
+}
+
+export function listConfiguredVendors(): { slug: string; label: string }[] {
+  const scopes = loadVendorScopes();
+  return Object.values(scopes).map((s) => ({ slug: s.slug, label: s.label }));
+}

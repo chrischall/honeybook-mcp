@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { vi } from 'vitest';
-import { loadVendorScopes, fetchApiVersion, HoneyBookClient } from '../src/client.js';
+import { loadVendorScopes, fetchApiVersion, HoneyBookClient, getClientFor, resetClientsForTest } from '../src/client.js';
 
 describe('loadVendorScopes', () => {
   const originalEnv = { ...process.env };
@@ -237,5 +237,55 @@ describe('HoneyBookClient.request', () => {
     await p;
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
+  });
+});
+
+describe('getClientFor', () => {
+  afterEach(() => {
+    resetClientsForTest();
+    for (const k of Object.keys(process.env)) {
+      if (k.startsWith('HB_') || k === 'HONEYBOOK_VENDORS' || k === 'HONEYBOOK_API_VERSION') delete process.env[k];
+    }
+  });
+
+  beforeEach(() => {
+    process.env.HONEYBOOK_API_VERSION = '2578';
+  });
+
+  it('returns the only configured vendor when slug is omitted', async () => {
+    process.env.HONEYBOOK_VENDORS = 'silk_veil';
+    process.env.HB_SILK_VEIL_AUTH_TOKEN = 'a';
+    process.env.HB_SILK_VEIL_USER_ID = 'b';
+    process.env.HB_SILK_VEIL_TRUSTED_DEVICE = 'c';
+    process.env.HB_SILK_VEIL_FINGERPRINT = 'd';
+    process.env.HB_SILK_VEIL_PORTAL_ORIGIN = 'https://sv.hbportal.co';
+    const c = await getClientFor();
+    expect(c.scope.slug).toBe('silk_veil');
+  });
+
+  it('throws when no vendors configured', async () => {
+    await expect(getClientFor()).rejects.toThrow(/HONEYBOOK_VENDORS/);
+  });
+
+  it('throws when multiple vendors exist and slug is omitted', async () => {
+    process.env.HONEYBOOK_VENDORS = 'a,b';
+    for (const v of ['A', 'B']) {
+      process.env[`HB_${v}_AUTH_TOKEN`] = 'x';
+      process.env[`HB_${v}_USER_ID`] = 'x';
+      process.env[`HB_${v}_TRUSTED_DEVICE`] = 'x';
+      process.env[`HB_${v}_FINGERPRINT`] = 'x';
+      process.env[`HB_${v}_PORTAL_ORIGIN`] = `https://${v.toLowerCase()}.hbportal.co`;
+    }
+    await expect(getClientFor()).rejects.toThrow(/specify the `vendor` argument/);
+  });
+
+  it('throws when slug is not in HONEYBOOK_VENDORS', async () => {
+    process.env.HONEYBOOK_VENDORS = 'a';
+    process.env.HB_A_AUTH_TOKEN = 'x';
+    process.env.HB_A_USER_ID = 'x';
+    process.env.HB_A_TRUSTED_DEVICE = 'x';
+    process.env.HB_A_FINGERPRINT = 'x';
+    process.env.HB_A_PORTAL_ORIGIN = 'https://a.hbportal.co';
+    await expect(getClientFor('nonexistent')).rejects.toThrow(/nonexistent.*not in HONEYBOOK_VENDORS/);
   });
 });
