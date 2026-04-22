@@ -86,18 +86,22 @@ export function buildSummary(file: RawFile): Record<string, unknown> {
   const event = getObj(file, 'event');
   const agreement = getObj(file, 'agreement');
 
-  const packages = getArr(vp, 'vendor_packages').map((p) => ({
-    title: getStr(p, 'title'),
-    description: (getStr(p, 'description') ?? '').slice(0, 400),
-    price: getNum(p, 'total_price') ?? getNum(p, 'sub_total'),
+  const mapLineItem = (p: RawFile) => ({
+    name: getStr(p, 'title') ?? getStr(p, 'name'),
+    category: getStr(p, 'category'),
+    description: getStr(p, 'description'),
+    price: getNum(p, 'total_price') ?? getNum(p, 'sub_total') ?? getNum(p, 'price'),
+    price_per_unit: getNum(p, 'price_per_unit'),
     quantity: getNum(p, 'quantity'),
+    unit: getStr(p, 'unit'),
+  });
+  const packages = getArr(vp, 'vendor_packages').map((p) => ({
+    ...mapLineItem(p),
+    base_price: getNum(p, 'base_price'),
+    includes: getArr(p, 'base_services').map(mapLineItem),
   }));
-  const services = getArr(vp, 'service_items').map((s) => ({
-    title: getStr(s, 'title'),
-    description: (getStr(s, 'description') ?? '').slice(0, 400),
-    price: getNum(s, 'total_price') ?? getNum(s, 'sub_total'),
-    quantity: getNum(s, 'quantity'),
-  }));
+  const add_ons = getArr(vp, 'package_services').map(mapLineItem);
+  const services = getArr(vp, 'service_items').map(mapLineItem);
 
   return {
     _id: file._id,
@@ -145,6 +149,7 @@ export function buildSummary(file: RawFile): Record<string, unknown> {
       total_tax: getNum(vp, 'total_tax'),
       total_svc: getNum(vp, 'total_svc'),
       packages,
+      add_ons,
       services,
     },
     payments: {

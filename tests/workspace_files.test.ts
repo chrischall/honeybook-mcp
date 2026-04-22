@@ -68,8 +68,16 @@ const MOCK_PROPOSAL = {
         title: '2026 Day of Coordination',
         description: 'Day of Coordination service description',
         total_price: 900,
+        base_price: 900,
         quantity: 1,
+        base_services: [
+          { name: 'Pre-Wedding Planning', category: 'General', description: 'Planning details', price: 0 },
+          { name: 'Wedding Day', category: 'General', description: 'Up to 8 hours', price: 0 },
+        ],
       },
+    ],
+    package_services: [
+      { name: 'Add assistant', description: 'Assistant add for 8 hours', price: 250, quantity: 1 },
     ],
     service_items: [],
   },
@@ -174,7 +182,12 @@ describe('workspace_files tools', () => {
     expect(parsed.pricing.sub_total).toBe(1150);
     expect(parsed.pricing.total_price).toBe(1035);
     expect(parsed.pricing.packages).toHaveLength(1);
-    expect(parsed.pricing.packages[0].title).toBe('2026 Day of Coordination');
+    expect(parsed.pricing.packages[0].name).toBe('2026 Day of Coordination');
+    expect(parsed.pricing.packages[0].includes).toHaveLength(2);
+    expect(parsed.pricing.packages[0].includes[0].name).toBe('Pre-Wedding Planning');
+    expect(parsed.pricing.add_ons).toHaveLength(1);
+    expect(parsed.pricing.add_ons[0].name).toBe('Add assistant');
+    expect(parsed.pricing.add_ons[0].price).toBe(250);
     expect(parsed.payments.total).toBeCloseTo(569.25);
     expect(parsed.payments.paid).toBe(155.25);
     expect(parsed.payments.remaining).toBeCloseTo(414);
