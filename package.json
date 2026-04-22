@@ -1,6 +1,6 @@
 {
   "name": "honeybook-mcp",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "mcpName": "io.github.chrischall/honeybook-mcp",
   "description": "HoneyBook client-portal MCP server for Claude",
   "author": "Claude Code (AI) <https://www.anthropic.com/claude>",
