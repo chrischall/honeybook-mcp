@@ -7,7 +7,7 @@ import { FILE_TYPES } from '../types.js';
 /**
  * Vendor-side sub-fields on `company` that a CLIENT never needs but that
  * balloon the response (observed: `vendor_emails` alone was ~1.3 MB on a
- * single real proposal). Stripped by default; pass include_raw=true to keep.
+ * single real proposal). Stripped by default; section='raw' keeps them.
  */
 const HEAVY_COMPANY_FIELDS = [
   'vendor_emails',
@@ -37,6 +37,177 @@ export function pruneWorkspaceFile(file: Record<string, unknown>): Record<string
   return pruned;
 }
 
+export const WORKSPACE_FILE_SECTIONS = [
+  'summary',
+  'pricing',
+  'agreement',
+  'payments',
+  'all',
+  'raw',
+] as const;
+export type WorkspaceFileSection = (typeof WORKSPACE_FILE_SECTIONS)[number];
+
+type RawFile = Record<string, unknown>;
+
+// Short helpers
+function getObj(o: RawFile | undefined, key: string): RawFile | undefined {
+  const v = o?.[key];
+  return v && typeof v === 'object' ? (v as RawFile) : undefined;
+}
+function getArr(o: RawFile | undefined, key: string): RawFile[] {
+  const v = o?.[key];
+  return Array.isArray(v) ? (v as RawFile[]) : [];
+}
+function getStr(o: RawFile | undefined, key: string): string | undefined {
+  const v = o?.[key];
+  return typeof v === 'string' ? v : undefined;
+}
+function getNum(o: RawFile | undefined, key: string): number | undefined {
+  const v = o?.[key];
+  return typeof v === 'number' ? v : undefined;
+}
+
+/**
+ * Compact summary: ~5-15 kB even for proposal-class files. Contains everything
+ * a caller typically needs up front (identity, status, vendor, event, totals,
+ * payment schedule, package titles + pricing). For the contract text or the
+ * full vendor_proposal, call again with section='agreement' or 'pricing'.
+ */
+export function buildSummary(file: RawFile): Record<string, unknown> {
+  const vp = getObj(file, 'vendor_proposal') ?? {};
+  const payments = getArr(getObj(file, 'payments_container'), 'payments');
+  const paymentsTotal = payments.reduce((s, p) => s + (getNum(p, 'amount') ?? 0), 0);
+  const paymentsPaid = payments
+    .filter((p) => p.is_paid === true)
+    .reduce((s, p) => s + (getNum(p, 'amount') ?? 0), 0);
+
+  const owner = getObj(file, 'owner');
+  const company = getObj(file, 'company');
+  const event = getObj(file, 'event');
+  const agreement = getObj(file, 'agreement');
+
+  const packages = getArr(vp, 'vendor_packages').map((p) => ({
+    title: getStr(p, 'title'),
+    description: (getStr(p, 'description') ?? '').slice(0, 400),
+    price: getNum(p, 'total_price') ?? getNum(p, 'sub_total'),
+    quantity: getNum(p, 'quantity'),
+  }));
+  const services = getArr(vp, 'service_items').map((s) => ({
+    title: getStr(s, 'title'),
+    description: (getStr(s, 'description') ?? '').slice(0, 400),
+    price: getNum(s, 'total_price') ?? getNum(s, 'sub_total'),
+    quantity: getNum(s, 'quantity'),
+  }));
+
+  return {
+    _id: file._id,
+    file_title: file.file_title,
+    file_type: file.file_type,
+    status: file.status,
+    status_name: file.status_name,
+    status_type: file.status_type,
+    sent_on: file.sent_on,
+    created_at: file.created_at,
+    auto_expiration: file.auto_expiration,
+    is_file_accepted: file.is_file_accepted,
+    is_booked_version: file.is_booked_version,
+    is_canceled: file.is_canceled,
+    has_pending_payment: file.has_pending_payment,
+    currency: file.currency,
+    workspace: {
+      name: getStr(file, 'workspace_name'),
+      status_type: getStr(file, 'workspace_status_type'),
+      status_name: getStr(file, 'workspace_status_name'),
+      active_state: getStr(file, 'workspace_active_state'),
+    },
+    vendor: {
+      company_name: getStr(company, 'company_name'),
+      owner_name: [getStr(owner, 'first_name'), getStr(owner, 'last_name')].filter(Boolean).join(' '),
+      owner_email: getStr(owner, 'email'),
+      owner_phone: getStr(owner, 'phone_number'),
+    },
+    event: event
+      ? {
+          _id: event._id,
+          date: getStr(event, 'event_date'),
+          type: getStr(event, 'type'),
+          couple_names: getStr(event, 'couple_names'),
+        }
+      : null,
+    pricing: {
+      sub_total: getNum(vp, 'sub_total'),
+      total_price: getNum(vp, 'total_price'),
+      discount: getNum(vp, 'discount')
+        ? { value: getNum(vp, 'discount'), type: getStr(vp, 'discount_type') }
+        : null,
+      tax: getNum(vp, 'tax') ? { value: getNum(vp, 'tax'), type: getStr(vp, 'tax_type') } : null,
+      svc: getNum(vp, 'svc') ? { value: getNum(vp, 'svc'), type: getStr(vp, 'svc_type') } : null,
+      total_tax: getNum(vp, 'total_tax'),
+      total_svc: getNum(vp, 'total_svc'),
+      packages,
+      services,
+    },
+    payments: {
+      total: paymentsTotal,
+      paid: paymentsPaid,
+      remaining: paymentsTotal - paymentsPaid,
+      count: payments.length,
+      schedule: payments.map((p) => ({
+        due_date: getStr(p, 'due_date'),
+        amount: getNum(p, 'amount'),
+        count_description: getStr(p, 'count_description'),
+        invoice: getStr(p, 'invoice'),
+        is_paid: p.is_paid === true,
+        is_pending: p.is_pending === true,
+        is_milestone: p.is_milestone === true,
+      })),
+    },
+    agreement: agreement
+      ? {
+          present: true,
+          signatures: getArr(agreement, 'contract_signatures').map((s) => ({
+            signed_by: getStr(s, 'signer_email') ?? getStr(s, 'signer_name'),
+            signed_at: getStr(s, 'signed_at') ?? getStr(s, 'signature_date'),
+            is_vendor: s.is_vendor === true,
+          })),
+          html_length: (getStr(agreement, 'html_body') ?? '').length,
+        }
+      : { present: false },
+    sections_available: WORKSPACE_FILE_SECTIONS,
+    hint:
+      'Call get_workspace_file again with section="pricing" (full line items + tax/svc detail), "agreement" (contract HTML + signatures), "payments" (full payment-schedule detail), "all" (pruned full response), or "raw" (full unpruned response — may exceed MCP size limit).',
+  };
+}
+
+function extractPricing(file: RawFile): Record<string, unknown> {
+  return {
+    _id: file._id,
+    file_title: file.file_title,
+    currency: file.currency,
+    vendor_proposal: file.vendor_proposal,
+  };
+}
+
+function extractAgreement(file: RawFile): Record<string, unknown> {
+  return {
+    _id: file._id,
+    file_title: file.file_title,
+    agreement: file.agreement,
+  };
+}
+
+function extractPayments(file: RawFile): Record<string, unknown> {
+  return {
+    _id: file._id,
+    file_title: file.file_title,
+    currency: file.currency,
+    payment_type: file.payment_type,
+    has_milestone_payment: file.has_milestone_payment,
+    has_pending_payment: file.has_pending_payment,
+    payments_container: file.payments_container,
+  };
+}
+
 export async function listWorkspaceFiles(args: {
   origin?: string;
   file_type?: string;
@@ -59,14 +230,35 @@ export async function listWorkspaceFiles(args: {
 export async function getWorkspaceFile(args: {
   file_id: string;
   origin?: string;
-  include_raw?: boolean;
+  section?: WorkspaceFileSection;
 }): Promise<ToolResult> {
+  const section: WorkspaceFileSection = args.section ?? 'summary';
   const client = await getActiveClient(args.origin);
-  const res = await client.request<Record<string, unknown>>(
-    'GET',
-    `/api/v2/workspace_files/${args.file_id}`
-  );
-  const body = args.include_raw ? res : pruneWorkspaceFile(res);
+  const raw = await client.request<RawFile>('GET', `/api/v2/workspace_files/${args.file_id}`);
+
+  let body: unknown;
+  switch (section) {
+    case 'raw':
+      body = raw;
+      break;
+    case 'all':
+      body = pruneWorkspaceFile(raw);
+      break;
+    case 'pricing':
+      body = extractPricing(raw);
+      break;
+    case 'agreement':
+      body = extractAgreement(raw);
+      break;
+    case 'payments':
+      body = extractPayments(raw);
+      break;
+    case 'summary':
+    default:
+      body = buildSummary(raw);
+      break;
+  }
+
   return { content: [{ type: 'text', text: JSON.stringify(body, null, 2) }] };
 }
 
@@ -96,7 +288,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
     'get_workspace_file',
     {
       description:
-        'Get full detail for one workspace file by its _id. The vendor-side admin blob inside `company` (email templates, brochure templates, etc., which can be >1 MB) is stripped by default; pass include_raw:true to keep it.',
+        'Get detail for one workspace file. Returns a compact summary by default (metadata, vendor, event, pricing totals, payment schedule, agreement presence). Use `section` to drill into a specific part of the file: "pricing" for full line items + tax/svc detail, "agreement" for contract HTML + signatures, "payments" for full payment-schedule detail, "all" for the pruned full response, or "raw" for the entirely-unpruned response (may exceed MCP size limits on proposal-class files).',
       inputSchema: {
         file_id: z.string().describe('The file _id from list_workspace_files.'),
         origin: z
@@ -105,11 +297,11 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           .describe(
             'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
           ),
-        include_raw: z
-          .boolean()
+        section: z
+          .enum(WORKSPACE_FILE_SECTIONS)
           .optional()
           .describe(
-            'If true, return the full unpruned response. Default false — strips heavy vendor-side fields under `company`.'
+            'Which view to return. Default "summary" (~5-15 kB). Others return focused sections of the raw response.'
           ),
       },
       annotations: { readOnlyHint: true },

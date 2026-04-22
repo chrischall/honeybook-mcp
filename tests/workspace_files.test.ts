@@ -4,6 +4,7 @@ import {
   listWorkspaceFiles,
   getWorkspaceFile,
   pruneWorkspaceFile,
+  buildSummary,
 } from '../src/tools/workspace_files.js';
 
 const MOCK_FILE = {
@@ -22,6 +23,69 @@ const MOCK_FILE = {
   event: { _id: 'event_id' },
   owner: { _id: 'owner_id', first_name: 'Ivy', last_name: 'Smith' },
   workspace: { _id: 'workspace_id', workspace_status_cd: 'lead' },
+};
+
+const MOCK_PROPOSAL = {
+  _id: 'file_proposal',
+  file_title: 'Wedding Proposal',
+  file_type: 'proposal',
+  status: 1,
+  status_name: 'Proposal Sent',
+  status_type: 'sent',
+  sent_on: '2026-04-21T11:51:02.816Z',
+  created_at: '2026-04-21T10:00:00Z',
+  is_file_accepted: false,
+  is_booked_version: false,
+  has_pending_payment: false,
+  currency: 'USD',
+  workspace: { _id: 'ws1' },
+  workspace_name: 'Meredith + Chris',
+  event: { _id: 'ev1', event_date: '2026-10-17' },
+  owner: {
+    _id: 'owner1',
+    first_name: 'Ivy',
+    last_name: 'Honeycutt',
+    email: 'ivy@example.com',
+    phone_number: '555-555-0000',
+  },
+  company: {
+    company_name: 'The Silk Veil Events by Ivy',
+    vendor_emails: [{ body: 'x'.repeat(10000) }],
+  },
+  vendor_proposal: {
+    sub_total: 1150,
+    total_price: 1035,
+    discount: 10,
+    discount_type: 'relative',
+    tax: 7.25,
+    tax_type: 'relative',
+    svc: 18,
+    svc_type: 'relative',
+    total_tax: 78.2,
+    total_svc: 186,
+    vendor_packages: [
+      {
+        title: '2026 Day of Coordination',
+        description: 'Day of Coordination service description',
+        total_price: 900,
+        quantity: 1,
+      },
+    ],
+    service_items: [],
+  },
+  payments_container: {
+    payments: [
+      { _id: 'p1', due_date: '2026-04-21', amount: 258.75, count_description: '1 of 6', invoice: 'inv-1', is_paid: false, is_pending: false },
+      { _id: 'p2', due_date: '2026-05-15', amount: 155.25, count_description: '2 of 6', invoice: 'inv-2', is_paid: true, is_pending: false },
+      { _id: 'p3', due_date: '2026-06-15', amount: 155.25, count_description: '3 of 6', invoice: 'inv-3', is_paid: false, is_pending: false },
+    ],
+  },
+  agreement: {
+    html_body: '<p>Contract text</p>',
+    contract_signatures: [
+      { signer_email: 'ivy@example.com', signed_at: '2026-04-21T12:00:00Z', is_vendor: true },
+    ],
+  },
 };
 
 describe('workspace_files tools', () => {
@@ -92,45 +156,80 @@ describe('workspace_files tools', () => {
 
   it('getWorkspaceFile: hits /workspace_files/{id}', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_FILE);
-    const result = await getWorkspaceFile({ file_id: '69db9c003d1e6f0030c46242' });
-    expect(fakeClient.request).toHaveBeenCalledWith('GET', '/api/v2/workspace_files/69db9c003d1e6f0030c46242');
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed._id).toBe('69db9c003d1e6f0030c46242');
+    await getWorkspaceFile({ file_id: '69db9c003d1e6f0030c46242' });
+    expect(fakeClient.request).toHaveBeenCalledWith(
+      'GET',
+      '/api/v2/workspace_files/69db9c003d1e6f0030c46242'
+    );
   });
 
-  it('getWorkspaceFile: strips heavy company.* fields by default', async () => {
-    fakeClient.request.mockResolvedValueOnce({
-      ...MOCK_FILE,
-      file_title: 'Proposal',
-      company: {
-        company_name: 'Acme Weddings',
-        vendor_emails: new Array(100).fill({ subject: 'template', body: 'x'.repeat(5000) }),
-        brochure_templates: [{ html: 'x'.repeat(10000) }],
-        workflow_automation_infos: [{ a: 1 }],
-        questionnaires: [{ q: 1 }],
-        agreements: [{ a: 1 }],
-        vendor_packages: [{ p: 1 }],
-      },
-    });
-    const result = await getWorkspaceFile({ file_id: 'f1' });
+  it('getWorkspaceFile: default section is "summary" with compact shape', async () => {
+    fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
+    const result = await getWorkspaceFile({ file_id: 'file_proposal' });
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.company.company_name).toBe('Acme Weddings');
+    expect(parsed.file_title).toBe('Wedding Proposal');
+    expect(parsed.vendor.company_name).toBe('The Silk Veil Events by Ivy');
+    expect(parsed.vendor.owner_name).toBe('Ivy Honeycutt');
+    expect(parsed.event.date).toBe('2026-10-17');
+    expect(parsed.pricing.sub_total).toBe(1150);
+    expect(parsed.pricing.total_price).toBe(1035);
+    expect(parsed.pricing.packages).toHaveLength(1);
+    expect(parsed.pricing.packages[0].title).toBe('2026 Day of Coordination');
+    expect(parsed.payments.total).toBeCloseTo(569.25);
+    expect(parsed.payments.paid).toBe(155.25);
+    expect(parsed.payments.remaining).toBeCloseTo(414);
+    expect(parsed.payments.count).toBe(3);
+    expect(parsed.agreement.present).toBe(true);
+    expect(parsed.agreement.html_length).toBe(20);
+    // vendor_emails should be gone (summary skips the raw blob entirely)
+    expect(JSON.stringify(parsed)).not.toContain('vendor_emails');
+    // summary response stays tiny
+    expect(result.content[0].text.length).toBeLessThan(5000);
+  });
+
+  it('getWorkspaceFile: section="pricing" returns vendor_proposal', async () => {
+    fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
+    const result = await getWorkspaceFile({ file_id: 'f1', section: 'pricing' });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.vendor_proposal.sub_total).toBe(1150);
+    expect(parsed.currency).toBe('USD');
+    expect(parsed.agreement).toBeUndefined();
+    expect(parsed.payments_container).toBeUndefined();
+  });
+
+  it('getWorkspaceFile: section="agreement" returns agreement only', async () => {
+    fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
+    const result = await getWorkspaceFile({ file_id: 'f1', section: 'agreement' });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.agreement.html_body).toBe('<p>Contract text</p>');
+    expect(parsed.vendor_proposal).toBeUndefined();
+    expect(parsed.payments_container).toBeUndefined();
+  });
+
+  it('getWorkspaceFile: section="payments" returns payments_container only', async () => {
+    fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
+    const result = await getWorkspaceFile({ file_id: 'f1', section: 'payments' });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.payments_container.payments).toHaveLength(3);
+    expect(parsed.agreement).toBeUndefined();
+    expect(parsed.vendor_proposal).toBeUndefined();
+  });
+
+  it('getWorkspaceFile: section="all" strips heavy company.* fields', async () => {
+    fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
+    const result = await getWorkspaceFile({ file_id: 'f1', section: 'all' });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.company.company_name).toBe('The Silk Veil Events by Ivy');
     expect(parsed.company.vendor_emails).toBeUndefined();
-    expect(parsed.company.brochure_templates).toBeUndefined();
-    expect(parsed.company.workflow_automation_infos).toBeUndefined();
-    expect(parsed.company.questionnaires).toBeUndefined();
-    expect(parsed.company.agreements).toBeUndefined();
-    expect(parsed.company.vendor_packages).toBeUndefined();
+    expect(parsed.vendor_proposal).toBeDefined();
+    expect(parsed.agreement).toBeDefined();
   });
 
-  it('getWorkspaceFile: keeps heavy fields when include_raw=true', async () => {
-    fakeClient.request.mockResolvedValueOnce({
-      ...MOCK_FILE,
-      company: { company_name: 'Acme', vendor_emails: [{ a: 1 }] },
-    });
-    const result = await getWorkspaceFile({ file_id: 'f1', include_raw: true });
+  it('getWorkspaceFile: section="raw" keeps everything including vendor_emails', async () => {
+    fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
+    const result = await getWorkspaceFile({ file_id: 'f1', section: 'raw' });
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.company.vendor_emails).toEqual([{ a: 1 }]);
+    expect(parsed.company.vendor_emails).toBeDefined();
   });
 
   it('pruneWorkspaceFile: no-op when company is missing', () => {
@@ -145,5 +244,13 @@ describe('workspace_files tools', () => {
     const snapshot = JSON.parse(JSON.stringify(original));
     pruneWorkspaceFile(original);
     expect(original).toEqual(snapshot);
+  });
+
+  it('buildSummary: handles a brochure (no pricing, no agreement)', () => {
+    const summary = buildSummary(MOCK_FILE);
+    expect(summary.file_title).toBe('Wedding Brochure');
+    expect((summary.pricing as Record<string, unknown>).packages).toEqual([]);
+    expect((summary.agreement as Record<string, unknown>).present).toBe(false);
+    expect((summary.payments as Record<string, unknown>).count).toBe(0);
   });
 });
