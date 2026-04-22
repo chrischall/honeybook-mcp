@@ -1,7 +1,7 @@
 {
   "name": "honeybook",
   "displayName": "HoneyBook",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "HoneyBook client-portal MCP for Claude — view wedding-vendor contracts and invoices via MCP",
   "author": {
     "name": "Chris Chall",
