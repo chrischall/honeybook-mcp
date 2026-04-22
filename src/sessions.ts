@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { execSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import type { CapturedSession } from './types.js';
 
 export type { CapturedSession };
@@ -47,6 +49,58 @@ export function deserializeSessions(body: string): Map<string, CapturedSession> 
   } catch {
     return new Map();
   }
+}
+
+// ---------------------------------------------------------------------------
+// loadPuppeteer — resolve puppeteer-core at runtime, lazy-installing if the
+// MCP was shipped without node_modules alongside dist/bundle.js (e.g. mcpb
+// bundle install). Cached in ~/.honeybook-mcp/vendor so the install only
+// happens on first use.
+// ---------------------------------------------------------------------------
+
+const PUPPETEER_VENDOR_DIR = join(homedir(), '.honeybook-mcp', 'vendor');
+
+type PuppeteerLike = typeof import('puppeteer-core')['default'];
+
+async function loadPuppeteer(): Promise<PuppeteerLike> {
+  // Fast path: sibling node_modules resolution (git clone + npm install case).
+  try {
+    const mod = (await import('puppeteer-core')) as unknown as { default?: PuppeteerLike };
+    if (mod.default) return mod.default;
+    return mod as unknown as PuppeteerLike;
+  } catch (e) {
+    const code = (e as { code?: string })?.code;
+    const msg = (e as { message?: string })?.message ?? '';
+    const isMissing =
+      code === 'ERR_MODULE_NOT_FOUND' ||
+      code === 'MODULE_NOT_FOUND' ||
+      msg.includes('Cannot find package');
+    if (!isMissing) throw e;
+  }
+
+  // Slow path: install into ~/.honeybook-mcp/vendor/node_modules/puppeteer-core
+  mkdirSync(PUPPETEER_VENDOR_DIR, { recursive: true });
+  const vendorPkg = join(PUPPETEER_VENDOR_DIR, 'package.json');
+  if (!existsSync(vendorPkg)) {
+    writeFileSync(
+      vendorPkg,
+      JSON.stringify({ name: 'honeybook-mcp-puppeteer-host', private: true, version: '0.0.0' }, null, 2)
+    );
+  }
+  const marker = join(PUPPETEER_VENDOR_DIR, 'node_modules', 'puppeteer-core', 'package.json');
+  if (!existsSync(marker)) {
+    process.stderr.write('[honeybook-mcp] Installing puppeteer-core (one-time, ~30s)…\n');
+    execSync('npm install --no-fund --no-audit --silent puppeteer-core@^24.0.0', {
+      cwd: PUPPETEER_VENDOR_DIR,
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    process.stderr.write('[honeybook-mcp] puppeteer-core installed.\n');
+  }
+  // Use createRequire so we resolve puppeteer-core from the vendor dir
+  // regardless of where dist/bundle.js lives.
+  const req = createRequire(vendorPkg);
+  const mod = req('puppeteer-core') as { default?: PuppeteerLike } & PuppeteerLike;
+  return mod.default ?? mod;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +164,7 @@ class SessionStore {
   }
 
   async activate(magicLinkUrl: string): Promise<CapturedSession> {
-    const puppeteer = (await import('puppeteer-core')).default;
+    const puppeteer = await loadPuppeteer();
 
     const showBrowser = !!process.env.HONEYBOOK_SHOW_BROWSER;
     const chromePath = resolveChromePath();
