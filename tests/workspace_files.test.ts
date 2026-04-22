@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as clientModule from '../src/client.js';
-import { listWorkspaceFiles, getWorkspaceFile } from '../src/tools/workspace_files.js';
+import {
+  listWorkspaceFiles,
+  getWorkspaceFile,
+  pruneWorkspaceFile,
+} from '../src/tools/workspace_files.js';
 
 const MOCK_FILE = {
   _id: '69db9c003d1e6f0030c46242',
@@ -92,5 +96,54 @@ describe('workspace_files tools', () => {
     expect(fakeClient.request).toHaveBeenCalledWith('GET', '/api/v2/workspace_files/69db9c003d1e6f0030c46242');
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed._id).toBe('69db9c003d1e6f0030c46242');
+  });
+
+  it('getWorkspaceFile: strips heavy company.* fields by default', async () => {
+    fakeClient.request.mockResolvedValueOnce({
+      ...MOCK_FILE,
+      file_title: 'Proposal',
+      company: {
+        company_name: 'Acme Weddings',
+        vendor_emails: new Array(100).fill({ subject: 'template', body: 'x'.repeat(5000) }),
+        brochure_templates: [{ html: 'x'.repeat(10000) }],
+        workflow_automation_infos: [{ a: 1 }],
+        questionnaires: [{ q: 1 }],
+        agreements: [{ a: 1 }],
+        vendor_packages: [{ p: 1 }],
+      },
+    });
+    const result = await getWorkspaceFile({ file_id: 'f1' });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.company.company_name).toBe('Acme Weddings');
+    expect(parsed.company.vendor_emails).toBeUndefined();
+    expect(parsed.company.brochure_templates).toBeUndefined();
+    expect(parsed.company.workflow_automation_infos).toBeUndefined();
+    expect(parsed.company.questionnaires).toBeUndefined();
+    expect(parsed.company.agreements).toBeUndefined();
+    expect(parsed.company.vendor_packages).toBeUndefined();
+  });
+
+  it('getWorkspaceFile: keeps heavy fields when include_raw=true', async () => {
+    fakeClient.request.mockResolvedValueOnce({
+      ...MOCK_FILE,
+      company: { company_name: 'Acme', vendor_emails: [{ a: 1 }] },
+    });
+    const result = await getWorkspaceFile({ file_id: 'f1', include_raw: true });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.company.vendor_emails).toEqual([{ a: 1 }]);
+  });
+
+  it('pruneWorkspaceFile: no-op when company is missing', () => {
+    expect(pruneWorkspaceFile({ _id: 'x' })).toEqual({ _id: 'x' });
+  });
+
+  it('pruneWorkspaceFile: does not mutate the input', () => {
+    const original = {
+      _id: 'x',
+      company: { company_name: 'Acme', vendor_emails: [{ a: 1 }] },
+    };
+    const snapshot = JSON.parse(JSON.stringify(original));
+    pruneWorkspaceFile(original);
+    expect(original).toEqual(snapshot);
   });
 });
