@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "HoneyBook client-portal tools for Claude Code",
-    "version": "0.1.9"
+    "version": "0.1.10"
   },
   "plugins": [
     {
@@ -15,7 +15,7 @@
       "displayName": "HoneyBook",
       "source": "./",
       "description": "HoneyBook client-portal MCP for Claude — view wedding-vendor contracts and invoices via MCP",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "author": {
         "name": "Chris Chall"
       },
