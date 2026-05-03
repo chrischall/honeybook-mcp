@@ -5,6 +5,20 @@ import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import type { CapturedSession } from './types.js';
 
+/**
+ * Read an env var, trim whitespace, and treat as unset if blank or if the value
+ * looks like an unsubstituted shell placeholder (e.g. `${FOO}`) — defends
+ * against MCP hosts that pass .mcp.json env blocks through unexpanded.
+ */
+function readVar(key: string): string | undefined {
+  const raw = process.env[key];
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return undefined;
+  if (/^\$\{[^}]*\}$/.test(trimmed)) return undefined;
+  return trimmed;
+}
+
 export type { CapturedSession };
 
 // ---------------------------------------------------------------------------
@@ -108,7 +122,7 @@ async function loadPuppeteer(): Promise<PuppeteerLike> {
 // ---------------------------------------------------------------------------
 
 function resolveChromePath(): string {
-  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  const envPath = readVar('PUPPETEER_EXECUTABLE_PATH');
   if (envPath) return envPath;
   const defaults: Record<string, string> = {
     darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -166,7 +180,7 @@ class SessionStore {
   async activate(magicLinkUrl: string): Promise<CapturedSession> {
     const puppeteer = await loadPuppeteer();
 
-    const showBrowser = !!process.env.HONEYBOOK_SHOW_BROWSER;
+    const showBrowser = !!readVar('HONEYBOOK_SHOW_BROWSER');
     const chromePath = resolveChromePath();
 
     const browser = await puppeteer.launch({
