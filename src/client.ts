@@ -1,6 +1,20 @@
 import type { CapturedSession } from './types.js';
 import { sessionStore } from './sessions.js';
 
+/**
+ * Read an env var, trim whitespace, and treat as unset if blank or if the value
+ * looks like an unsubstituted shell placeholder (e.g. `${FOO}`) — defends
+ * against MCP hosts that pass .mcp.json env blocks through unexpanded.
+ */
+function readVar(key: string): string | undefined {
+  const raw = process.env[key];
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return undefined;
+  if (/^\$\{[^}]*\}$/.test(trimmed)) return undefined;
+  return trimmed;
+}
+
 const API_BASE = 'https://api.honeybook.com';
 
 // Cache keyed by portalOrigin
@@ -8,7 +22,7 @@ const clientCache = new Map<string, HoneyBookClient>();
 export const moduleState: { apiVersionPromise: Promise<number> | null } = { apiVersionPromise: null };
 
 export async function fetchApiVersion(): Promise<number> {
-  const override = process.env.HONEYBOOK_API_VERSION;
+  const override = readVar('HONEYBOOK_API_VERSION');
   if (override) return Number(override);
   const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`);
   const text = await res.text();
