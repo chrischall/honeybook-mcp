@@ -1,14 +1,17 @@
 # honeybook-mcp
 
 MCP server for the HoneyBook client portal — view contracts & invoices from
-multiple vendors, with deep-link fallback for signing and paying.
+multiple vendors (each vendor = one captured session), with deep-link fallback
+for signing and paying.
 
 ## Commands
 
 ```bash
-npm run build        # tsc + esbuild bundle
+npm run build        # tsc + esbuild bundle → dist/bundle.js
+npm run bundle       # esbuild only (no tsc check)
 npm test             # vitest run
 npm run test:watch   # vitest in watch mode
+npm run dev          # node --env-file=.env dist/index.js (requires built dist)
 ```
 
 ## Architecture
@@ -16,19 +19,24 @@ npm run test:watch   # vitest in watch mode
 ```
 src/
   index.ts               MCP server entry — registers tool modules, stdio transport
-  client.ts              HoneyBookClient — per-session auth, headers, request/retry
-                         getActiveClient() — reads from sessionStore
-  sessions.ts            SessionStore — disk-persisted session cache + Puppeteer capture
-                         normalizeOrigin, serializeSessions, deserializeSessions (pure helpers)
+  client.ts              HoneyBookClient — per-session auth headers, fetch wrapper,
+                         401/429/HBWrongAPIVersion retry; getActiveClient() resolves
+                         a session from sessionStore and caches a client per origin
+  sessions.ts            SessionStore — disk-persisted session cache + Puppeteer
+                         capture; pure helpers (normalizeOrigin, serializeSessions,
+                         deserializeSessions) are exported for unit tests
   types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, FileType
   tools/
     sessions.ts          use_magic_link, list_active_sessions
-    workspace_files.ts   list_workspace_files, get_workspace_file
+    workspace_files.ts   list_workspace_files, get_workspace_file (+ section
+                         filtering + heavy-field pruning to keep responses small)
     workspaces.ts        get_workspace
     payment_methods.ts   list_payment_methods
     contracts.ts         sign_contract (deep-link fallback + confirm guard)
     invoices.ts          pay_invoice (deep-link fallback + confirm guard)
 ```
+
+Each tool module exports a `register*Tools(server)` function called from `src/index.ts`.
 
 ## Session Flow
 
@@ -36,8 +44,10 @@ No env vars required. Sessions are captured at runtime:
 
 1. User calls `use_magic_link` with a URL from a vendor's HoneyBook email.
 2. A headless Chrome window opens, follows the link, extracts auth state from
-   localStorage.jStorage and the first api.honeybook.com request header.
-3. Session is stored in memory + `~/.honeybook-mcp/sessions.json` (mode 0600).
+   `localStorage.jStorage` and the first `api.honeybook.com` request header
+   (`hb-api-fingerprint`).
+3. Session is stored in memory + `~/.honeybook-mcp/sessions.json` (mode 0600,
+   directory mode 0700).
 4. All tools default to the most-recently-activated session; pass `origin` to
    target a specific vendor when multiple sessions are active.
 
@@ -49,29 +59,38 @@ HONEYBOOK_SHOW_BROWSER=1       # show Puppeteer window (debugging)
 PUPPETEER_EXECUTABLE_PATH=...  # override Chrome path
 ```
 
+`readVar()` in `client.ts`/`sessions.ts` treats blank strings and unsubstituted
+`${FOO}` placeholders as unset — defends against MCP hosts that pass `.mcp.json`
+env blocks through unexpanded.
+
 ## Testing
 
-Tests live in `tests/`. `client.request` is mocked via `vi.spyOn(globalThis, 'fetch')`;
-tool handlers mock `getActiveClient` to inject a fake client. No live API in CI.
-`sessions.ts` pure helpers (normalizeOrigin, serialize/deserialize) are unit-tested
-directly. `SessionStore.activate()` (which needs Puppeteer) is not tested.
+Tests live in `tests/`. `client.request` is exercised by mocking
+`globalThis.fetch` with `vi.spyOn`; tool handlers mock `getActiveClient` to
+inject a fake client. No live API calls in CI. `sessions.ts` pure helpers
+(`normalizeOrigin`, `serialize/deserializeSessions`) are unit-tested directly.
+`SessionStore.activate()` (which needs Puppeteer + Chrome) is not tested.
+
+`vitest.config.ts` configures the v8 coverage provider but does NOT enforce
+thresholds — CI runs `npm test` (no coverage gate).
 
 ## Plugin / Marketplace
 
 ```
 .claude-plugin/
-  plugin.json       Claude Code plugin manifest
+  plugin.json       Claude Code plugin manifest (points at .mcp.json + skills/)
   marketplace.json  Marketplace catalog entry
 skills/
   honeybook/SKILL.md
-SKILL.md            Full skill reference
+SKILL.md            Top-level skill reference (also packaged into the .skill bundle)
 manifest.json       mcpb bundle manifest
 .mcp.json           MCP server configuration for Claude Code
+server.json         modelcontextprotocol/registry manifest
 ```
 
 ## Versioning
 
-Version appears in FOUR places — all must match:
+Version appears in SEVEN places — all must match:
 
 1. `package.json` → `"version"`
 2. `package-lock.json` (regenerated by `npm install --package-lock-only`)
@@ -81,16 +100,57 @@ Version appears in FOUR places — all must match:
 6. `.claude-plugin/plugin.json` → `"version"`
 7. `.claude-plugin/marketplace.json` → `metadata.version` and `plugins[0].version`
 
-Handled automatically by the Tag & Bump GitHub Action. Do NOT manually bump.
+Handled automatically by the **Tag & Bump** GitHub Action
+(`.github/workflows/tag-and-bump.yml`). Do NOT manually bump versions or create
+tags unless the user explicitly asks.
+
+### Release workflow
+
+Main is always one version ahead of the latest tag. Trigger **Tag & Bump** to:
+
+1. Run CI (build + test)
+2. Tag the current commit with the current `package.json` version
+3. Bump patch via `npm version patch` + an inline Node script that walks every
+   JSON version field (and `sed` for `src/index.ts`)
+4. Rebuild, commit, and push main + tag
+
+The tag push triggers the **Release** workflow (`.github/workflows/release.yml`)
+which builds, publishes to npm with provenance, packages a `.skill` and `.mcpb`
+bundle, publishes to the MCP registry via `mcp-publisher` (GitHub OIDC),
+optionally pushes the skill to ClawHub (if `CLAWHUB_TOKEN` is set), and creates
+a GitHub Release with auto-generated notes (see `.github/release.yml`).
 
 ## Gotchas
 
-- **ESM + NodeNext**: `.ts` source imports use `.js` extensions.
-- **`hb-api-fingerprint` is a FingerprintJS signal** — session-constant and captured once at auth time. If HoneyBook rotates accepted fingerprints, users re-run `use_magic_link`.
-- **`HB_AUTH_TOKEN` is opaque (not JWT)** — no client-side TTL; server can revoke at will. Expired sessions throw a clear "re-run use_magic_link" error.
-- **Write tools return deep links** to the portal in v2 (sign/pay flows require browser-side device/SCA handling that a headless MCP can't replay cleanly).
-- **Per-vendor tools** take an optional `origin` arg. When only one session is active, it is inferred.
-- **puppeteer-core is a runtime dep** but externalized in the esbuild bundle (`--external:puppeteer-core`). It must be installed in the deployment environment.
+- **ESM + NodeNext**: `.ts` source imports use `.js` extensions
+  (e.g. `import { sessionStore } from './sessions.js'`).
+- **`hb-api-fingerprint` is a FingerprintJS signal** — session-constant and
+  captured once at auth time. If HoneyBook rotates accepted fingerprints,
+  users re-run `use_magic_link`.
+- **`HB_AUTH_TOKEN` is opaque (not JWT)** — no client-side TTL; server can
+  revoke at will. Expired sessions throw a clear "re-run use_magic_link" error.
+- **Write tools return deep links** — `sign_contract` and `pay_invoice` produce
+  portal URLs instead of signing/paying headlessly (browser-side device/SCA
+  handling cannot be replayed). Both require `confirm: true`.
+- **Per-vendor tools** take an optional `origin` arg. When only one session is
+  active, it is inferred. With multiple, callers must pass `origin`.
+- **puppeteer-core is externalized** in the esbuild bundle
+  (`--external:puppeteer-core`). `sessions.ts#loadPuppeteer()` resolves it from
+  a sibling `node_modules` first, then lazy-installs into
+  `~/.honeybook-mcp/vendor` on first use if missing (~30s one-time). This makes
+  the `.mcpb` bundle work even without a co-located install.
+- **API version auto-refresh**: on `HBWrongAPIVersionError`, `client.request`
+  re-reads the version from the error body (or `/api/gon`) and retries once.
+- **Rate limiting**: 429 responses trigger a single 2-second retry before
+  surfacing.
+- **stdio transport**: server only writes to stderr (`process.stderr.write`);
+  stdout is reserved for JSON-RPC. `dotenv` is imported dynamically and only
+  loaded if present (bundled mode falls back to `process.env`).
+- **Heavy-field pruning**: `workspace_files.ts#pruneWorkspaceFile` strips
+  vendor-side fields like `vendor_emails` (observed ~1.3 MB on a single real
+  proposal) by default. Pass `section: 'raw'` to keep them.
+- **Sessions persist across restarts**: `~/.honeybook-mcp/sessions.json` is
+  re-loaded on startup; most-recent origin = last in insertion order.
 
 <!-- pr-workflow:v1 -->
 ## Pull requests & release notes
@@ -112,6 +172,6 @@ For every PR, apply exactly one label so it lands in the right release-notes sec
 | *(none / unmatched)* | Other Changes            |
 | `ignore-for-release` | Hidden from notes        |
 
-The **PR title** becomes the bullet — write it like a user-facing changelog entry, not internal shorthand. Conventional-commit prefixes are still fine in commit messages, but the PR title should read clean.
+The **PR title** becomes the bullet — write it like a user-facing changelog entry (`ck_set_session: refuse stale refresh tokens`), not internal shorthand (`auth tweaks`). Conventional-commit prefixes (`feat:`, `fix:`, `chore:`) are still fine in commit messages, but the PR title should read clean.
 
 Open with `gh pr create --label <label>` (or `--label ignore-for-release` for chores not worth a line), then **immediately** run `gh pr merge <num> --auto --merge` so the PR merges as soon as CI passes. The repo allows merge commits only (no squash, no rebase) — don't pass `--squash`/`--rebase` or the call will fail.
