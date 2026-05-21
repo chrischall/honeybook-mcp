@@ -30,18 +30,7 @@
       "command": "node",
       "args": [
         "${__dirname}/dist/bundle.js"
-      ],
-      "env": {
-        "PUPPETEER_EXECUTABLE_PATH": "${user_config.puppeteer_executable_path}"
-      }
-    }
-  },
-  "user_config": {
-    "puppeteer_executable_path": {
-      "type": "string",
-      "title": "Chrome executable path (advanced)",
-      "description": "Optional. Path to your Google Chrome binary, used by use_magic_link to capture vendor sessions. Leave blank to use the platform default (/Applications/Google Chrome.app/Contents/MacOS/Google Chrome on macOS, /usr/bin/google-chrome on Linux, C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe on Windows). Set this only if Chrome is installed somewhere non-standard.",
-      "required": false
+      ]
     }
   },
   "tools": [
