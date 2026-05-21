@@ -37,18 +37,20 @@ describe('captureSessionViaFetchproxy', () => {
     else process.env.HONEYBOOK_DISABLE_FETCHPROXY = originalDisable;
   });
 
-  const validJStorage = JSON.stringify({
+  // 0.4.0+: pointer-extracted values land in session.localStorage keyed
+  // by their `outputKey`. The raw jStorage blob is no longer copied.
+  const validLocalStorage = {
     HB_AUTH_TOKEN: 'tok_abc',
     HB_AUTH_USER_ID: 'uid_42',
     HB_TRUSTED_DEVICE: 'td_99',
-    HB_CURR_USER: { company: { company_name: 'Silk Veil Events' } },
-  });
+    HB_COMPANY_NAME: 'Silk Veil Events',
+  };
 
-  describe('happy path: jStorage + fingerprint captured', () => {
-    it('reads jStorage from localStorage and the hb-api-fingerprint header', async () => {
+  describe('happy path: pointer-extracted fields + fingerprint captured', () => {
+    it('reads pointer fields from localStorage and the hb-api-fingerprint header', async () => {
       bootstrapMock.mockResolvedValue({
         cookies: {},
-        localStorage: { jStorage: validJStorage },
+        localStorage: validLocalStorage,
         sessionStorage: {},
         capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
       });
@@ -65,6 +67,7 @@ describe('captureSessionViaFetchproxy', () => {
         declare: {
           cookies: string[];
           localStorage: string[];
+          localStoragePointers: { outputKey: string; storageKey: string; jsonPointer: string }[];
           sessionStorage: string[];
           captureHeaders: { urlPattern: string; headerName: string }[];
         };
@@ -75,7 +78,14 @@ describe('captureSessionViaFetchproxy', () => {
       // and per-vendor portal subdomains (*.hbportal.co).
       expect(opts.domains).toEqual(['honeybook.com', 'hbportal.co']);
       expect(opts.declare.cookies).toEqual([]);
-      expect(opts.declare.localStorage).toEqual(['jStorage']);
+      // No more full-blob jStorage read — only declared pointer paths.
+      expect(opts.declare.localStorage).toEqual([]);
+      expect(opts.declare.localStoragePointers).toEqual([
+        { outputKey: 'HB_AUTH_TOKEN', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_TOKEN' },
+        { outputKey: 'HB_AUTH_USER_ID', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_USER_ID' },
+        { outputKey: 'HB_TRUSTED_DEVICE', storageKey: 'jStorage', jsonPointer: '/HB_TRUSTED_DEVICE' },
+        { outputKey: 'HB_COMPANY_NAME', storageKey: 'jStorage', jsonPointer: '/HB_CURR_USER/company/company_name' },
+      ]);
       expect(opts.declare.sessionStorage).toEqual([]);
       expect(opts.declare.captureHeaders).toEqual([
         { urlPattern: 'https://api.honeybook.com/api/v2/*', headerName: 'hb-api-fingerprint' },
@@ -93,7 +103,7 @@ describe('captureSessionViaFetchproxy', () => {
     it('persists the captured session via sessionStore', async () => {
       bootstrapMock.mockResolvedValue({
         cookies: {},
-        localStorage: { jStorage: validJStorage },
+        localStorage: validLocalStorage,
         sessionStorage: {},
         capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
       });
@@ -109,7 +119,7 @@ describe('captureSessionViaFetchproxy', () => {
     it('normalizes the portalOrigin (strips path/query/trailing slash)', async () => {
       bootstrapMock.mockResolvedValue({
         cookies: {},
-        localStorage: { jStorage: validJStorage },
+        localStorage: validLocalStorage,
         sessionStorage: {},
         capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
       });
@@ -120,16 +130,18 @@ describe('captureSessionViaFetchproxy', () => {
       expect(session.portalOrigin).toBe('https://silkveil.hbportal.co');
     });
 
-    it('falls back to the portal subdomain when HB_CURR_USER.company.company_name is missing', async () => {
-      // Common in headless / fresh-tab cases where HB_CURR_USER hasn't populated yet.
-      const jStorageNoCompany = JSON.stringify({
-        HB_AUTH_TOKEN: 'tok',
-        HB_AUTH_USER_ID: 'uid',
-        HB_TRUSTED_DEVICE: 'td',
-      });
+    it('falls back to the portal subdomain when HB_COMPANY_NAME is empty', async () => {
+      // Common in headless / fresh-tab cases where HB_CURR_USER hasn't
+      // populated yet — the pointer resolves to undefined, which the
+      // extension represents as an absent key in the response.
       bootstrapMock.mockResolvedValue({
         cookies: {},
-        localStorage: { jStorage: jStorageNoCompany },
+        localStorage: {
+          HB_AUTH_TOKEN: 'tok',
+          HB_AUTH_USER_ID: 'uid',
+          HB_TRUSTED_DEVICE: 'td',
+          // HB_COMPANY_NAME deliberately absent
+        },
         sessionStorage: {},
         capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
       });
@@ -142,40 +154,17 @@ describe('captureSessionViaFetchproxy', () => {
   });
 
   describe('error shapes', () => {
-    it('throws when jStorage is missing from localStorage', async () => {
+    it('throws when HB_AUTH_TOKEN is missing from the pointer extractions', async () => {
+      // jStorage may be present but missing the field; the extension
+      // resolves the pointer to undefined, so the outputKey is absent
+      // from the returned map.
       bootstrapMock.mockResolvedValue({
         cookies: {},
-        localStorage: {},
-        sessionStorage: {},
-        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
-      });
-
-      await expect(
-        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
-      ).rejects.toThrow(/jStorage/);
-    });
-
-    it('throws when jStorage is unparseable JSON', async () => {
-      bootstrapMock.mockResolvedValue({
-        cookies: {},
-        localStorage: { jStorage: 'not-json{{' },
-        sessionStorage: {},
-        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
-      });
-
-      await expect(
-        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
-      ).rejects.toThrow(/jStorage/);
-    });
-
-    it('throws when HB_AUTH_TOKEN is missing from jStorage', async () => {
-      const jStorageNoToken = JSON.stringify({
-        HB_AUTH_USER_ID: 'uid',
-        HB_TRUSTED_DEVICE: 'td',
-      });
-      bootstrapMock.mockResolvedValue({
-        cookies: {},
-        localStorage: { jStorage: jStorageNoToken },
+        localStorage: {
+          HB_AUTH_USER_ID: 'uid',
+          HB_TRUSTED_DEVICE: 'td',
+          HB_COMPANY_NAME: 'co',
+        },
         sessionStorage: {},
         capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
       });
@@ -185,10 +174,44 @@ describe('captureSessionViaFetchproxy', () => {
       ).rejects.toThrow(/HB_AUTH_TOKEN/);
     });
 
+    it('throws when HB_AUTH_USER_ID is missing', async () => {
+      bootstrapMock.mockResolvedValue({
+        cookies: {},
+        localStorage: {
+          HB_AUTH_TOKEN: 'tok',
+          HB_TRUSTED_DEVICE: 'td',
+          HB_COMPANY_NAME: 'co',
+        },
+        sessionStorage: {},
+        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
+      });
+
+      await expect(
+        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
+      ).rejects.toThrow(/HB_AUTH_USER_ID/);
+    });
+
+    it('throws when HB_TRUSTED_DEVICE is missing', async () => {
+      bootstrapMock.mockResolvedValue({
+        cookies: {},
+        localStorage: {
+          HB_AUTH_TOKEN: 'tok',
+          HB_AUTH_USER_ID: 'uid',
+          HB_COMPANY_NAME: 'co',
+        },
+        sessionStorage: {},
+        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
+      });
+
+      await expect(
+        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
+      ).rejects.toThrow(/HB_TRUSTED_DEVICE/);
+    });
+
     it('throws when hb-api-fingerprint header was not captured', async () => {
       bootstrapMock.mockResolvedValue({
         cookies: {},
-        localStorage: { jStorage: validJStorage },
+        localStorage: validLocalStorage,
         sessionStorage: {},
         capturedHeaders: {},
       });
@@ -242,7 +265,7 @@ describe('captureSessionViaFetchproxy', () => {
         process.env.HONEYBOOK_DISABLE_FETCHPROXY = val;
         bootstrapMock.mockResolvedValue({
           cookies: {},
-          localStorage: { jStorage: validJStorage },
+          localStorage: validLocalStorage,
           sessionStorage: {},
           capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
         });
@@ -257,7 +280,7 @@ describe('captureSessionViaFetchproxy', () => {
         process.env.HONEYBOOK_DISABLE_FETCHPROXY = val;
         bootstrapMock.mockResolvedValue({
           cookies: {},
-          localStorage: { jStorage: validJStorage },
+          localStorage: validLocalStorage,
           sessionStorage: {},
           capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
         });

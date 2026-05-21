@@ -128,11 +128,19 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       domains: ['honeybook.com', 'hbportal.co'],
       declare: {
         cookies: [],
-        // `jStorage` is the single localStorage key the HoneyBook web app
-        // uses for its entire auth blob — bearer token, user id, trusted
-        // device id, and the HB_CURR_USER profile (which contains the
-        // company name we surface for display).
-        localStorage: ['jStorage'],
+        // We don't need the full `jStorage` blob (it's ~8KB of mostly
+        // unused state). 0.4.0's JSON-pointer extraction lets us
+        // declare exactly the four fields the MCP uses; bootstrap
+        // reads `jStorage` once and applies all pointers in one call.
+        // The extension popup also shows the pointer paths verbatim
+        // so the user can see precisely what's being read.
+        localStorage: [],
+        localStoragePointers: [
+          { outputKey: 'HB_AUTH_TOKEN', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_TOKEN' },
+          { outputKey: 'HB_AUTH_USER_ID', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_USER_ID' },
+          { outputKey: 'HB_TRUSTED_DEVICE', storageKey: 'jStorage', jsonPointer: '/HB_TRUSTED_DEVICE' },
+          { outputKey: 'HB_COMPANY_NAME', storageKey: 'jStorage', jsonPointer: '/HB_CURR_USER/company/company_name' },
+        ],
         sessionStorage: [],
         captureHeaders: [
           // The page's first call to api.honeybook.com/api/v2/* carries the
@@ -142,6 +150,19 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
           // a real outgoing request.
           { urlPattern: 'https://api.honeybook.com/api/v2/*', headerName: 'hb-api-fingerprint' },
         ],
+      },
+      // 0.4.0: surface the pair code (six digits) on stderr so the user
+      // can verify it against the extension popup. fetchproxy 0.4.0
+      // binds both MCP and extension identities into the pair code, so
+      // the user comparing both codes detects MITM-as-extension.
+      onPairCode: (code) => {
+        process.stderr.write(`[honeybook-mcp] fetchproxy pair code: ${code}\n`);
+      },
+      // 0.4.0: capture_request_header blocks on a real outgoing request
+      // to api.honeybook.com/api/v2/*. Surface a hint so the user knows
+      // to interact with the portal if the bootstrap appears to stall.
+      onWaiting: (hint) => {
+        process.stderr.write(`[honeybook-mcp] ${hint}\n`);
       },
     });
   } catch (e) {
@@ -153,38 +174,25 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
     );
   }
 
-  const jStorageRaw = session.localStorage['jStorage'];
-  if (!jStorageRaw) {
-    throw new Error(
-      'HoneyBook auth: localStorage["jStorage"] missing. ' +
-        'Open the vendor magic-link URL in your signed-in Chrome (with the fetchproxy extension installed) and retry.'
-    );
-  }
+  // 0.4.0: pointer extractions land in `session.localStorage` keyed by
+  // their declared `outputKey`. The raw `jStorage` JSON is never copied
+  // into this process — only the four specific fields we actually need.
+  const authToken = session.localStorage['HB_AUTH_TOKEN'];
+  const userId = session.localStorage['HB_AUTH_USER_ID'];
+  const trustedDevice = session.localStorage['HB_TRUSTED_DEVICE'];
+  const companyNameFromHb = session.localStorage['HB_COMPANY_NAME'];
 
-  let jStorage: Record<string, unknown>;
-  try {
-    jStorage = JSON.parse(jStorageRaw) as Record<string, unknown>;
-  } catch {
+  if (!authToken) {
     throw new Error(
-      `HoneyBook auth: localStorage["jStorage"] was not valid JSON (${jStorageRaw.slice(0, 60)}…). ` +
-        'Open the vendor magic-link URL in Chrome and retry.'
-    );
-  }
-
-  const authToken = jStorage.HB_AUTH_TOKEN;
-  const userId = jStorage.HB_AUTH_USER_ID;
-  const trustedDevice = jStorage.HB_TRUSTED_DEVICE;
-  if (typeof authToken !== 'string' || !authToken) {
-    throw new Error(
-      'HoneyBook auth: HB_AUTH_TOKEN missing from jStorage. ' +
+      'HoneyBook auth: HB_AUTH_TOKEN not found at jStorage./HB_AUTH_TOKEN. ' +
         'Sign into the vendor portal via the magic-link URL and retry.'
     );
   }
-  if (typeof userId !== 'string' || !userId) {
-    throw new Error('HoneyBook auth: HB_AUTH_USER_ID missing from jStorage.');
+  if (!userId) {
+    throw new Error('HoneyBook auth: HB_AUTH_USER_ID not found at jStorage./HB_AUTH_USER_ID.');
   }
-  if (typeof trustedDevice !== 'string' || !trustedDevice) {
-    throw new Error('HoneyBook auth: HB_TRUSTED_DEVICE missing from jStorage.');
+  if (!trustedDevice) {
+    throw new Error('HoneyBook auth: HB_TRUSTED_DEVICE not found at jStorage./HB_TRUSTED_DEVICE.');
   }
 
   const fingerprint = session.capturedHeaders['hb-api-fingerprint'];
@@ -198,8 +206,7 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
 
   // HB_CURR_USER may not be populated immediately on a fresh tab; fall
   // back to the portal subdomain so the user has a readable label.
-  const currUser = (jStorage.HB_CURR_USER || {}) as { company?: { company_name?: string } };
-  let companyName = currUser.company?.company_name || '';
+  let companyName = companyNameFromHb || '';
   if (!companyName) {
     try {
       companyName = new URL(normalized).hostname.split('.')[0] ?? '';
