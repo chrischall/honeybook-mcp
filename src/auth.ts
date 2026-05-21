@@ -125,7 +125,21 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       // HoneyBook serves both the main app (honeybook.com) and per-vendor
       // portal subdomains (*.hbportal.co). The extension matches on suffix,
       // so listing both apexes covers any vendor.
+      //
+      // Both are needed:
+      //   - `hbportal.co` is where the vendor magic-link tab lives, so
+      //     `jStorage` reads target it (via `storageDomain` below).
+      //   - `honeybook.com` is required for the `hb-api-fingerprint`
+      //     capture, because that header rides outgoing requests to
+      //     `https://api.honeybook.com/api/v2/*` and the extension gates
+      //     every captureHeader urlPattern host against declared domains.
+      //
+      // 0.4.1+ requires multi-domain MCPs to pick a `storageDomain` so
+      // the cookie / localStorage / sessionStorage / indexedDb reads
+      // know which tab to target. captureRequestHeader is independently
+      // routed by urlPattern.
       domains: ['honeybook.com', 'hbportal.co'],
+      storageDomain: 'hbportal.co',
       declare: {
         cookies: [],
         // We don't need the full `jStorage` blob (it's ~8KB of mostly

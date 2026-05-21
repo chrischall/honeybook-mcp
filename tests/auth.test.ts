@@ -64,6 +64,7 @@ describe('captureSessionViaFetchproxy', () => {
         serverName: string;
         version: string;
         domains: string[];
+        storageDomain?: string;
         declare: {
           cookies: string[];
           localStorage: string[];
@@ -77,6 +78,12 @@ describe('captureSessionViaFetchproxy', () => {
       // Multi-domain: HoneyBook serves both the main app (honeybook.com)
       // and per-vendor portal subdomains (*.hbportal.co).
       expect(opts.domains).toEqual(['honeybook.com', 'hbportal.co']);
+      // 0.4.1+: multi-domain MCPs must pin which declared domain the
+      // jStorage/cookie/sessionStorage reads target. honeybook-mcp's
+      // jStorage lives on the vendor portal tab, so hbportal.co is
+      // the right choice. The hb-api-fingerprint capture continues
+      // to target api.honeybook.com via its declared urlPattern.
+      expect(opts.storageDomain).toBe('hbportal.co');
       expect(opts.declare.cookies).toEqual([]);
       // No more full-blob jStorage read — only declared pointer paths.
       expect(opts.declare.localStorage).toEqual([]);
