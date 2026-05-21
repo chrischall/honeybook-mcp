@@ -45,9 +45,9 @@ Each tool module exports a `register*Tools(server)` function called from `src/in
 ## Auth flow
 
 No env vars required for HoneyBook itself. Sessions are captured at runtime
-via the [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy)
+via the [fetchproxy browser extension](https://github.com/chrischall/fetchproxy)
 (installed once per browser, Chrome Web Store / Safari .dmg). The MCP exercises
-TWO new 0.3.0 capabilities at once: `read_local_storage` AND
+TWO capabilities at once: `read_local_storage` AND
 `capture_request_header`.
 
 1. User clicks a vendor's HoneyBook magic-link in their real Chrome (extension
