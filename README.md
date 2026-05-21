@@ -20,7 +20,7 @@ Ask Claude things like:
 - [Claude Desktop](https://claude.ai/download) or [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Node.js](https://nodejs.org) 20.6 or later
 - Magic-link emails from the wedding vendors that use HoneyBook
-- [Google Chrome](https://www.google.com/chrome/) — used by `use_magic_link` to capture each vendor's session
+- [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy) — installed in Chrome (Web Store) or Safari (.dmg). Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
 
 ## Installation
 
@@ -50,12 +50,17 @@ No environment variables are required.
 
 ## Sessions
 
-HoneyBook has no public client-portal API. This MCP reuses the same auth state your browser has after clicking a vendor's magic link.
+HoneyBook has no public client-portal API. This MCP reuses the same auth state your browser has after clicking a vendor's magic link, via the [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy).
 
-**Workflow:**
+**One-time setup:**
 
-1. Open a vendor's HoneyBook email and copy the magic-link URL.
-2. In Claude, call `use_magic_link` with that URL. A headless Chrome window opens, follows the link, and captures the session automatically.
+1. Install the fetchproxy 0.3.0 extension in Chrome (Web Store) or Safari (.dmg).
+2. Click each vendor's magic link in your normal browser. That signs you into their `*.hbportal.co` portal.
+
+**Per-vendor activation:**
+
+1. Make sure the vendor's portal tab is open (the magic link from their email).
+2. In Claude, call `use_magic_link` with the magic-link URL — the tool asks the fetchproxy extension to snapshot the page's `localStorage["jStorage"]` and the `hb-api-fingerprint` request header, then closes the bridge. No headless browser is spawned.
 3. All other tools use the most-recently-activated session by default. Pass `origin` explicitly when multiple vendors are active.
 
 Sessions are stored in memory and persisted to `~/.honeybook-mcp/sessions.json` (mode 0600) so they survive MCP restarts. Re-run `use_magic_link` when a session expires.
@@ -77,9 +82,10 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 
 ## Troubleshooting
 
-- **"HoneyBook auth expired"** — re-run `use_magic_link` with a fresh magic-link URL from the vendor's email.
+- **"HoneyBook auth expired"** — re-open the vendor's magic link in Chrome and re-run `use_magic_link`.
 - **"No active HoneyBook session"** — call `use_magic_link` first.
-- **"Google Chrome not found"** — set `PUPPETEER_EXECUTABLE_PATH` to your Chrome binary, or install Chrome at the default path.
+- **"fetchproxy capture failed"** — install the [fetchproxy 0.3.0 extension](https://github.com/chrischall/fetchproxy), then open the vendor's magic link in that browser.
+- **"hb-api-fingerprint header not captured"** — refresh the portal tab so the page makes an `api.honeybook.com/api/v2/*` request, then retry.
 
 ## Security
 

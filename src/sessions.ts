@@ -1,29 +1,12 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { execSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import type { CapturedSession } from './types.js';
-
-/**
- * Read an env var, trim whitespace, and treat as unset if blank or if the value
- * looks like an unsubstituted shell placeholder (e.g. `${FOO}`) — defends
- * against MCP hosts that pass .mcp.json env blocks through unexpanded.
- */
-function readVar(key: string): string | undefined {
-  const raw = process.env[key];
-  if (typeof raw !== 'string') return undefined;
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return undefined;
-  if (trimmed === 'undefined' || trimmed === 'null') return undefined;
-  if (/^\$\{[^}]*\}$/.test(trimmed)) return undefined;
-  return trimmed;
-}
 
 export type { CapturedSession };
 
 // ---------------------------------------------------------------------------
-// Pure helpers — testable without Puppeteer
+// Pure helpers — testable without a browser
 // ---------------------------------------------------------------------------
 
 /**
@@ -67,79 +50,6 @@ export function deserializeSessions(body: string): Map<string, CapturedSession> 
 }
 
 // ---------------------------------------------------------------------------
-// loadPuppeteer — resolve puppeteer-core at runtime, lazy-installing if the
-// MCP was shipped without node_modules alongside dist/bundle.js (e.g. mcpb
-// bundle install). Cached in ~/.honeybook-mcp/vendor so the install only
-// happens on first use.
-// ---------------------------------------------------------------------------
-
-const PUPPETEER_VENDOR_DIR = join(homedir(), '.honeybook-mcp', 'vendor');
-
-type PuppeteerLike = typeof import('puppeteer-core')['default'];
-
-async function loadPuppeteer(): Promise<PuppeteerLike> {
-  // Fast path: sibling node_modules resolution (git clone + npm install case).
-  try {
-    const mod = (await import('puppeteer-core')) as unknown as { default?: PuppeteerLike };
-    if (mod.default) return mod.default;
-    return mod as unknown as PuppeteerLike;
-  } catch (e) {
-    const code = (e as { code?: string })?.code;
-    const msg = (e as { message?: string })?.message ?? '';
-    const isMissing =
-      code === 'ERR_MODULE_NOT_FOUND' ||
-      code === 'MODULE_NOT_FOUND' ||
-      msg.includes('Cannot find package');
-    if (!isMissing) throw e;
-  }
-
-  // Slow path: install into ~/.honeybook-mcp/vendor/node_modules/puppeteer-core
-  mkdirSync(PUPPETEER_VENDOR_DIR, { recursive: true });
-  const vendorPkg = join(PUPPETEER_VENDOR_DIR, 'package.json');
-  if (!existsSync(vendorPkg)) {
-    writeFileSync(
-      vendorPkg,
-      JSON.stringify({ name: 'honeybook-mcp-puppeteer-host', private: true, version: '0.0.0' }, null, 2)
-    );
-  }
-  const marker = join(PUPPETEER_VENDOR_DIR, 'node_modules', 'puppeteer-core', 'package.json');
-  if (!existsSync(marker)) {
-    process.stderr.write('[honeybook-mcp] Installing puppeteer-core (one-time, ~30s)…\n');
-    execSync('npm install --no-fund --no-audit --silent puppeteer-core@^24.0.0', {
-      cwd: PUPPETEER_VENDOR_DIR,
-      stdio: ['ignore', 'pipe', 'inherit'],
-    });
-    process.stderr.write('[honeybook-mcp] puppeteer-core installed.\n');
-  }
-  // Use createRequire so we resolve puppeteer-core from the vendor dir
-  // regardless of where dist/bundle.js lives.
-  const req = createRequire(vendorPkg);
-  const mod = req('puppeteer-core') as { default?: PuppeteerLike } & PuppeteerLike;
-  return mod.default ?? mod;
-}
-
-// ---------------------------------------------------------------------------
-// resolveChromePath — copied from scripts/setup-auth.mjs
-// ---------------------------------------------------------------------------
-
-function resolveChromePath(): string {
-  const envPath = readVar('PUPPETEER_EXECUTABLE_PATH');
-  if (envPath) return envPath;
-  const defaults: Record<string, string> = {
-    darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    linux: '/usr/bin/google-chrome',
-    win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  };
-  const p = defaults[process.platform];
-  if (!p || !existsSync(p)) {
-    throw new Error(
-      'Google Chrome not found. Install Chrome, or set PUPPETEER_EXECUTABLE_PATH to your Chrome binary.'
-    );
-  }
-  return p;
-}
-
-// ---------------------------------------------------------------------------
 // SessionStore — manages in-memory + disk-persisted sessions
 // ---------------------------------------------------------------------------
 
@@ -178,91 +88,20 @@ class SessionStore {
     }
   }
 
-  async activate(magicLinkUrl: string): Promise<CapturedSession> {
-    const puppeteer = await loadPuppeteer();
-
-    const showBrowser = !!readVar('HONEYBOOK_SHOW_BROWSER');
-    const chromePath = resolveChromePath();
-
-    const browser = await puppeteer.launch({
-      headless: !showBrowser,
-      executablePath: chromePath,
-      defaultViewport: null,
-      args: ['--no-first-run', '--no-default-browser-check'],
-    });
-
-    const page = await browser.newPage();
-    try {
-      // Intercept the first api.honeybook.com/api/v2/* request to grab fingerprint
-      const fingerprintPromise = new Promise<string>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error('Timed out waiting for first api.honeybook.com request (30s).')),
-          30000
-        );
-        const onRequest = (req: { url(): string; headers(): Record<string, string> }) => {
-          const u = req.url();
-          if (u.includes('api.honeybook.com/api/v2/')) {
-            const fp = req.headers()['hb-api-fingerprint'];
-            if (fp) {
-              clearTimeout(timer);
-              page.off('request', onRequest as Parameters<typeof page.off>[1]);
-              resolve(fp);
-            }
-          }
-        };
-        page.on('request', onRequest as Parameters<typeof page.on>[1]);
-      });
-
-      await page.goto(magicLinkUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-
-      const fingerprint = await fingerprintPromise;
-
-      const captured = await page.evaluate(() => {
-        const j = JSON.parse((window as unknown as { localStorage: { getItem(k: string): string | null } }).localStorage.getItem('jStorage') || '{}') as Record<string, unknown>;
-        const user = (j.HB_CURR_USER || {}) as { company?: { company_name?: string } };
-        const company = (user.company && user.company.company_name) || '';
-        return {
-          authToken: j.HB_AUTH_TOKEN as string,
-          userId: j.HB_AUTH_USER_ID as string,
-          trustedDevice: j.HB_TRUSTED_DEVICE as string,
-          companyName: company,
-          portalOrigin: location.origin,
-        };
-      });
-
-      if (!captured.authToken) {
-        throw new Error('No HB_AUTH_TOKEN found — did the magic link fail to load?');
-      }
-
-      // If HB_CURR_USER wasn't populated yet (common in headless mode), fall
-      // back to the portal subdomain as a readable label.
-      let companyName = captured.companyName;
-      if (!companyName) {
-        try {
-          companyName = new URL(captured.portalOrigin).hostname.split('.')[0] ?? '';
-        } catch {
-          companyName = '';
-        }
-      }
-
-      const session: CapturedSession = {
-        portalOrigin: normalizeOrigin(captured.portalOrigin),
-        companyName,
-        authToken: captured.authToken,
-        userId: captured.userId,
-        trustedDevice: captured.trustedDevice,
-        fingerprint,
-        capturedAt: Date.now(),
-      };
-
-      this.sessions.set(session.portalOrigin, session);
-      this.mostRecentOrigin = session.portalOrigin;
-      this.saveToDisk();
-      return session;
-    } finally {
-      await page.close().catch(() => {});
-      await browser.close().catch(() => {});
-    }
+  /**
+   * Insert (or replace) a fully-constructed CapturedSession. Used by
+   * `src/auth.ts` after `@fetchproxy/bootstrap` has supplied the
+   * jStorage + fingerprint values from the user's browser tab.
+   *
+   * Marks the session as most-recent so the next tool call that doesn't
+   * pass `origin` picks it up automatically.
+   */
+  add(session: CapturedSession): void {
+    const normalized = normalizeOrigin(session.portalOrigin);
+    const stored: CapturedSession = { ...session, portalOrigin: normalized };
+    this.sessions.set(normalized, stored);
+    this.mostRecentOrigin = normalized;
+    this.saveToDisk();
   }
 
   get(origin?: string): CapturedSession | null {

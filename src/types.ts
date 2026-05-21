@@ -16,7 +16,8 @@ export interface HBListEnvelope<T> {
 }
 
 /**
- * Auth session captured via magic-link Puppeteer capture (v2).
+ * Auth session captured from a vendor's signed-in portal tab via
+ * `@fetchproxy/bootstrap` (v3+; v2 used embedded Puppeteer).
  */
 export interface CapturedSession {
   /** Full origin of the vendor's branded portal (e.g. `https://thesilkveileventsbyivy.hbportal.co`). */
