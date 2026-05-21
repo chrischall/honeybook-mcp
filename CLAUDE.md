@@ -22,9 +22,13 @@ src/
   client.ts              HoneyBookClient — per-session auth headers, fetch wrapper,
                          401/429/HBWrongAPIVersion retry; getActiveClient() resolves
                          a session from sessionStore and caches a client per origin
-  sessions.ts            SessionStore — disk-persisted session cache + Puppeteer
-                         capture; pure helpers (normalizeOrigin, serializeSessions,
-                         deserializeSessions) are exported for unit tests
+  auth.ts                captureSessionViaFetchproxy() — one-shot @fetchproxy/bootstrap
+                         call that reads localStorage["jStorage"] + the
+                         hb-api-fingerprint request header out of the user's signed-in
+                         portal tab, then closes the bridge. See "Auth flow" below.
+  sessions.ts            SessionStore — disk-persisted session cache; pure helpers
+                         (normalizeOrigin, serializeSessions, deserializeSessions) are
+                         exported for unit tests
   types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, FileType
   tools/
     sessions.ts          use_magic_link, list_active_sessions
@@ -38,28 +42,44 @@ src/
 
 Each tool module exports a `register*Tools(server)` function called from `src/index.ts`.
 
-## Session Flow
+## Auth flow
 
-No env vars required. Sessions are captured at runtime:
+No env vars required for HoneyBook itself. Sessions are captured at runtime
+via the [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy)
+(installed once per browser, Chrome Web Store / Safari .dmg). The MCP exercises
+TWO new 0.3.0 capabilities at once: `read_local_storage` AND
+`capture_request_header`.
 
-1. User calls `use_magic_link` with a URL from a vendor's HoneyBook email.
-2. A headless Chrome window opens, follows the link, extracts auth state from
-   `localStorage.jStorage` and the first `api.honeybook.com` request header
-   (`hb-api-fingerprint`).
-3. Session is stored in memory + `~/.honeybook-mcp/sessions.json` (mode 0600,
-   directory mode 0700).
-4. All tools default to the most-recently-activated session; pass `origin` to
-   target a specific vendor when multiple sessions are active.
+1. User clicks a vendor's HoneyBook magic-link in their real Chrome (extension
+   installed). The link signs them into `*.hbportal.co`.
+2. User calls `use_magic_link` with the magic-link URL. `src/tools/sessions.ts`
+   derives the portalOrigin and calls `captureSessionViaFetchproxy` in
+   `src/auth.ts`.
+3. `captureSessionViaFetchproxy` invokes `@fetchproxy/bootstrap` with:
+   - `domains: ['honeybook.com', 'hbportal.co']` (multi-domain; extension
+     suffix-matches)
+   - `declare.localStorage: ['jStorage']` — single key holding HB_AUTH_TOKEN,
+     HB_AUTH_USER_ID, HB_TRUSTED_DEVICE, HB_CURR_USER
+   - `declare.captureHeaders: [{ urlPattern: 'https://api.honeybook.com/api/v2/*',
+     headerName: 'hb-api-fingerprint' }]` — captures the per-device
+     FingerprintJS signal off the page's next outgoing API request
+4. Bootstrap snapshots both buckets in one round-trip, closes the bridge.
+5. The synthesized `CapturedSession` is persisted to
+   `~/.honeybook-mcp/sessions.json` (mode 0600, directory mode 0700).
+6. All subsequent API calls go via plain Node `fetch` to api.honeybook.com —
+   fetchproxy is NOT in the request hot path.
+
+Tools default to the most-recently-activated session; pass `origin` to target
+a specific vendor when multiple sessions are active.
 
 Optional env vars:
 
 ```
-HONEYBOOK_API_VERSION=2578     # pin instead of auto-fetching from /api/gon
-HONEYBOOK_SHOW_BROWSER=1       # show Puppeteer window (debugging)
-PUPPETEER_EXECUTABLE_PATH=...  # override Chrome path
+HONEYBOOK_API_VERSION=2578         # pin instead of auto-fetching from /api/gon
+HONEYBOOK_DISABLE_FETCHPROXY=1     # refuse to call bootstrap (CI / headless)
 ```
 
-`readVar()` in `client.ts`/`sessions.ts` treats blank strings and unsubstituted
+`readEnv()` in `client.ts`/`auth.ts` treats blank strings and unsubstituted
 `${FOO}` placeholders as unset — defends against MCP hosts that pass `.mcp.json`
 env blocks through unexpanded.
 
@@ -67,9 +87,10 @@ env blocks through unexpanded.
 
 Tests live in `tests/`. `client.request` is exercised by mocking
 `globalThis.fetch` with `vi.spyOn`; tool handlers mock `getActiveClient` to
-inject a fake client. No live API calls in CI. `sessions.ts` pure helpers
+inject a fake client. `@fetchproxy/bootstrap` is mocked at the module
+boundary in `tests/auth.test.ts` so capture flows never hit a real WebSocket.
+No live API calls in CI. `sessions.ts` pure helpers
 (`normalizeOrigin`, `serialize/deserializeSessions`) are unit-tested directly.
-`SessionStore.activate()` (which needs Puppeteer + Chrome) is not tested.
 
 `vitest.config.ts` configures the v8 coverage provider but does NOT enforce
 thresholds — CI runs `npm test` (no coverage gate).
@@ -125,7 +146,8 @@ a GitHub Release with auto-generated notes (see `.github/release.yml`).
 - **ESM + NodeNext**: `.ts` source imports use `.js` extensions
   (e.g. `import { sessionStore } from './sessions.js'`).
 - **`hb-api-fingerprint` is a FingerprintJS signal** — session-constant and
-  captured once at auth time. If HoneyBook rotates accepted fingerprints,
+  captured once at auth time off a real outgoing request via the fetchproxy
+  `captureHeaders` declaration. If HoneyBook rotates accepted fingerprints,
   users re-run `use_magic_link`.
 - **`HB_AUTH_TOKEN` is opaque (not JWT)** — no client-side TTL; server can
   revoke at will. Expired sessions throw a clear "re-run use_magic_link" error.
@@ -134,11 +156,12 @@ a GitHub Release with auto-generated notes (see `.github/release.yml`).
   handling cannot be replayed). Both require `confirm: true`.
 - **Per-vendor tools** take an optional `origin` arg. When only one session is
   active, it is inferred. With multiple, callers must pass `origin`.
-- **puppeteer-core is externalized** in the esbuild bundle
-  (`--external:puppeteer-core`). `sessions.ts#loadPuppeteer()` resolves it from
-  a sibling `node_modules` first, then lazy-installs into
-  `~/.honeybook-mcp/vendor` on first use if missing (~30s one-time). This makes
-  the `.mcpb` bundle work even without a co-located install.
+- **No Puppeteer in the bundle.** v0.2 replaced the embedded headless Chrome
+  flow with a one-shot `@fetchproxy/bootstrap` call. The bundle has no native
+  binary, no lazy install, and no `vendor/` directory to manage.
+- **`use_magic_link` does NOT navigate to the URL.** The arg is used only to
+  derive the portalOrigin. The user must already have the link open in their
+  signed-in Chrome (with the fetchproxy extension) before calling the tool.
 - **API version auto-refresh**: on `HBWrongAPIVersionError`, `client.request`
   re-reads the version from the error body (or `/api/gon`) and retries once.
 - **Rate limiting**: 429 responses trigger a single 2-second retry before
