@@ -22,6 +22,28 @@ Ask Claude things like:
 - Magic-link emails from the wedding vendors that use HoneyBook
 - [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy) — installed in Chrome (Web Store) or Safari (.dmg). Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
 
+## Acknowledgement of Terms
+
+By using this MCP server, you acknowledge and agree to the following:
+
+**1. This server accesses your own HoneyBook workspace.** Every request is dispatched through your own signed-in browser session via the fetchproxy extension. It does not — and cannot — access anyone else's workspace.
+
+**2. [HoneyBook's Terms of Service](https://www.honeybook.com/legal/terms-of-service) govern your use of this server**, just as they govern your direct use of honeybook.com. The clauses most relevant here:
+
+> In connection with your use of the Service you will not engage in or use any data mining, robots, scraping or similar data gathering or extraction methods.
+
+And: users may not "modify, copy, frame, scrape, rent, lease, loan, sell, distribute or create derivative works based on the Service or the Service Content."
+
+You are agreeing to those terms — read by the maintainer 2026-05-23 — every time you invoke a tool in this server. HoneyBook's ToS broadly prohibits data mining and scraping; this MCP is an unofficial automation tool and HoneyBook has not granted it an exception.
+
+**3. Personal, single-business use only.** This project is not affiliated with, endorsed by, sponsored by, or in partnership with HoneyBook, Inc. It is a personal automation tool that an individual HoneyBook account holder can use to drive their own workspace. Do not use it on behalf of another business, do not bulk-extract HoneyBook's directory or template content, and do not create a derivative SaaS product on top of it.
+
+**4. Stability is not guaranteed.** This server calls internal HoneyBook endpoints that HoneyBook may change without notice. It may break.
+
+**5. You accept full responsibility** for any consequences of using this server in connection with your HoneyBook account — rate limiting, account warnings, suspension, or any enforcement action HoneyBook takes. HoneyBook can detect automated traffic and may block your IP or workspace. If HoneyBook objects to your use, stop using this server.
+
+This section is the maintainer's good-faith summary of the terms — it is not legal advice and does not modify or supersede HoneyBook's actual ToS.
+
 ## Installation
 
 ### From source
