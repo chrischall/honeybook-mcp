@@ -30,12 +30,9 @@
 
 * address final code-review findings ([012f587](https://github.com/chrischall/honeybook-mcp/commit/012f587a44a91473b406bec024012cd524184ff1))
 * **auth:** storageDomain selector + restore createRequire bundle shim ([4fe3e27](https://github.com/chrischall/honeybook-mcp/commit/4fe3e27e9068256847b531fd2235391f53a2a95c))
-* **auth:** storageDomain selector + restore createRequire bundle shim ([cd141b6](https://github.com/chrischall/honeybook-mcp/commit/cd141b630d7e72d7038be23d6512a80e48f0cde8))
 * **client:** seed moduleState on version-retry; avoid env-reload on cache hit; restore timers in finally ([b890f86](https://github.com/chrischall/honeybook-mcp/commit/b890f86ce10a7aebc7538b46c9c6ae9549d81e5d))
 * **env:** also reject literal "undefined"/"null" in readVar ([9b8b048](https://github.com/chrischall/honeybook-mcp/commit/9b8b048cf3b622babc458aa882f9b8d5920a248b))
-* **env:** also reject literal "undefined"/"null" in readVar ([b7191ea](https://github.com/chrischall/honeybook-mcp/commit/b7191ea4bdd5b09683558b62540aeb4214a5734b))
 * **env:** treat blank/whitespace/placeholder env vars as unset ([dbb0968](https://github.com/chrischall/honeybook-mcp/commit/dbb09682e3d954339dd34a8d7aa2e58ade995dc8))
-* **env:** treat blank/whitespace/placeholder env vars as unset ([920bb2d](https://github.com/chrischall/honeybook-mcp/commit/920bb2d217e0a0b0ceb8891592bb913651a50a8e))
 * **sessions:** fall back to portal subdomain when HB_CURR_USER isn't loaded yet ([10a7aa4](https://github.com/chrischall/honeybook-mcp/commit/10a7aa473890a3b7042acaa9931a57d2fbf2a510))
 * **sessions:** lazy-install puppeteer-core when sibling node_modules is absent ([35a3eca](https://github.com/chrischall/honeybook-mcp/commit/35a3ecaa6e793b2c0efd9b9cd458f825af8855fc))
 * **tools:** strip heavy vendor-side fields from get_workspace_file response ([885ad77](https://github.com/chrischall/honeybook-mcp/commit/885ad77034813bf9c2ef97432345e48e17585513))
@@ -44,7 +41,6 @@
 ### Refactor
 
 * **auth:** use 0.4.0 JSON-pointer extraction + pair/wait callbacks ([2a3b6ef](https://github.com/chrischall/honeybook-mcp/commit/2a3b6efc2a0821427218165718fedf620e5aaa80))
-* **auth:** use 0.4.0 JSON-pointer extraction + pair/wait callbacks ([f263432](https://github.com/chrischall/honeybook-mcp/commit/f263432d6c66ee5cc99af083eb260acaed764163))
 * **client:** switch client factory from env-based vendor scopes to session store ([c07b7d0](https://github.com/chrischall/honeybook-mcp/commit/c07b7d0651f9a3c5f8bcca0ce88e5a562b823653))
 * drop Puppeteer code from sessions.ts; add SessionStore.add() ([9455119](https://github.com/chrischall/honeybook-mcp/commit/945511943733e5210a759e0de740942c0f1cc653))
 * **sessions:** add session store with Puppeteer capture and disk cache ([2d6c39d](https://github.com/chrischall/honeybook-mcp/commit/2d6c39dcaafac962177628a0a02f44e0c151010d))
@@ -56,8 +52,6 @@
 * add implementation plan for honeybook-mcp ([8659019](https://github.com/chrischall/honeybook-mcp/commit/8659019568d5560c9617f4a8eded6c0e2f57a062))
 * add initial design spec for honeybook-mcp ([715a6dc](https://github.com/chrischall/honeybook-mcp/commit/715a6dc4a98ec7fe518faab3718124f400c9bfa4))
 * **CLAUDE.md:** drop hardcoded fetchproxy 0.3.0 version refs ([3c63f33](https://github.com/chrischall/honeybook-mcp/commit/3c63f3392b270ad7475151cf87866d9f5a32a99a))
-* **CLAUDE.md:** drop hardcoded fetchproxy 0.3.0 version refs ([f55469c](https://github.com/chrischall/honeybook-mcp/commit/f55469c64f949d50e41398842a438a5167ee8108))
 * ensure CLAUDE.md is current and complete ([b0efa59](https://github.com/chrischall/honeybook-mcp/commit/b0efa590a735dc00df4fefd5897c40e157cace16))
-* ensure CLAUDE.md is current and complete ([92bc910](https://github.com/chrischall/honeybook-mcp/commit/92bc910e8db8084778adbe8b43bd47878feb8c4f))
 * README, SKILL.md (top + skills/honeybook), CLAUDE.md ([6d4a00f](https://github.com/chrischall/honeybook-mcp/commit/6d4a00f6d528a5451b8c7c060d586a0fd43b3e51))
 * rewrite README + CLAUDE.md for fetchproxy-based onboarding ([37820ac](https://github.com/chrischall/honeybook-mcp/commit/37820acf9ed06905335cca6a19241ea5455d2f94))
