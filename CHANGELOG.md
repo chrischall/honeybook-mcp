@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1](https://github.com/chrischall/honeybook-mcp/compare/v0.2.0...v0.2.1) (2026-05-24)
+
+
+### Documentation
+
+* add Acknowledgement of Terms section to README ([#32](https://github.com/chrischall/honeybook-mcp/issues/32)) ([514567f](https://github.com/chrischall/honeybook-mcp/commit/514567fc670317082d1c6fd7a79aa856f133ae4e))
+* canonical auto-merge guidance ([#34](https://github.com/chrischall/honeybook-mcp/issues/34)) ([caf45da](https://github.com/chrischall/honeybook-mcp/commit/caf45dafaf5f98413e49716c8fbbb903abb9a2f7))
+* **claude-md:** call out 100-char limit on server.json description ([8861683](https://github.com/chrischall/honeybook-mcp/commit/88616839749eb96984914d1b14b4dcd604cd5220))
+* **claude-md:** call out 100-char limit on server.json description ([0427799](https://github.com/chrischall/honeybook-mcp/commit/042779949dfff54c5f3e908f58ba7efaca4b9f96))
+
 ## [0.2.0](https://github.com/chrischall/honeybook-mcp/compare/v0.1.14...v0.2.0) (2026-05-22)
 
 
