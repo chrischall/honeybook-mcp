@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/chrischall/honeybook-mcp/compare/v0.2.1...v0.2.2) (2026-05-25)
+
+
+### Bug Fixes
+
+* **ci:** prevent labeled event from cancelling auto-review ([#36](https://github.com/chrischall/honeybook-mcp/issues/36)) ([99724b5](https://github.com/chrischall/honeybook-mcp/commit/99724b51c8ca02d0acb0ef1a5e64e1ffc8ea5d2c))
+
 ## [0.2.1](https://github.com/chrischall/honeybook-mcp/compare/v0.2.0...v0.2.1) (2026-05-24)
 
 
