@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/chrischall/honeybook-mcp/compare/v0.2.2...v0.2.3) (2026-05-26)
+
+
+### Documentation
+
+* **claude:** warn against early PRs and call out first-party dep bumps ([#39](https://github.com/chrischall/honeybook-mcp/issues/39)) ([6e1cfdf](https://github.com/chrischall/honeybook-mcp/commit/6e1cfdf67e72efc3d154c63e87eeb20e17a8a8d4))
+
 ## [0.2.2](https://github.com/chrischall/honeybook-mcp/compare/v0.2.1...v0.2.2) (2026-05-25)
 
 
