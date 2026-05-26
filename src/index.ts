@@ -20,7 +20,7 @@ import { registerInvoiceTools } from './tools/invoices.js';
 
 const server = new McpServer({
   name: 'honeybook-mcp',
-  version: '0.2.3', // x-release-please-version
+  version: '0.2.4', // x-release-please-version
 });
 
 registerSessionTools(server);
