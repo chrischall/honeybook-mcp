@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/chrischall/honeybook-mcp/compare/v0.2.3...v0.2.4) (2026-05-26)
+
+
+### Bug Fixes
+
+* **ci:** substitute repo name in publish workflow ([#41](https://github.com/chrischall/honeybook-mcp/issues/41)) ([8a73398](https://github.com/chrischall/honeybook-mcp/commit/8a73398bf6e8ce1cd47637428c18b3895a249766))
+
 ## [0.2.3](https://github.com/chrischall/honeybook-mcp/compare/v0.2.2...v0.2.3) (2026-05-26)
 
 
