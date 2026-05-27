@@ -243,6 +243,24 @@ describe('captureSessionViaFetchproxy', () => {
         captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
       ).rejects.toThrow(/plain string failure/);
     });
+
+    it('surfaces FetchproxyBridgeDownError.hint verbatim when bootstrap retry exhausts', async () => {
+      // 0.8.0+: when the SW eviction retry (bridgeReviveDelayMs=2000)
+      // also fails, bootstrap rethrows the typed FetchproxyBridgeDownError.
+      // We discriminate on it and surface `.hint` verbatim so users get
+      // the same self-service guidance as the disabled-fetchproxy path.
+      const { FetchproxyBridgeDownError } = await import('@fetchproxy/server');
+      const downErr = new FetchproxyBridgeDownError({
+        originalError: 'ws closed before pong',
+        retryAttempted: true,
+        op: 'fetch',
+      });
+      bootstrapMock.mockRejectedValue(downErr);
+
+      await expect(
+        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
+      ).rejects.toThrow(/bridge is down.*fetchproxy extension toolbar icon/);
+    });
   });
 
   describe('disabled fetchproxy', () => {
