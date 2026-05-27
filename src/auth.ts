@@ -181,16 +181,7 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       },
     });
   } catch (e) {
-    // 0.8.0+ typed-error discrimination. The fetchproxy server already
-    // retries once on SW eviction (bridgeReviveDelayMs=2000 default), so
-    // a thrown FetchproxyBridgeDownError means the retry also failed —
-    // the extension's service worker is genuinely down and the user
-    // needs to wake it. The `.hint` is the actionable copy
-    // ("click the extension toolbar icon...") that we'd otherwise have
-    // to hand-write here. Surface it verbatim so users hit by SW
-    // eviction get specific guidance rather than the generic "open the
-    // magic-link URL" message (which doesn't actually fix this case —
-    // the tab is fine; only the extension's SW needs waking).
+    // SW eviction retry exhausted — surface library's typed `.hint` instead of the generic "open magic link" message.
     if (classifyBridgeError(e) === 'bridge_down') {
       const downErr = e as FetchproxyBridgeDownError;
       throw new Error(
