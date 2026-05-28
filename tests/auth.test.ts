@@ -243,6 +243,26 @@ describe('captureSessionViaFetchproxy', () => {
         captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
       ).rejects.toThrow(/plain string failure/);
     });
+
+    it('surfaces FetchproxyBridgeDownError.hint verbatim when bootstrap retry exhausts', async () => {
+      const { FetchproxyBridgeDownError } = await import('@fetchproxy/server');
+      const downErr = new FetchproxyBridgeDownError({
+        originalError: 'ws closed before pong',
+        retryAttempted: true,
+        op: 'fetch',
+      });
+      bootstrapMock.mockRejectedValue(downErr);
+
+      const err = await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      }).catch((e) => e);
+      // We own this prefix:
+      expect((err as Error).message).toMatch(
+        /HoneyBook auth: fetchproxy bridge is down/
+      );
+      // Library owns its hint copy — just confirm it's present, don't lock on exact text:
+      expect((err as Error).message).toContain(downErr.hint);
+    });
   });
 
   describe('disabled fetchproxy', () => {

@@ -57,6 +57,7 @@
 //     verify the captured session round-trips through sessionStore.get.
 
 import { bootstrap } from '@fetchproxy/bootstrap';
+import { classifyBridgeError, FetchproxyBridgeDownError } from '@fetchproxy/server';
 import pkg from '../package.json' with { type: 'json' };
 import { sessionStore, normalizeOrigin } from './sessions.js';
 import type { CapturedSession } from './types.js';
@@ -180,6 +181,13 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       },
     });
   } catch (e) {
+    // SW eviction retry exhausted — surface library's typed `.hint` instead of the generic "open magic link" message.
+    if (classifyBridgeError(e) === 'bridge_down') {
+      const downErr = e as FetchproxyBridgeDownError;
+      throw new Error(
+        `HoneyBook auth: fetchproxy bridge is down (extension service worker unreachable after retry). ${downErr.hint}`
+      );
+    }
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(
       `HoneyBook auth: fetchproxy capture failed: ${msg} — ` +
