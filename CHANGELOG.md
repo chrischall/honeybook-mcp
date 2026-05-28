@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/chrischall/honeybook-mcp/compare/v0.2.4...v0.3.0) (2026-05-28)
+
+
+### Features
+
+* **deps:** bump @fetchproxy/bootstrap to ^0.8.0 + surface SW-eviction hint ([#44](https://github.com/chrischall/honeybook-mcp/issues/44)) ([2d9c698](https://github.com/chrischall/honeybook-mcp/commit/2d9c6984ec3ef6a080fc7bbad6178d0a4be3ca0c))
+
 ## [0.2.4](https://github.com/chrischall/honeybook-mcp/compare/v0.2.3...v0.2.4) (2026-05-26)
 
 
