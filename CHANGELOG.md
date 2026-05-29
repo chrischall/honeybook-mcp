@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/chrischall/honeybook-mcp/compare/v0.3.0...v0.3.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **ci:** auto-merge arm guards ([#46](https://github.com/chrischall/honeybook-mcp/issues/46)) ([20ddc89](https://github.com/chrischall/honeybook-mcp/commit/20ddc89401fc3b82bf7291da416000c46cb8e61f))
+
 ## [0.3.0](https://github.com/chrischall/honeybook-mcp/compare/v0.2.4...v0.3.0) (2026-05-28)
 
 
