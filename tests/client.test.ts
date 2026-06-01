@@ -106,8 +106,9 @@ describe('HoneyBookClient.request', () => {
       new Response('server exploded', { status: 500, statusText: 'Internal Server Error' })
     );
     const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    // formatApiError shape: "HoneyBook error {status} for {METHOD} {path}: {body}"
     await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
-      /500 Internal Server Error.*server exploded/
+      /HoneyBook error 500 for GET \/api\/v2\/users\/uid_24.*server exploded/
     );
   });
 

@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
+import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -9,7 +9,7 @@ export async function listPaymentMethods(args: { origin?: string }): Promise<Too
     'GET',
     `/api/v2/users/${client.scope.userId}/payment_methods`
   );
-  return { content: [{ type: 'text', text: JSON.stringify(res, null, 2) }] };
+  return textResult(res);
 }
 
 export function registerPaymentMethodTools(server: McpServer): void {
@@ -19,12 +19,9 @@ export function registerPaymentMethodTools(server: McpServer): void {
       description:
         'List saved payment methods for your client account with a vendor. Empty array if none are saved.',
       inputSchema: {
-        origin: z
-          .string()
-          .optional()
-          .describe(
-            'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
-          ),
+        origin: schemaOrigin.describe(
+          'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
+        ),
       },
       annotations: { readOnlyHint: true },
     },

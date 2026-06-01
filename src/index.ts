@@ -1,16 +1,10 @@
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { runMcp, loadDotenvSafely } from '@chrischall/mcp-utils';
 
-try {
-  const { config } = await import('dotenv');
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  config({ path: join(__dirname, '..', '.env'), override: false });
-} catch {
-  // bundled mode — rely on process.env
-}
+const __dirname = dirname(fileURLToPath(import.meta.url));
+await loadDotenvSafely({ path: join(__dirname, '..', '.env'), override: false });
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerSessionTools } from './tools/sessions.js';
 import { registerWorkspaceFileTools } from './tools/workspace_files.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
@@ -18,17 +12,15 @@ import { registerPaymentMethodTools } from './tools/payment_methods.js';
 import { registerContractTools } from './tools/contracts.js';
 import { registerInvoiceTools } from './tools/invoices.js';
 
-const server = new McpServer({
+await runMcp({
   name: 'honeybook-mcp',
   version: '0.3.1', // x-release-please-version
+  tools: [
+    registerSessionTools,
+    registerWorkspaceFileTools,
+    registerWorkspaceTools,
+    registerPaymentMethodTools,
+    registerContractTools,
+    registerInvoiceTools,
+  ],
 });
-
-registerSessionTools(server);
-registerWorkspaceFileTools(server);
-registerWorkspaceTools(server);
-registerPaymentMethodTools(server);
-registerContractTools(server);
-registerInvoiceTools(server);
-
-const transport = new StdioServerTransport();
-await server.connect(transport);

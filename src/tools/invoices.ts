@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -24,31 +25,19 @@ export async function payInvoice(args: {
     );
   }
   if (!args.confirm) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text:
-            `About to pay "${file.file_title}" (${file.status_name || 'open'}).\n` +
-            `Re-run pay_invoice with { confirm: true } to proceed.`,
-        },
-      ],
-    };
+    return rawTextResult(
+      `About to pay "${file.file_title}" (${file.status_name || 'open'}).\n` +
+        `Re-run pay_invoice with { confirm: true } to proceed.`
+    );
   }
   const url = `${client.scope.portalOrigin}/app/workspace_file/${file._id}/invoice`;
   const pendingNote = file.has_pending_payment
     ? '\n\nNote: this invoice already has a pending payment — check the status before re-paying.'
     : '';
-  return {
-    content: [
-      {
-        type: 'text',
-        text:
-          `HoneyBook's payment flow requires browser-side card/SCA handling that this MCP cannot replay headlessly yet.\n\n` +
-          `Open this link to pay the invoice in your HoneyBook portal:\n\n${url}${pendingNote}`,
-      },
-    ],
-  };
+  return rawTextResult(
+    `HoneyBook's payment flow requires browser-side card/SCA handling that this MCP cannot replay headlessly yet.\n\n` +
+      `Open this link to pay the invoice in your HoneyBook portal:\n\n${url}${pendingNote}`
+  );
 }
 
 export function registerInvoiceTools(server: McpServer): void {
@@ -61,16 +50,12 @@ export function registerInvoiceTools(server: McpServer): void {
         file_id: z
           .string()
           .describe('The invoice file _id from list_workspace_files (file_type=invoice).'),
-        origin: z
-          .string()
-          .optional()
-          .describe(
-            'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
-          ),
-        confirm: z
-          .boolean()
-          .optional()
-          .describe('Must be true to proceed. Without this, tool returns a preview.'),
+        origin: schemaOrigin.describe(
+          'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
+        ),
+        confirm: schemaConfirm.describe(
+          'Must be true to proceed. Without this, tool returns a preview.'
+        ),
       },
       annotations: { destructiveHint: true },
     },

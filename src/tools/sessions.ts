@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { textResult } from '@chrischall/mcp-utils';
 import { sessionStore, normalizeOrigin } from '../sessions.js';
 import { clearClientCache } from '../client.js';
 import { captureSessionViaFetchproxy } from '../auth.js';
@@ -27,23 +28,12 @@ export async function useMagicLink(args: { magic_link_url: string }): Promise<To
   const session = await captureSessionViaFetchproxy({ portalOrigin });
   // Clear client cache so getActiveClient picks up the fresh fingerprint.
   clearClientCache();
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(
-          {
-            ok: true,
-            portalOrigin: session.portalOrigin,
-            companyName: session.companyName,
-            capturedAt: new Date(session.capturedAt).toISOString(),
-          },
-          null,
-          2
-        ),
-      },
-    ],
-  };
+  return textResult({
+    ok: true,
+    portalOrigin: session.portalOrigin,
+    companyName: session.companyName,
+    capturedAt: new Date(session.capturedAt).toISOString(),
+  });
 }
 
 export async function listActiveSessions(): Promise<ToolResult> {
@@ -52,7 +42,7 @@ export async function listActiveSessions(): Promise<ToolResult> {
     companyName: s.companyName,
     capturedAt: new Date(s.capturedAt).toISOString(),
   }));
-  return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] };
+  return textResult(sessions);
 }
 
 export function registerSessionTools(server: McpServer): void {
