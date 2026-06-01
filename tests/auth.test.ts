@@ -245,7 +245,7 @@ describe('captureSessionViaFetchproxy', () => {
     });
 
     it('surfaces FetchproxyBridgeDownError.hint verbatim when bootstrap retry exhausts', async () => {
-      const { FetchproxyBridgeDownError } = await import('@fetchproxy/server');
+      const { FetchproxyBridgeDownError } = await import('@chrischall/mcp-utils/fetchproxy');
       const downErr = new FetchproxyBridgeDownError({
         originalError: 'ws closed before pong',
         retryAttempted: true,
