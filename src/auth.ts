@@ -57,29 +57,15 @@
 //     verify the captured session round-trips through sessionStore.get.
 
 import { bootstrap } from '@fetchproxy/bootstrap';
-import { classifyBridgeError, FetchproxyBridgeDownError } from '@fetchproxy/server';
+import { classifyBridgeError } from '@chrischall/mcp-utils/fetchproxy';
+import { readEnvVar } from '@chrischall/mcp-utils';
 import pkg from '../package.json' with { type: 'json' };
 import { sessionStore, normalizeOrigin } from './sessions.js';
 import type { CapturedSession } from './types.js';
 
-/**
- * Read an env var, trim, and treat blank / `${UNEXPANDED}` placeholders as
- * unset. Defends against MCP hosts that pass `.mcp.json` env blocks through
- * without variable expansion.
- */
-function readEnv(key: string): string | undefined {
-  const raw = process.env[key];
-  if (typeof raw !== 'string') return undefined;
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return undefined;
-  if (trimmed === 'undefined' || trimmed === 'null') return undefined;
-  if (/^\$\{[^}]*\}$/.test(trimmed)) return undefined;
-  return trimmed;
-}
-
 /** True if the user has explicitly disabled the fetchproxy capture path. */
 function fetchproxyDisabled(): boolean {
-  const raw = readEnv('HONEYBOOK_DISABLE_FETCHPROXY');
+  const raw = readEnvVar('HONEYBOOK_DISABLE_FETCHPROXY');
   if (raw === undefined) return false;
   return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
 }
@@ -182,10 +168,10 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
     });
   } catch (e) {
     // SW eviction retry exhausted — surface library's typed `.hint` instead of the generic "open magic link" message.
-    if (classifyBridgeError(e) === 'bridge_down') {
-      const downErr = e as FetchproxyBridgeDownError;
+    const bridgeError = classifyBridgeError(e);
+    if (bridgeError.type === 'bridge_down') {
       throw new Error(
-        `HoneyBook auth: fetchproxy bridge is down (extension service worker unreachable after retry). ${downErr.hint}`
+        `HoneyBook auth: fetchproxy bridge is down (extension service worker unreachable after retry). ${bridgeError.hint ?? ''}`.trimEnd()
       );
     }
     const msg = e instanceof Error ? e.message : String(e);

@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { textResult, rawTextResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { HBListEnvelope, ToolResult } from '../types.js';
 import { FILE_TYPES } from '../types.js';
@@ -229,7 +230,7 @@ export async function listWorkspaceFiles(args: {
     res.last_page === false
       ? '// NOTE: more results exist on later pages; pagination is not yet wired up.\n'
       : '';
-  return { content: [{ type: 'text', text: prefix + JSON.stringify(filtered, null, 2) }] };
+  return rawTextResult(prefix + JSON.stringify(filtered, null, 2));
 }
 
 export async function getWorkspaceFile(args: {
@@ -264,7 +265,7 @@ export async function getWorkspaceFile(args: {
       break;
   }
 
-  return { content: [{ type: 'text', text: JSON.stringify(body, null, 2) }] };
+  return textResult(body);
 }
 
 export function registerWorkspaceFileTools(server: McpServer): void {
@@ -274,12 +275,9 @@ export function registerWorkspaceFileTools(server: McpServer): void {
       description:
         'List all files a vendor has shared with you (contracts, invoices, brochures, proposals). Optionally filter by file_type.',
       inputSchema: {
-        origin: z
-          .string()
-          .optional()
-          .describe(
-            'Portal origin (e.g. https://<vendor>.hbportal.co) to target. Optional — defaults to the most recently activated session.'
-          ),
+        origin: schemaOrigin.describe(
+          'Portal origin (e.g. https://<vendor>.hbportal.co) to target. Optional — defaults to the most recently activated session.'
+        ),
         file_type: z
           .enum(FILE_TYPES)
           .optional()
@@ -296,12 +294,9 @@ export function registerWorkspaceFileTools(server: McpServer): void {
         'Get detail for one workspace file. Returns a compact summary by default (metadata, vendor, event, pricing totals, payment schedule, agreement presence). Use `section` to drill into a specific part of the file: "pricing" for full line items + tax/svc detail, "agreement" for contract HTML + signatures, "payments" for full payment-schedule detail, "all" for the pruned full response, or "raw" for the entirely-unpruned response (may exceed MCP size limits on proposal-class files).',
       inputSchema: {
         file_id: z.string().describe('The file _id from list_workspace_files.'),
-        origin: z
-          .string()
-          .optional()
-          .describe(
-            'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
-          ),
+        origin: schemaOrigin.describe(
+          'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
+        ),
         section: z
           .enum(WORKSPACE_FILE_SECTIONS)
           .optional()

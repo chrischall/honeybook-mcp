@@ -1,7 +1,12 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+
 /**
- * Standard MCP tool return type. All tool handlers return a single text block.
+ * Standard MCP tool return type. Aliased to the SDK's `CallToolResult` so
+ * handlers can return the shared `@chrischall/mcp-utils` formatters
+ * (`textResult`, `rawTextResult`) directly. All tool handlers still emit a
+ * single text block.
  */
-export type ToolResult = { content: [{ type: 'text'; text: string }] };
+export type ToolResult = CallToolResult;
 
 /**
  * Paginated list envelope returned by HoneyBook v2 list endpoints

@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -12,7 +13,7 @@ export async function getWorkspace(args: {
     'GET',
     `/api/v2/workspaces/${args.workspace_id}`
   );
-  return { content: [{ type: 'text', text: JSON.stringify(res, null, 2) }] };
+  return textResult(res);
 }
 
 export function registerWorkspaceTools(server: McpServer): void {
@@ -25,12 +26,9 @@ export function registerWorkspaceTools(server: McpServer): void {
         workspace_id: z
           .string()
           .describe('The workspace _id (found on any workspace_file under .workspace._id).'),
-        origin: z
-          .string()
-          .optional()
-          .describe(
-            'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
-          ),
+        origin: schemaOrigin.describe(
+          'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
+        ),
       },
       annotations: { readOnlyHint: true },
     },
