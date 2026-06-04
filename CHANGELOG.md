@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/chrischall/honeybook-mcp/compare/v0.3.1...v0.3.2) (2026-06-04)
+
+
+### Bug Fixes
+
+* adopt @fetchproxy/server 0.13.0 (bridge host failover + re-pairing) ([#60](https://github.com/chrischall/honeybook-mcp/issues/60)) ([b92c7f6](https://github.com/chrischall/honeybook-mcp/commit/b92c7f633585781f43afed9b49956b444fc7c7a0))
+* migrate captureHeaders to [@fetchproxy](https://github.com/fetchproxy) 1.0.0 { host, path?, headerName } ([#62](https://github.com/chrischall/honeybook-mcp/issues/62)) ([d89ef2e](https://github.com/chrischall/honeybook-mcp/commit/d89ef2e1d57f4ddc809df7d4b917d3f6de746c59))
+
 ## [0.3.1](https://github.com/chrischall/honeybook-mcp/compare/v0.3.0...v0.3.1) (2026-05-29)
 
 
