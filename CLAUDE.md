@@ -60,7 +60,7 @@ TWO capabilities at once: `read_local_storage` AND
      suffix-matches)
    - `declare.localStorage: ['jStorage']` — single key holding HB_AUTH_TOKEN,
      HB_AUTH_USER_ID, HB_TRUSTED_DEVICE, HB_CURR_USER
-   - `declare.captureHeaders: [{ urlPattern: 'https://api.honeybook.com/api/v2/*',
+   - `declare.captureHeaders: [{ host: 'api.honeybook.com', path: '/api/v2/*',
      headerName: 'hb-api-fingerprint' }]` — captures the per-device
      FingerprintJS signal off the page's next outgoing API request
 4. Bootstrap snapshots both buckets in one round-trip, closes the bridge.

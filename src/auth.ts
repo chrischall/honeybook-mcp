@@ -118,13 +118,13 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       //     `jStorage` reads target it (via `storageDomain` below).
       //   - `honeybook.com` is required for the `hb-api-fingerprint`
       //     capture, because that header rides outgoing requests to
-      //     `https://api.honeybook.com/api/v2/*` and the extension gates
-      //     every captureHeader urlPattern host against declared domains.
+      //     `api.honeybook.com/api/v2/*` and the extension gates
+      //     every captureHeader `host` against declared domains.
       //
       // 0.4.1+ requires multi-domain MCPs to pick a `storageDomain` so
       // the cookie / localStorage / sessionStorage / indexedDb reads
       // know which tab to target. captureRequestHeader is independently
-      // routed by urlPattern.
+      // routed by its declared { host, path? }.
       domains: ['honeybook.com', 'hbportal.co'],
       storageDomain: 'hbportal.co',
       declare: {
@@ -149,7 +149,7 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
           // signal that the API requires on every subsequent request.
           // It's NOT stored in jStorage; the only place to get it is off
           // a real outgoing request.
-          { urlPattern: 'https://api.honeybook.com/api/v2/*', headerName: 'hb-api-fingerprint' },
+          { host: 'api.honeybook.com', path: '/api/v2/*', headerName: 'hb-api-fingerprint' },
         ],
       },
       // 0.4.0: surface the pair code (six digits) on stderr so the user
