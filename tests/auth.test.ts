@@ -70,7 +70,7 @@ describe('captureSessionViaFetchproxy', () => {
           localStorage: string[];
           localStoragePointers: { outputKey: string; storageKey: string; jsonPointer: string }[];
           sessionStorage: string[];
-          captureHeaders: { urlPattern: string; headerName: string }[];
+          captureHeaders: { host: string; path?: string; headerName: string }[];
         };
       };
       expect(opts.serverName).toBe('honeybook-mcp');
@@ -82,7 +82,7 @@ describe('captureSessionViaFetchproxy', () => {
       // jStorage/cookie/sessionStorage reads target. honeybook-mcp's
       // jStorage lives on the vendor portal tab, so hbportal.co is
       // the right choice. The hb-api-fingerprint capture continues
-      // to target api.honeybook.com via its declared urlPattern.
+      // to target api.honeybook.com via its declared { host, path }.
       expect(opts.storageDomain).toBe('hbportal.co');
       expect(opts.declare.cookies).toEqual([]);
       // No more full-blob jStorage read — only declared pointer paths.
@@ -95,7 +95,7 @@ describe('captureSessionViaFetchproxy', () => {
       ]);
       expect(opts.declare.sessionStorage).toEqual([]);
       expect(opts.declare.captureHeaders).toEqual([
-        { urlPattern: 'https://api.honeybook.com/api/v2/*', headerName: 'hb-api-fingerprint' },
+        { host: 'api.honeybook.com', path: '/api/v2/*', headerName: 'hb-api-fingerprint' },
       ]);
 
       expect(session.portalOrigin).toBe('https://silkveil.hbportal.co');
