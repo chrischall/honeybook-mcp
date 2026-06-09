@@ -114,7 +114,15 @@ export async function getActiveClient(origin?: string): Promise<HoneyBookClient>
   const cached = clientCache.get(session.portalOrigin);
   if (cached) return cached;
 
-  if (!moduleState.apiVersionPromise) moduleState.apiVersionPromise = fetchApiVersion();
+  if (!moduleState.apiVersionPromise) {
+    // Memoize the one-time fetch, but only on success — if it rejects, clear
+    // the cache so the next call retries instead of re-awaiting the same
+    // rejection until process restart.
+    moduleState.apiVersionPromise = fetchApiVersion().catch((err: unknown) => {
+      moduleState.apiVersionPromise = null;
+      throw err;
+    });
+  }
   const apiVersion = await moduleState.apiVersionPromise;
   const client = new HoneyBookClient(session, apiVersion);
   clientCache.set(session.portalOrigin, client);
