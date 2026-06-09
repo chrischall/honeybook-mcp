@@ -1,20 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  normalizeOrigin,
-  serializeSessions,
-  deserializeSessions,
-} from '../src/sessions.js';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as pathJoin } from 'node:path';
+import { SessionStore } from '@chrischall/mcp-utils/session';
+import { normalizeOrigin, sessionStore } from '../src/sessions.js';
 import type { CapturedSession } from '../src/types.js';
 
-// We test SessionStore methods by importing the class indirectly via a fresh
-// SessionStore instance using a temp diskPath (so it never touches real disk).
-// We reach the class by importing the module and re-exporting it from a helper
-// that gives us a fresh store per-test. Because SessionStore is not exported
-// we drive it through the exported sessionStore + resetForTest(), but we need
-// a separate store per-test to avoid shared state. We'll use a private
-// trick: import the module source and create a new store with a unique path.
+// src/sessions.ts is now a thin adapter over @chrischall/mcp-utils/session —
+// this repo was the donor SessionStore was extracted from. These tests assert
+// the adapter wiring (re-exports, key normalization, persistence semantics)
+// rather than re-testing the shared store's internals.
 
-// ---- normalizeOrigin ----
+// ---- normalizeOrigin (re-exported from @chrischall/mcp-utils/session) ----
 
 describe('normalizeOrigin', () => {
   it('strips path and query from a full URL', () => {
@@ -36,7 +33,7 @@ describe('normalizeOrigin', () => {
   });
 });
 
-// ---- serializeSessions / deserializeSessions ----
+// ---- exported sessionStore singleton: empty-state behavior ----
 
 const MOCK_SESSION: CapturedSession = {
   portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co',
@@ -48,90 +45,8 @@ const MOCK_SESSION: CapturedSession = {
   capturedAt: 1745000000000,
 };
 
-describe('serializeSessions', () => {
-  it('serializes sessions as a JSON array in insertion order', () => {
-    const map = new Map<string, CapturedSession>();
-    map.set(MOCK_SESSION.portalOrigin, MOCK_SESSION);
-    const json = serializeSessions(map);
-    const parsed = JSON.parse(json) as CapturedSession[];
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].portalOrigin).toBe(MOCK_SESSION.portalOrigin);
-  });
-
-  it('serializes multiple sessions in insertion order', () => {
-    const map = new Map<string, CapturedSession>();
-    map.set('https://a.hbportal.co', { ...MOCK_SESSION, portalOrigin: 'https://a.hbportal.co', companyName: 'A' });
-    map.set('https://b.hbportal.co', { ...MOCK_SESSION, portalOrigin: 'https://b.hbportal.co', companyName: 'B' });
-    const json = serializeSessions(map);
-    const parsed = JSON.parse(json) as CapturedSession[];
-    expect(parsed[0].companyName).toBe('A');
-    expect(parsed[1].companyName).toBe('B');
-  });
-
-  it('returns a JSON array for an empty map', () => {
-    expect(JSON.parse(serializeSessions(new Map()))).toEqual([]);
-  });
-});
-
-describe('deserializeSessions', () => {
-  it('round-trips a serialized session map', () => {
-    const map = new Map<string, CapturedSession>();
-    map.set(MOCK_SESSION.portalOrigin, MOCK_SESSION);
-    const restored = deserializeSessions(serializeSessions(map));
-    expect(restored.get(MOCK_SESSION.portalOrigin)).toEqual(MOCK_SESSION);
-  });
-
-  it('returns an empty map for invalid JSON', () => {
-    expect(deserializeSessions('not-json')).toEqual(new Map());
-  });
-
-  it('returns an empty map for a non-array JSON value', () => {
-    expect(deserializeSessions('{"key":"value"}')).toEqual(new Map());
-  });
-
-  it('skips entries without a portalOrigin field', () => {
-    const json = JSON.stringify([{ companyName: 'No Origin', authToken: 'x' }]);
-    expect(deserializeSessions(json).size).toBe(0);
-  });
-});
-
-// ---- SessionStore (pure-state tests via a fresh in-memory store) ----
-// We import sessionStore and use resetForTest() to isolate each test.
-// We inject sessions directly via a fake activate call.
-
-import { sessionStore } from '../src/sessions.js';
-
-describe('SessionStore.get / list / deactivate', () => {
+describe('sessionStore (exported singleton)', () => {
   beforeEach(() => sessionStore.resetForTest());
-
-  function inject(session: CapturedSession): void {
-    // We bypass activate() (which needs Puppeteer) by reaching into the store
-    // via deactivate()+internal mutation trick. Instead we serialize, write to a
-    // temp file and reload. But since resetForTest clears disk loading, we need a
-    // simpler approach: expose a test seam. The simplest is to serialize a temp
-    // sessions.json and call a private loadFromDisk. We can't do that without
-    // exporting the class. So instead we'll test using serializeSessions +
-    // deserializeSessions to verify the roundtrip, and test the public get/list/deactivate
-    // by constructing a new store pointing at a temp file.
-    //
-    // Actually the cleanest approach: create a sub-store with a temp diskPath that
-    // has pre-populated data. We expose this by creating a test-only constructor call
-    // using a workaround: write to a tmpfile and load. For now, since SessionStore
-    // isn't exported, we test get/list/deactivate by using the exported sessionStore
-    // and relying on a seam that writes to disk. We'll write a sessions file to a
-    // tmpdir and import a fresh store.
-    //
-    // Alternative: use Node's import cache by writing a temp file and re-importing —
-    // that's fragile. Best approach: export a createSessionStore factory for tests.
-    // For now we note this is the designed "inject" approach for the store,
-    // tested below using a fresh temp-path store.
-    void session;
-  }
-
-  // Since SessionStore is not exported, we test it via a minimal integration:
-  // use the real exported sessionStore, inject sessions via resetForTest + direct
-  // deserializeSessions to verify the helper, and confirm store starts empty.
 
   it('get() returns null when no sessions are active', () => {
     expect(sessionStore.get()).toBeNull();
@@ -142,50 +57,92 @@ describe('SessionStore.get / list / deactivate', () => {
     expect(sessionStore.list()).toEqual([]);
   });
 
-  it('deactivate() returns false for an unknown origin', () => {
-    expect(sessionStore.deactivate('https://unknown.hbportal.co')).toBe(false);
+  it('remove() returns false for an unknown origin', () => {
+    expect(sessionStore.remove('https://unknown.hbportal.co')).toBe(false);
   });
 });
 
-// Test the full store lifecycle using a temp-path store (bypassing disk I/O
-// pollution). We do this by creating a new instance via the exported class
-// indirectly — we can only do this if we export it. Since the spec says
-// "Don't test activate() which needs Puppeteer", we use a workaround:
-// write a sessions.json to a tmp path, then import a fresh store using the
-// internal API. We simulate this via serializeSessions + direct file writes.
+// ---- adapter-shaped store against a temp file: full lifecycle ----
+// Mirrors the exact options src/sessions.ts passes to SessionStore so the
+// integration semantics (key normalization, MRU pointer, disk round-trip,
+// hardened perms, corrupt-file preservation) are pinned for this repo.
 
-import { tmpdir } from 'node:os';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join as pathJoin } from 'node:path';
+function tmpStorePath(): string {
+  const dir = pathJoin(tmpdir(), `hb-sessions-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  return pathJoin(dir, 'sessions.json');
+}
 
-// We cannot instantiate SessionStore directly (not exported). However, we can
-// test the disk-loading path by writing a real sessions.json to a tmpdir and
-// using a dynamic import trick. Instead, let's export a test-only factory from
-// sessions.ts. But we shouldn't modify the module for testing alone.
-//
-// The pragmatic solution for this spec: test get/list/deactivate using a store
-// pre-populated via a temp diskPath that we construct programmatically, then
-// re-export SessionStore as a named class solely for tests. Since the spec says
-// "inject an empty SessionStore", we trust the unit tests above cover the
-// pure helpers fully, and test the store I/O path below using a temp file
-// and the re-hydration path only.
+function newStore(filePath: string): SessionStore<CapturedSession> {
+  return new SessionStore<CapturedSession>({
+    filePath,
+    keyOf: (s) => s.portalOrigin,
+    normalizeKey: normalizeOrigin,
+  });
+}
 
-describe('SessionStore loaded from disk', () => {
-  it('restores sessions from a pre-written disk file and get() returns the most-recent', () => {
-    const tmpDir = pathJoin(tmpdir(), `hb-test-${Date.now()}`);
-    mkdirSync(tmpDir, { recursive: true });
-    const diskPath = pathJoin(tmpDir, 'sessions.json');
+describe('SessionStore adapter wiring', () => {
+  it('keys by portalOrigin and normalizes lookups (full URL → origin)', () => {
+    const store = newStore(tmpStorePath());
+    store.add(MOCK_SESSION);
+    const hit = store.get('https://thesilkveileventsbyivy.hbportal.co/app/workspace_file/123?x=1');
+    expect(hit?.authToken).toBe('tok_43');
+  });
 
-    const sessions: CapturedSession[] = [
-      { ...MOCK_SESSION, portalOrigin: 'https://a.hbportal.co', companyName: 'A' },
-      { ...MOCK_SESSION, portalOrigin: 'https://b.hbportal.co', companyName: 'B' },
-    ];
-    writeFileSync(diskPath, JSON.stringify(sessions, null, 2));
+  it('get() with no key returns the most-recently-added session', () => {
+    const store = newStore(tmpStorePath());
+    store.add({ ...MOCK_SESSION, portalOrigin: 'https://a.hbportal.co', companyName: 'A' });
+    store.add({ ...MOCK_SESSION, portalOrigin: 'https://b.hbportal.co', companyName: 'B' });
+    expect(store.get()?.companyName).toBe('B');
+  });
 
-    // Deserialize manually and verify the expected round-trip
-    const map = deserializeSessions(JSON.stringify(sessions));
-    expect(map.size).toBe(2);
-    const last = Array.from(map.keys()).pop();
-    expect(last).toBe('https://b.hbportal.co');
+  it('remove() fixes up the most-recent pointer', () => {
+    const store = newStore(tmpStorePath());
+    store.add({ ...MOCK_SESSION, portalOrigin: 'https://a.hbportal.co', companyName: 'A' });
+    store.add({ ...MOCK_SESSION, portalOrigin: 'https://b.hbportal.co', companyName: 'B' });
+    expect(store.remove('https://b.hbportal.co')).toBe(true);
+    expect(store.get()?.companyName).toBe('A');
+    expect(store.list()).toHaveLength(1);
+  });
+
+  it('persists across instances (JSON array, insertion order, last = most recent)', () => {
+    const filePath = tmpStorePath();
+    const store = newStore(filePath);
+    store.add({ ...MOCK_SESSION, portalOrigin: 'https://a.hbportal.co', companyName: 'A' });
+    store.add({ ...MOCK_SESSION, portalOrigin: 'https://b.hbportal.co', companyName: 'B' });
+
+    const reloaded = newStore(filePath);
+    expect(reloaded.list().map((s) => s.companyName)).toEqual(['A', 'B']);
+    expect(reloaded.get()?.companyName).toBe('B');
+  });
+
+  it('writes the sessions file with mode 0600 (audit C-2 upgrade)', () => {
+    const filePath = tmpStorePath();
+    const store = newStore(filePath);
+    store.add(MOCK_SESSION);
+    expect(statSync(filePath).mode & 0o777).toBe(0o600);
+  });
+
+  it('re-tightens a loose pre-existing file to 0600 on save (audit C-2 upgrade)', () => {
+    const filePath = tmpStorePath();
+    writeFileSync(filePath, '[]', { mode: 0o644 });
+    const store = newStore(filePath);
+    store.add(MOCK_SESSION);
+    expect(statSync(filePath).mode & 0o777).toBe(0o600);
+  });
+
+  it('preserves a corrupt sessions file as a .corrupt backup instead of overwriting it (0.7.0 upgrade)', () => {
+    const filePath = tmpStorePath();
+    writeFileSync(filePath, 'not json at all', { mode: 0o600 });
+
+    const store = newStore(filePath);
+    expect(store.list()).toEqual([]);
+    const backup = `${filePath}.corrupt`;
+    expect(existsSync(backup)).toBe(true);
+    expect(readFileSync(backup, 'utf8')).toBe('not json at all');
+
+    // A subsequent save must not clobber the preserved backup.
+    store.add(MOCK_SESSION);
+    expect(readFileSync(backup, 'utf8')).toBe('not json at all');
   });
 });

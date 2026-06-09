@@ -26,9 +26,10 @@ src/
                          call that reads localStorage["jStorage"] + the
                          hb-api-fingerprint request header out of the user's signed-in
                          portal tab, then closes the bridge. See "Auth flow" below.
-  sessions.ts            SessionStore — disk-persisted session cache; pure helpers
-                         (normalizeOrigin, serializeSessions, deserializeSessions) are
-                         exported for unit tests
+  sessions.ts            Thin adapter over the disk-persisted SessionStore from
+                         @chrischall/mcp-utils/session (this repo was the donor it
+                         was extracted from); re-exports normalizeOrigin and the
+                         configured sessionStore singleton
   types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, FileType
   tools/
     sessions.ts          use_magic_link, list_active_sessions
@@ -89,8 +90,9 @@ Tests live in `tests/`. `client.request` is exercised by mocking
 `globalThis.fetch` with `vi.spyOn`; tool handlers mock `getActiveClient` to
 inject a fake client. `@fetchproxy/bootstrap` is mocked at the module
 boundary in `tests/auth.test.ts` so capture flows never hit a real WebSocket.
-No live API calls in CI. `sessions.ts` pure helpers
-(`normalizeOrigin`, `serialize/deserializeSessions`) are unit-tested directly.
+No live API calls in CI. `tests/sessions.test.ts` asserts the adapter wiring
+(`normalizeOrigin` re-export, store key normalization, persistence, hardened
+file perms, corrupt-file preservation) against a temp-path store.
 
 `vitest.config.ts` configures the v8 coverage provider but does NOT enforce
 thresholds — CI runs `npm test` (no coverage gate).
