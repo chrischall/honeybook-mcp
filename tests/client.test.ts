@@ -252,4 +252,23 @@ describe('getActiveClient', () => {
     const c2 = await getActiveClient();
     expect(c1).toBe(c2);
   });
+
+  it('retries the api-version fetch after a failure instead of caching the rejection', async () => {
+    delete process.env.HONEYBOOK_API_VERSION; // force the /api/gon fetch path
+    vi.spyOn(sessionsModule.sessionStore, 'get').mockReturnValue(MOCK_SESSION);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('transient network blip'))
+      .mockResolvedValueOnce(
+        new Response('/**/parseGon({"api_version":2578,"version":"36.122.376"})', { status: 200 })
+      );
+
+    await expect(getActiveClient()).rejects.toThrow('transient network blip');
+
+    // Second call must re-fetch — not re-await the cached rejected promise.
+    const client = await getActiveClient();
+    expect(client).toBeInstanceOf(HoneyBookClient);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(await currentModuleApiVersion()).toBe(2578);
+  });
 });
