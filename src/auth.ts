@@ -58,16 +58,14 @@
 
 import { bootstrap } from '@fetchproxy/bootstrap';
 import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
-import { readEnvVar } from '@chrischall/mcp-utils';
+import { parseBoolEnv } from '@chrischall/mcp-utils';
 import pkg from '../package.json' with { type: 'json' };
 import { sessionStore, normalizeOrigin } from './sessions.js';
 import type { CapturedSession } from './types.js';
 
 /** True if the user has explicitly disabled the fetchproxy capture path. */
 function fetchproxyDisabled(): boolean {
-  const raw = readEnvVar('HONEYBOOK_DISABLE_FETCHPROXY');
-  if (raw === undefined) return false;
-  return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+  return parseBoolEnv('HONEYBOOK_DISABLE_FETCHPROXY');
 }
 
 export interface CaptureOpts {

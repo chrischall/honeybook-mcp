@@ -23,8 +23,11 @@ export interface HBListEnvelope<T> {
 /**
  * Auth session captured from a vendor's signed-in portal tab via
  * `@fetchproxy/bootstrap` (v3+; v2 used embedded Puppeteer).
+ *
+ * A `type` (not an `interface`) so it structurally satisfies the shared
+ * SessionStore's `T extends Record<string, unknown>` constraint.
  */
-export interface CapturedSession {
+export type CapturedSession = {
   /** Full origin of the vendor's branded portal (e.g. `https://thesilkveileventsbyivy.hbportal.co`). */
   portalOrigin: string;
   /** Company name as reported by the portal's HB_CURR_USER.company.company_name. Used for display only. */
@@ -35,7 +38,7 @@ export interface CapturedSession {
   fingerprint: string;
   /** Epoch millis when this session was captured. */
   capturedAt: number;
-}
+};
 
 /**
  * Known file types. HoneyBook uses many; these are the ones this MCP cares about.
