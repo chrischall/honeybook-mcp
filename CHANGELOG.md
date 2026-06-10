@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/chrischall/honeybook-mcp/compare/v0.3.2...v0.3.3) (2026-06-10)
+
+
+### Bug Fixes
+
+* clear cached api-version promise on rejection so fetch retries ([#66](https://github.com/chrischall/honeybook-mcp/issues/66)) ([9ce9c76](https://github.com/chrischall/honeybook-mcp/commit/9ce9c76c1fa976fa24582cec4231ffdd7284f31f))
+
 ## [0.3.2](https://github.com/chrischall/honeybook-mcp/compare/v0.3.1...v0.3.2) (2026-06-04)
 
 
