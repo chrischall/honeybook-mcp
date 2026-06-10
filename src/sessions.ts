@@ -11,13 +11,25 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { SessionStore, normalizeOrigin } from '@chrischall/mcp-utils/session';
+import { readEnvVar } from '@chrischall/mcp-utils';
 import type { CapturedSession } from './types.js';
 
 export type { CapturedSession };
 export { normalizeOrigin };
 
+// Base directory holding `sessions.json`. Defaults to the real per-user store
+// (`~/.honeybook-mcp`). Overridable via `HONEYBOOK_SESSIONS_DIR` so the test
+// suite can redirect persistence into an isolated temp dir and never touch the
+// developer's real captured-session credentials. Production never sets the env
+// var, so the default is unchanged.
+export const sessionsDir = readEnvVar('HONEYBOOK_SESSIONS_DIR', {
+  default: join(homedir(), '.honeybook-mcp'),
+})!;
+
+export const sessionsFilePath = join(sessionsDir, 'sessions.json');
+
 export const sessionStore = new SessionStore<CapturedSession>({
-  filePath: join(homedir(), '.honeybook-mcp', 'sessions.json'),
+  filePath: sessionsFilePath,
   keyOf: (session) => session.portalOrigin,
   normalizeKey: normalizeOrigin,
 });

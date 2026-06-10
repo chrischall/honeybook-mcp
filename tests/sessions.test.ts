@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { SessionStore } from '@chrischall/mcp-utils/session';
-import { normalizeOrigin, sessionStore } from '../src/sessions.js';
+import { normalizeOrigin, sessionStore, sessionsDir, sessionsFilePath } from '../src/sessions.js';
 import type { CapturedSession } from '../src/types.js';
 
 // src/sessions.ts is now a thin adapter over @chrischall/mcp-utils/session —
@@ -44,6 +44,23 @@ const MOCK_SESSION: CapturedSession = {
   fingerprint: 'fp_32',
   capturedAt: 1745000000000,
 };
+
+// ---- test isolation: the singleton must NOT write to the real home store ----
+// `HONEYBOOK_SESSIONS_DIR` (set by tests/setup.ts) redirects persistence into a
+// throwaway temp dir, so the suite never clobbers the developer's real
+// ~/.honeybook-mcp/sessions.json.
+
+describe('sessionStore test isolation', () => {
+  it('resolves the store path under os.tmpdir(), never the real home dir', () => {
+    expect(sessionsDir.startsWith(tmpdir())).toBe(true);
+    expect(sessionsFilePath.startsWith(tmpdir())).toBe(true);
+    expect(sessionsFilePath).not.toContain(pathJoin(homedir(), '.honeybook-mcp'));
+  });
+
+  it('honors the HONEYBOOK_SESSIONS_DIR override', () => {
+    expect(sessionsDir).toBe(process.env.HONEYBOOK_SESSIONS_DIR);
+  });
+});
 
 describe('sessionStore (exported singleton)', () => {
   beforeEach(() => sessionStore.resetForTest());
