@@ -133,25 +133,17 @@ Version appears in SEVEN places — all must match:
 6. `.claude-plugin/plugin.json` → `"version"`
 7. `.claude-plugin/marketplace.json` → `metadata.version` and `plugins[0].version`
 
-Handled automatically by the **Tag & Bump** GitHub Action
-(`.github/workflows/tag-and-bump.yml`). Do NOT manually bump versions or create
+Handled automatically by release-please. Do NOT manually bump versions or create
 tags unless the user explicitly asks.
 
-### Release workflow
+### Release flow
 
-Main is always one version ahead of the latest tag. Trigger **Tag & Bump** to:
-
-1. Run CI (build + test)
-2. Tag the current commit with the current `package.json` version
-3. Bump patch via `npm version patch` + an inline Node script that walks every
-   JSON version field (and `sed` for `src/index.ts`)
-4. Rebuild, commit, and push main + tag
-
-The tag push triggers the **Release** workflow (`.github/workflows/release.yml`)
-which builds, publishes to npm with provenance, packages a `.skill` and `.mcpb`
-bundle, publishes to the MCP registry via `mcp-publisher` (GitHub OIDC),
-optionally pushes the skill to ClawHub (if `CLAWHUB_TOKEN` is set), and creates
-a GitHub Release with auto-generated notes (see `.github/release.yml`).
+Commits land on `main` via PR. release-please
+(`.github/workflows/release-please.yml`) opens or updates a
+`chore(main): release X.Y.Z` PR whenever Conventional-Commit messages (`feat:`,
+`fix:`, etc.) accumulate. Merging the release PR (arm `ready-to-merge`) creates
+the tag and a GitHub Release; the `publish` job then packs `.mcpb` + `.skill`,
+publishes to npm with provenance, and pushes to the MCP Registry.
 
 ## Gotchas
 
