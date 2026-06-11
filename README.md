@@ -1,5 +1,9 @@
 # HoneyBook MCP
 
+[![CI](https://github.com/chrischall/honeybook-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/chrischall/honeybook-mcp/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/honeybook-mcp)](https://www.npmjs.com/package/honeybook-mcp)
+[![license](https://img.shields.io/npm/l/honeybook-mcp)](LICENSE)
+
 A [Model Context Protocol](https://modelcontextprotocol.io) server that connects Claude to the [HoneyBook](https://www.honeybook.com) client portal, giving you natural-language access to contracts and invoices sent by your wedding vendors.
 
 > [!WARNING]
