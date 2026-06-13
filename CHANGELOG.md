@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.4](https://github.com/chrischall/honeybook-mcp/compare/v0.3.3...v0.3.4) (2026-06-13)
+
+
+### Bug Fixes
+
+* bot PRs bypass the CI gate unconditionally (upstream curtaincall[#86](https://github.com/chrischall/honeybook-mcp/issues/86) review) ([#74](https://github.com/chrischall/honeybook-mcp/issues/74)) ([e83a384](https://github.com/chrischall/honeybook-mcp/commit/e83a38468c489dfdb808d02c5ac36314b2c852c3))
+
+
+### Documentation
+
+* add MIT LICENSE file and README badges ([#72](https://github.com/chrischall/honeybook-mcp/issues/72)) ([d33bd1d](https://github.com/chrischall/honeybook-mcp/commit/d33bd1db362e8534c71f43359f4a29ab0c5e4b68))
+* correct release flow to describe release-please ([#70](https://github.com/chrischall/honeybook-mcp/issues/70)) ([93b5d1f](https://github.com/chrischall/honeybook-mcp/commit/93b5d1f1900f464b327dd1633dc6143b4e9cfc01))
+
 ## [0.3.3](https://github.com/chrischall/honeybook-mcp/compare/v0.3.2...v0.3.3) (2026-06-10)
 
 
