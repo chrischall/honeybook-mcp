@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.5](https://github.com/chrischall/honeybook-mcp/compare/v0.3.4...v0.3.5) (2026-06-16)
+
+
+### Bug Fixes
+
+* **auth:** give actionable guidance when fingerprint capture times out ([#83](https://github.com/chrischall/honeybook-mcp/issues/83)) ([1d25014](https://github.com/chrischall/honeybook-mcp/commit/1d25014f6d8c48bd8dcdf18649269de8f679c31d))
+
+
+### Documentation
+
+* document auto-review follow-up issue convention ([#82](https://github.com/chrischall/honeybook-mcp/issues/82)) ([e379b67](https://github.com/chrischall/honeybook-mcp/commit/e379b6791cc021b9fd36dd5ae2bdcab5fc0d66e5))
+* require Conventional Commit PR titles for release-please ([#78](https://github.com/chrischall/honeybook-mcp/issues/78)) ([574adbd](https://github.com/chrischall/honeybook-mcp/commit/574adbda60637d406155e4aa0a43f845466604d0))
+
 ## [0.3.4](https://github.com/chrischall/honeybook-mcp/compare/v0.3.3...v0.3.4) (2026-06-13)
 
 
