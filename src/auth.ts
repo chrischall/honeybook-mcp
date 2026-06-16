@@ -173,6 +173,26 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
+    // The hb-api-fingerprint capture rejects with a bare `timeout` when no
+    // api.honeybook.com/api/v2/* request fires before its one-shot listener
+    // window elapses. This is the common "tab already loaded and idle" case:
+    // a HoneyBook portal fires its API calls on load, then goes quiet, so by
+    // the time bootstrap has paired, read jStorage, and armed the capture
+    // listener there's no fresh request left to sniff the header off. The fix
+    // is to make the portal issue a *new* request (refresh the tab, open a
+    // workspace) WHILE the capture is waiting — NOT to (re)open the magic
+    // link, which is already open. classifyBridgeError keys off the error
+    // class, so the capture timeout surfaces as a FetchproxyProtocolError
+    // ('protocol'), not 'timeout' — match on the message too.
+    if (bridgeError.type === 'timeout' || /timeout/i.test(msg)) {
+      throw new Error(
+        'HoneyBook auth: fetchproxy capture timed out waiting for the hb-api-fingerprint header. ' +
+          'That header can only be read off a live api.honeybook.com request, and a portal tab that has ' +
+          'already finished loading sits idle. Keep the vendor magic-link URL open in Chrome (with the ' +
+          'fetchproxy extension installed), then re-run use_magic_link and — within ~30s, while it waits — ' +
+          'refresh the portal tab (or open a workspace/file) so the page issues a fresh API request.'
+      );
+    }
     throw new Error(
       `HoneyBook auth: fetchproxy capture failed: ${msg} — ` +
         'open the vendor magic-link URL in Chrome (with the fetchproxy 0.3.0 extension installed), ' +

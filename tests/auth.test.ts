@@ -236,6 +236,27 @@ describe('captureSessionViaFetchproxy', () => {
       ).rejects.toThrow(/fetchproxy.*extension offline/);
     });
 
+    it('gives "refresh the portal" guidance when the fingerprint capture times out', async () => {
+      // The capture_request_header step rejects with FetchproxyProtocolError('timeout')
+      // when no api.honeybook.com/api/v2/* request fires before its one-shot listener
+      // window elapses — the common "tab already loaded and idle" case. classifyBridgeError
+      // keys off the error *class*, so this surfaces as type 'protocol' (not 'timeout');
+      // detection must therefore key off the 'timeout' message.
+      const { FetchproxyProtocolError } = await import('@chrischall/mcp-utils/fetchproxy');
+      bootstrapMock.mockRejectedValue(new FetchproxyProtocolError('timeout'));
+
+      const err = (await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      }).catch((e) => e)) as Error;
+
+      // Names the real cause and the actionable fix (trigger a fresh API request),
+      // NOT the misleading "open the magic-link URL" copy — the link is already open.
+      expect(err.message).toMatch(/HoneyBook auth/);
+      expect(err.message).toMatch(/timed out/i);
+      expect(err.message).toMatch(/refresh|open a workspace/i);
+      expect(err.message).not.toMatch(/open the vendor magic-link URL/);
+    });
+
     it('handles non-Error rejections from bootstrap()', async () => {
       bootstrapMock.mockRejectedValue('plain string failure');
 

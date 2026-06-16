@@ -50,7 +50,7 @@ export function registerSessionTools(server: McpServer): void {
     'use_magic_link',
     {
       description:
-        "Capture a HoneyBook client-portal session via the fetchproxy 0.3.0 browser extension. Prerequisites: install the fetchproxy extension in Chrome/Safari, then open the vendor's magic-link URL in that browser so you're signed into their portal. This tool then snapshots the page's localStorage[\"jStorage\"] and the hb-api-fingerprint header into ~/.honeybook-mcp/sessions.json. All other tools use the most-recently-activated session by default. The magic_link_url arg is used only to derive the portalOrigin (cache key) — the tool does NOT open or navigate to it.",
+        "Capture a HoneyBook client-portal session via the fetchproxy 0.3.0 browser extension. Prerequisites: install the fetchproxy extension in Chrome/Safari, then open the vendor's magic-link URL in that browser so you're signed into their portal. This tool then snapshots the page's localStorage[\"jStorage\"] and the hb-api-fingerprint header into ~/.honeybook-mcp/sessions.json. IMPORTANT: the hb-api-fingerprint header is sniffed off the next live api.honeybook.com request, so a portal tab that has already finished loading (and gone idle) yields nothing and the capture times out. While this tool is running, refresh the portal tab (or open a workspace/file) so the page issues a fresh API request. All other tools use the most-recently-activated session by default. The magic_link_url arg is used only to derive the portalOrigin (cache key) — the tool does NOT open or navigate to it.",
       inputSchema: {
         magic_link_url: z
           .string()
