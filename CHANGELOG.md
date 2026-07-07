@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/chrischall/honeybook-mcp/compare/v0.3.5...v0.3.6) (2026-07-07)
+
+
+### Bug Fixes
+
+* bump @chrischall/mcp-utils to 0.12.0 ([#93](https://github.com/chrischall/honeybook-mcp/issues/93)) ([ae5b619](https://github.com/chrischall/honeybook-mcp/commit/ae5b619e5a1ff18f5df51d9ac4d4115d70ce0b70))
+
 ## [0.3.5](https://github.com/chrischall/honeybook-mcp/compare/v0.3.4...v0.3.5) (2026-06-16)
 
 
