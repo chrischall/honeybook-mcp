@@ -105,7 +105,7 @@ thresholds — CI runs `npm test` (no coverage gate).
   marketplace.json  Marketplace catalog entry
 skills/
   honeybook/SKILL.md
-SKILL.md            Top-level skill reference (also packaged into the .skill bundle)
+  honeybook-fpx/SKILL.md
 manifest.json       mcpb bundle manifest
 .mcp.json           MCP server configuration for Claude Code
 server.json         modelcontextprotocol/registry manifest
