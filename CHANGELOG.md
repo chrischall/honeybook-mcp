@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/chrischall/honeybook-mcp/compare/v0.3.6...v0.4.0) (2026-07-13)
+
+
+### Features
+
+* **skill:** add honeybook fpx access skill ([#98](https://github.com/chrischall/honeybook-mcp/issues/98)) ([e4abb69](https://github.com/chrischall/honeybook-mcp/commit/e4abb69f6796116779aa00fd3579c792f634227b))
+
+
+### Refactor
+
+* **skill:** move root SKILL.md into skills/, point plugin.json at ./skills/ ([#100](https://github.com/chrischall/honeybook-mcp/issues/100)) ([9cfee10](https://github.com/chrischall/honeybook-mcp/commit/9cfee1053dffbb2c67d5fafdbd89b9ca792c99ae))
+
 ## [0.3.6](https://github.com/chrischall/honeybook-mcp/compare/v0.3.5...v0.3.6) (2026-07-07)
 
 
