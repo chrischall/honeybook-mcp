@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1](https://github.com/chrischall/honeybook-mcp/compare/v0.4.0...v0.4.1) (2026-07-19)
+
+
+### Bug Fixes
+
+* **release:** pin skill-path so the publish job can resolve SKILL.md ([#101](https://github.com/chrischall/honeybook-mcp/issues/101)) ([17c4d42](https://github.com/chrischall/honeybook-mcp/commit/17c4d426275413c0d863507311e0d255c8ae2a70))
+
+
+### Documentation
+
+* replace duplicated fleet policy with a pointer ([#104](https://github.com/chrischall/honeybook-mcp/issues/104)) ([70d6b06](https://github.com/chrischall/honeybook-mcp/commit/70d6b06d38be907326ec6a37c3088797eca71828))
+
 ## [0.4.0](https://github.com/chrischall/honeybook-mcp/compare/v0.3.6...v0.4.0) (2026-07-13)
 
 
