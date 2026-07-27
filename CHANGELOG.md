@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/chrischall/honeybook-mcp/compare/v0.4.1...v0.4.2) (2026-07-27)
+
+
+### Bug Fixes
+
+* **release:** indent skill-path into the with: block ([#113](https://github.com/chrischall/honeybook-mcp/issues/113)) ([9e83a07](https://github.com/chrischall/honeybook-mcp/commit/9e83a07cfa150884f00b65ea17b9d3e54e027848))
+* **release:** restore the skill-path pin dropped by the pipeline sweep ([#112](https://github.com/chrischall/honeybook-mcp/issues/112)) ([06bff6f](https://github.com/chrischall/honeybook-mcp/commit/06bff6fccd9a28be4404f6cca233a20c60570219))
+
 ## [0.4.1](https://github.com/chrischall/honeybook-mcp/compare/v0.4.0...v0.4.1) (2026-07-19)
 
 
