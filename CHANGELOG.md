@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/chrischall/honeybook-mcp/compare/v0.4.2...v0.4.3) (2026-07-30)
+
+
+### Bug Fixes
+
+* **deps:** bump @fetchproxy/* to 1.7.0 and @chrischall/mcp-utils to 0.14.0 ([#116](https://github.com/chrischall/honeybook-mcp/issues/116)) ([395af80](https://github.com/chrischall/honeybook-mcp/commit/395af80a91a8a834513b0633af2df4673378e5c9))
+
 ## [0.4.2](https://github.com/chrischall/honeybook-mcp/compare/v0.4.1...v0.4.2) (2026-07-27)
 
 
