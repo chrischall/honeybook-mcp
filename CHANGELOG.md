@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/chrischall/honeybook-mcp/compare/v0.4.3...v0.4.4) (2026-08-06)
+
+
+### Bug Fixes
+
+* **deps:** move to @fetchproxy/server 2.0.0 for the v3 handshake ([#123](https://github.com/chrischall/honeybook-mcp/issues/123)) ([b6d6742](https://github.com/chrischall/honeybook-mcp/commit/b6d67423d6f0cedb7b0047e102a9d9bf4b235a0d))
+
 ## [0.4.3](https://github.com/chrischall/honeybook-mcp/compare/v0.4.2...v0.4.3) (2026-07-30)
 
 
