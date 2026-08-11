@@ -113,6 +113,24 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 - **"fetchproxy capture failed"** — install the [fetchproxy 0.3.0 extension](https://github.com/chrischall/fetchproxy), then open the vendor's magic link in that browser.
 - **"fetchproxy capture timed out"** — the extension found no signed-in portal tab to read. Open the vendor's magic link, confirm the portal page has loaded, then retry.
 - **"no confirmed browser session"** — the extension is connected but has not approved this MCP. Open the Transporter popup and approve the pair code it shows, then retry.
+- **"localStorage keys not in declared set"** — the MCP now reads a storage key your existing pairing doesn't cover. See [Upgrading from 0.4.4 or earlier](#upgrading-from-044-or-earlier). Retrying will not help, and this is not a version problem.
+
+## Upgrading from 0.4.4 or earlier
+
+**0.4.5 requires a one-time re-approval in the browser extension.** HoneyBook moved the client-portal session out of `localStorage["jStorage"]` into `localStorage["HONEYBOOK_REACT_CURR_USER"]`, so 0.4.5 reads a different storage key. The extension approves a MCP's declared scope *at pair time*, so an existing pairing does not cover the new key and every capture is refused with:
+
+```
+localStorage keys not in declared set: HONEYBOOK_REACT_CURR_USER
+```
+
+To fix it, once:
+
+1. Open the **Transporter** extension popup.
+2. **Revoke** `honeybook-mcp`.
+3. Re-run `use_magic_link` — a fresh pair code appears.
+4. Approve it in the popup. You are approving the new scope.
+
+Nothing else changes: existing sessions in `~/.honeybook-mcp/sessions.json` keep working, and a re-capture is only needed if the session itself has expired.
 
 ## Security
 
