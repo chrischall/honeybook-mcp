@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.6](https://github.com/chrischall/honeybook-mcp/compare/v0.4.5...v0.4.6) (2026-08-11)
+
+
+### Documentation
+
+* tell 0.4.4 users they must re-approve the extension scope ([#132](https://github.com/chrischall/honeybook-mcp/issues/132)) ([72dc609](https://github.com/chrischall/honeybook-mcp/commit/72dc609cd90a88e9cb172b0511586f2719db3636))
+
 ## [0.4.5](https://github.com/chrischall/honeybook-mcp/compare/v0.4.4...v0.4.5) (2026-08-11)
 
 
