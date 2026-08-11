@@ -2,10 +2,10 @@
 
 Ready-to-run commands for the four live read endpoints `honeybook-mcp`
 actually calls (from `src/tools/*.ts` + `src/client.ts`). All are
-`GET api.honeybook.com/api/v2/*`, carrying the eight headers built in
+`GET api.honeybook.com/api/v2/*`, carrying the same headers built in
 `HoneyBookClient.request` — see `../SKILL.md` for how to capture
-`$AUTH_TOKEN`/`$USER_ID`/`$TRUSTED_DEVICE`/`$FINGERPRINT`/`$API_VERSION`
-first.
+`$AUTH_TOKEN`/`$USER_ID`/`$API_VERSION` first. `$TRUSTED_DEVICE` is
+optional and `hb-api-fingerprint` is not required at all.
 
 ```sh
 hb_get() {   # $1 = path (e.g. /api/v2/users/$USER_ID/workspace_files)
@@ -13,9 +13,8 @@ hb_get() {   # $1 = path (e.g. /api/v2/users/$USER_ID/workspace_files)
     -H 'accept: application/json, text/plain, */*' \
     -H "hb-api-auth-token: $AUTH_TOKEN" \
     -H "hb-api-user-id: $USER_ID" \
-    -H "hb-trusted-device: $TRUSTED_DEVICE" \
+    ${TRUSTED_DEVICE:+-H "hb-trusted-device: $TRUSTED_DEVICE"} \
     -H "hb-api-client-version: $API_VERSION" \
-    -H "hb-api-fingerprint: $FINGERPRINT" \
     -H "hb-api-duplicate-calls-prevention-uuid: $(uuidgen)" \
     -H 'hb-admin-login: false'
 }
@@ -113,7 +112,9 @@ vendor — not an error.
 # Wrong API version — re-derive it from the error body itself (no /api/gon round-trip needed)
 jq -r 'select(type=="object") | .error_data.server_api_version // empty' /tmp/hb-resp.json
 
-# HTTP status: 401 = session expired (re-capture), 429 = rate limited (wait 2s, retry once)
+# HTTP status: 401 = session expired (re-capture), 429 = rate limited (wait 2s, retry once).
+# A 404 whose body names HBUnauthorizedError is ALSO an expired session, not a
+# missing resource — a revoked token does not reliably come back as 401.
 ```
 
 A non-2xx HTTP status with a body matching `HBWrongAPIVersionError` means
