@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.5](https://github.com/chrischall/honeybook-mcp/compare/v0.4.4...v0.4.5) (2026-08-11)
+
+
+### Bug Fixes
+
+* **auth:** read the portal session from HONEYBOOK_REACT_CURR_USER ([#126](https://github.com/chrischall/honeybook-mcp/issues/126)) ([6c47171](https://github.com/chrischall/honeybook-mcp/commit/6c47171408292f639d49afccf86528bcd9fa364b))
+* **auth:** surface the re-pair remedy when the extension refuses a new scope ([#131](https://github.com/chrischall/honeybook-mcp/issues/131)) ([0a8a069](https://github.com/chrischall/honeybook-mcp/commit/0a8a06917210d0f9a5f2d0154a6952a1969a528d))
+
+
+### Documentation
+
+* drop the removed jStorage + fingerprint capture from README and skill ([#129](https://github.com/chrischall/honeybook-mcp/issues/129)) ([362f414](https://github.com/chrischall/honeybook-mcp/commit/362f4144dd5064c2b77280664a25da823e20b7ee))
+* **skill:** stop sending unset fingerprint/trusted-device headers in hb_get ([#130](https://github.com/chrischall/honeybook-mcp/issues/130)) ([5cb4cfc](https://github.com/chrischall/honeybook-mcp/commit/5cb4cfc09e572aa655f9d29b11eac194e6410ac3))
+
 ## [0.4.4](https://github.com/chrischall/honeybook-mcp/compare/v0.4.3...v0.4.4) (2026-08-06)
 
 
