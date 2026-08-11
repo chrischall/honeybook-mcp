@@ -26,7 +26,7 @@ import type { ToolResult } from '../types.js';
 export async function useMagicLink(args: { magic_link_url: string }): Promise<ToolResult> {
   const portalOrigin = normalizeOrigin(args.magic_link_url);
   const session = await captureSessionViaFetchproxy({ portalOrigin });
-  // Clear client cache so getActiveClient picks up the fresh fingerprint.
+  // Clear client cache so getActiveClient rebuilds against the fresh token.
   clearClientCache();
   return textResult({
     ok: true,

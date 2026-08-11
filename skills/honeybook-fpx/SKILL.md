@@ -70,8 +70,9 @@ request, so it does not matter whether the page has gone idle.
 AUTH_TOKEN=$(jq -r '.localStorage.HONEYBOOK_REACT_CURR_USER | fromjson | .authentication_token' /tmp/hb-session.json)
 USER_ID=$(jq -r '.localStorage.HONEYBOOK_REACT_CURR_USER | fromjson | ._id' /tmp/hb-session.json)
 # Optional — the API returns 200 without it. The React blob and jStorage hold
-# DIFFERENT values; either is accepted.
-TRUSTED_DEVICE=$(jq -r '.localStorage.jStorage | fromjson | .HB_TRUSTED_DEVICE' /tmp/hb-session.json)
+# DIFFERENT values; either is accepted. `// empty` keeps an absent field from
+# becoming the literal string "null".
+TRUSTED_DEVICE=$(jq -r '.localStorage.jStorage | fromjson | .HB_TRUSTED_DEVICE // empty' /tmp/hb-session.json)
 PORTAL_ORIGIN='https://<vendor>.hbportal.co'   # the magic-link URL's origin
 ```
 
@@ -102,7 +103,7 @@ curl -s "https://api.honeybook.com/api/v2/users/$USER_ID/workspace_files" \
   -H 'accept: application/json, text/plain, */*' \
   -H "hb-api-auth-token: $AUTH_TOKEN" \
   -H "hb-api-user-id: $USER_ID" \
-  -H "hb-trusted-device: $TRUSTED_DEVICE" \
+  ${TRUSTED_DEVICE:+-H "hb-trusted-device: $TRUSTED_DEVICE"} \
   -H "hb-api-client-version: $API_VERSION" \
   -H "hb-api-duplicate-calls-prevention-uuid: $(uuidgen)" \
   -H 'hb-admin-login: false' \

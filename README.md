@@ -86,7 +86,7 @@ HoneyBook has no public client-portal API. This MCP reuses the same auth state y
 **Per-vendor activation:**
 
 1. Make sure the vendor's portal tab is open (the magic link from their email).
-2. In Claude, call `use_magic_link` with the magic-link URL — the tool asks the fetchproxy extension to snapshot the page's `localStorage["jStorage"]` and the `hb-api-fingerprint` request header, then closes the bridge. No headless browser is spawned.
+2. In Claude, call `use_magic_link` with the magic-link URL — the tool asks the fetchproxy extension to snapshot the auth fields out of the page's `localStorage["HONEYBOOK_REACT_CURR_USER"]`, then closes the bridge. The tab only has to be open and signed in; nothing is read off a live request. No headless browser is spawned.
 3. All other tools use the most-recently-activated session by default. Pass `origin` explicitly when multiple vendors are active.
 
 Sessions are stored in memory and persisted to `~/.honeybook-mcp/sessions.json` (mode 0600) so they survive MCP restarts. Re-run `use_magic_link` when a session expires.
@@ -111,7 +111,8 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 - **"HoneyBook auth expired"** — re-open the vendor's magic link in Chrome and re-run `use_magic_link`.
 - **"No active HoneyBook session"** — call `use_magic_link` first.
 - **"fetchproxy capture failed"** — install the [fetchproxy 0.3.0 extension](https://github.com/chrischall/fetchproxy), then open the vendor's magic link in that browser.
-- **"hb-api-fingerprint header not captured"** — refresh the portal tab so the page makes an `api.honeybook.com/api/v2/*` request, then retry.
+- **"fetchproxy capture timed out"** — the extension found no signed-in portal tab to read. Open the vendor's magic link, confirm the portal page has loaded, then retry.
+- **"no confirmed browser session"** — the extension is connected but has not approved this MCP. Open the Transporter popup and approve the pair code it shows, then retry.
 
 ## Security
 
