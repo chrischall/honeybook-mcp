@@ -1,13 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // captureSessionViaFetchproxy() drives the single bootstrap path:
-//   1. Spin up @fetchproxy/bootstrap with declared scope (localStorage["jStorage"]
-//      and a header capture for `hb-api-fingerprint` on the first
-//      api.honeybook.com/api/v2/* request).
-//   2. Parse jStorage for HB_AUTH_TOKEN / HB_AUTH_USER_ID / HB_TRUSTED_DEVICE /
-//      HB_CURR_USER.company.company_name.
-//   3. Read the captured `hb-api-fingerprint` header.
-//   4. Synthesize a CapturedSession + persist to disk via sessionStore.
+//   1. Spin up @fetchproxy/bootstrap with declared scope — JSON pointers into
+//      localStorage["HONEYBOOK_REACT_CURR_USER"], plus a legacy jStorage
+//      pointer for the trusted-device fallback. No header capture.
+//   2. Read authentication_token / _id / trusted_device / company.company_name.
+//   3. Synthesize a CapturedSession + persist to disk via sessionStore.
+//
+// HoneyBook migrated the client-portal auth state out of the AngularJS
+// `jStorage` blob into the React-era `HONEYBOOK_REACT_CURR_USER` key. On a
+// live signed-in portal, jStorage now holds only HB_TRUSTED_DEVICE,
+// SESSION_COMPANY_ID, REDIRECT_URL and __jstorage_meta — the token, user id
+// and company are gone, so the old pointers resolve to undefined and every
+// capture failed. `hb-api-fingerprint` is also no longer required by the API,
+// so the captureHeaders declaration (and its blocking one-shot listener) is
+// gone with it.
 //
 // These tests verify scope shape, parse logic, error messages, and that the
 // resulting session round-trips through the existing CapturedSession shape so
@@ -38,7 +45,7 @@ describe('captureSessionViaFetchproxy', () => {
   });
 
   // 0.4.0+: pointer-extracted values land in session.localStorage keyed
-  // by their `outputKey`. The raw jStorage blob is no longer copied.
+  // by their `outputKey`. No raw blob is ever copied.
   const validLocalStorage = {
     HB_AUTH_TOKEN: 'tok_abc',
     HB_AUTH_USER_ID: 'uid_42',
@@ -46,8 +53,8 @@ describe('captureSessionViaFetchproxy', () => {
     HB_COMPANY_NAME: 'Silk Veil Events',
   };
 
-  describe('happy path: pointer-extracted fields + fingerprint captured', () => {
-    it('reads pointer fields from localStorage and the hb-api-fingerprint header', async () => {
+  describe('happy path: pointer-extracted fields', () => {
+    it('declares HONEYBOOK_REACT_CURR_USER pointers and no header capture', async () => {
       bootstrapMock.mockResolvedValue({
         cookies: {},
         localStorage: validLocalStorage,
@@ -79,31 +86,48 @@ describe('captureSessionViaFetchproxy', () => {
       // and per-vendor portal subdomains (*.hbportal.co).
       expect(opts.domains).toEqual(['honeybook.com', 'hbportal.co']);
       // 0.4.1+: multi-domain MCPs must pin which declared domain the
-      // jStorage/cookie/sessionStorage reads target. honeybook-mcp's
-      // jStorage lives on the vendor portal tab, so hbportal.co is
-      // the right choice. The hb-api-fingerprint capture continues
-      // to target api.honeybook.com via its declared { host, path }.
+      // localStorage reads target. The portal's auth state lives on the
+      // vendor tab, so hbportal.co is the right choice.
       expect(opts.storageDomain).toBe('hbportal.co');
       expect(opts.declare.cookies).toEqual([]);
       // No more full-blob jStorage read — only declared pointer paths.
       expect(opts.declare.localStorage).toEqual([]);
       expect(opts.declare.localStoragePointers).toEqual([
-        { outputKey: 'HB_AUTH_TOKEN', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_TOKEN' },
-        { outputKey: 'HB_AUTH_USER_ID', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_USER_ID' },
-        { outputKey: 'HB_TRUSTED_DEVICE', storageKey: 'jStorage', jsonPointer: '/HB_TRUSTED_DEVICE' },
-        { outputKey: 'HB_COMPANY_NAME', storageKey: 'jStorage', jsonPointer: '/HB_CURR_USER/company/company_name' },
+        {
+          outputKey: 'HB_AUTH_TOKEN',
+          storageKey: 'HONEYBOOK_REACT_CURR_USER',
+          jsonPointer: '/authentication_token',
+        },
+        { outputKey: 'HB_AUTH_USER_ID', storageKey: 'HONEYBOOK_REACT_CURR_USER', jsonPointer: '/_id' },
+        {
+          outputKey: 'HB_TRUSTED_DEVICE',
+          storageKey: 'HONEYBOOK_REACT_CURR_USER',
+          jsonPointer: '/trusted_device',
+        },
+        {
+          outputKey: 'HB_COMPANY_NAME',
+          storageKey: 'HONEYBOOK_REACT_CURR_USER',
+          jsonPointer: '/company/company_name',
+        },
+        // Legacy fallback: jStorage still carries HB_TRUSTED_DEVICE, and it is
+        // the only field of the old blob that survived the React migration.
+        {
+          outputKey: 'HB_TRUSTED_DEVICE_LEGACY',
+          storageKey: 'jStorage',
+          jsonPointer: '/HB_TRUSTED_DEVICE',
+        },
       ]);
       expect(opts.declare.sessionStorage).toEqual([]);
-      expect(opts.declare.captureHeaders).toEqual([
-        { host: 'api.honeybook.com', path: '/api/v2/*', headerName: 'hb-api-fingerprint' },
-      ]);
+      // The API no longer requires hb-api-fingerprint, so nothing blocks on a
+      // live outgoing request any more.
+      expect(opts.declare.captureHeaders).toEqual([]);
 
       expect(session.portalOrigin).toBe('https://silkveil.hbportal.co');
       expect(session.companyName).toBe('Silk Veil Events');
       expect(session.authToken).toBe('tok_abc');
       expect(session.userId).toBe('uid_42');
       expect(session.trustedDevice).toBe('td_99');
-      expect(session.fingerprint).toBe('fp_xyz');
+      expect(session.fingerprint).toBeUndefined();
       expect(typeof session.capturedAt).toBe('number');
     });
 
@@ -120,7 +144,6 @@ describe('captureSessionViaFetchproxy', () => {
       const stored = sessionStore.get('https://silkveil.hbportal.co');
       expect(stored).not.toBeNull();
       expect(stored?.authToken).toBe('tok_abc');
-      expect(stored?.fingerprint).toBe('fp_xyz');
     });
 
     it('normalizes the portalOrigin (strips path/query/trailing slash)', async () => {
@@ -138,9 +161,9 @@ describe('captureSessionViaFetchproxy', () => {
     });
 
     it('falls back to the portal subdomain when HB_COMPANY_NAME is empty', async () => {
-      // Common in headless / fresh-tab cases where HB_CURR_USER hasn't
-      // populated yet — the pointer resolves to undefined, which the
-      // extension represents as an absent key in the response.
+      // `company` is null on a client-side portal user (the vendor's company
+      // is not on the client's own record), so this pointer resolves to
+      // undefined and the extension omits the key entirely.
       bootstrapMock.mockResolvedValue({
         cookies: {},
         localStorage: {
@@ -158,74 +181,104 @@ describe('captureSessionViaFetchproxy', () => {
       });
       expect(session.companyName).toBe('acme-events');
     });
-  });
 
-  describe('error shapes', () => {
-    it('throws when HB_AUTH_TOKEN is missing from the pointer extractions', async () => {
-      // jStorage may be present but missing the field; the extension
-      // resolves the pointer to undefined, so the outputKey is absent
-      // from the returned map.
-      bootstrapMock.mockResolvedValue({
-        cookies: {},
-        localStorage: {
-          HB_AUTH_USER_ID: 'uid',
-          HB_TRUSTED_DEVICE: 'td',
-          HB_COMPANY_NAME: 'co',
-        },
-        sessionStorage: {},
-        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
-      });
-
-      await expect(
-        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
-      ).rejects.toThrow(/HB_AUTH_TOKEN/);
-    });
-
-    it('throws when HB_AUTH_USER_ID is missing', async () => {
-      bootstrapMock.mockResolvedValue({
-        cookies: {},
-        localStorage: {
-          HB_AUTH_TOKEN: 'tok',
-          HB_TRUSTED_DEVICE: 'td',
-          HB_COMPANY_NAME: 'co',
-        },
-        sessionStorage: {},
-        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
-      });
-
-      await expect(
-        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
-      ).rejects.toThrow(/HB_AUTH_USER_ID/);
-    });
-
-    it('throws when HB_TRUSTED_DEVICE is missing', async () => {
+    it('falls back to the legacy jStorage trusted device when the React field is absent', async () => {
+      // jStorage.HB_TRUSTED_DEVICE is the one field of the old blob that
+      // survived the migration, so it is a real fallback rather than a
+      // theoretical one. Note the two values genuinely differ on a live
+      // portal — either is accepted by the API.
       bootstrapMock.mockResolvedValue({
         cookies: {},
         localStorage: {
           HB_AUTH_TOKEN: 'tok',
           HB_AUTH_USER_ID: 'uid',
-          HB_COMPANY_NAME: 'co',
+          HB_TRUSTED_DEVICE_LEGACY: 'td_legacy',
         },
-        sessionStorage: {},
-        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
-      });
-
-      await expect(
-        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
-      ).rejects.toThrow(/HB_TRUSTED_DEVICE/);
-    });
-
-    it('throws when hb-api-fingerprint header was not captured', async () => {
-      bootstrapMock.mockResolvedValue({
-        cookies: {},
-        localStorage: validLocalStorage,
         sessionStorage: {},
         capturedHeaders: {},
       });
 
+      const session = await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      });
+      expect(session.trustedDevice).toBe('td_legacy');
+    });
+
+    it('prefers the React trusted device over the legacy jStorage one', async () => {
+      bootstrapMock.mockResolvedValue({
+        cookies: {},
+        localStorage: {
+          HB_AUTH_TOKEN: 'tok',
+          HB_AUTH_USER_ID: 'uid',
+          HB_TRUSTED_DEVICE: 'td_react',
+          HB_TRUSTED_DEVICE_LEGACY: 'td_legacy',
+        },
+        sessionStorage: {},
+        capturedHeaders: {},
+      });
+
+      const session = await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      });
+      expect(session.trustedDevice).toBe('td_react');
+    });
+
+    it('captures successfully with no trusted device at all', async () => {
+      // The API returns 200 without hb-trusted-device, so a missing value must
+      // not be fatal — treating it as required is exactly what turned a
+      // cosmetic upstream change into a hard capture failure.
+      bootstrapMock.mockResolvedValue({
+        cookies: {},
+        localStorage: { HB_AUTH_TOKEN: 'tok', HB_AUTH_USER_ID: 'uid' },
+        sessionStorage: {},
+        capturedHeaders: {},
+      });
+
+      const session = await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      });
+      expect(session.trustedDevice).toBeUndefined();
+      expect(session.authToken).toBe('tok');
+    });
+  });
+
+  describe('error shapes', () => {
+    it('throws when the auth token is missing from the pointer extractions', async () => {
+      // The storage key may be present but missing the field; the extension
+      // resolves the pointer to undefined, so the outputKey is absent
+      // from the returned map. The message must name the real path so a
+      // future upstream rename is diagnosable from the error alone.
+      bootstrapMock.mockResolvedValue({
+        cookies: {},
+        localStorage: {
+          HB_AUTH_USER_ID: 'uid',
+          HB_TRUSTED_DEVICE: 'td',
+          HB_COMPANY_NAME: 'co',
+        },
+        sessionStorage: {},
+        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
+      });
+
       await expect(
         captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
-      ).rejects.toThrow(/hb-api-fingerprint/);
+      ).rejects.toThrow(/HONEYBOOK_REACT_CURR_USER\.\/authentication_token/);
+    });
+
+    it('throws when the user id is missing', async () => {
+      bootstrapMock.mockResolvedValue({
+        cookies: {},
+        localStorage: {
+          HB_AUTH_TOKEN: 'tok',
+          HB_TRUSTED_DEVICE: 'td',
+          HB_COMPANY_NAME: 'co',
+        },
+        sessionStorage: {},
+        capturedHeaders: { 'hb-api-fingerprint': 'fp_xyz' },
+      });
+
+      await expect(
+        captureSessionViaFetchproxy({ portalOrigin: 'https://x.hbportal.co' })
+      ).rejects.toThrow(/HONEYBOOK_REACT_CURR_USER\.\/_id/);
     });
 
     it('wraps bootstrap() errors with actionable context', async () => {
@@ -236,12 +289,12 @@ describe('captureSessionViaFetchproxy', () => {
       ).rejects.toThrow(/fetchproxy.*extension offline/);
     });
 
-    it('gives "refresh the portal" guidance when the fingerprint capture times out', async () => {
-      // The capture_request_header step rejects with FetchproxyProtocolError('timeout')
-      // when no api.honeybook.com/api/v2/* request fires before its one-shot listener
-      // window elapses — the common "tab already loaded and idle" case. classifyBridgeError
-      // keys off the error *class*, so this surfaces as type 'protocol' (not 'timeout');
-      // detection must therefore key off the 'timeout' message.
+    it('points at the portal tab when the bootstrap times out', async () => {
+      // With captureHeaders gone, a timeout is no longer "the page went idle" —
+      // it means the extension never produced the declared storage reads, which
+      // is a missing / signed-out portal tab. classifyBridgeError keys off the
+      // error *class*, so FetchproxyProtocolError('timeout') surfaces as type
+      // 'protocol'; detection must key off the message too.
       const { FetchproxyProtocolError } = await import('@chrischall/mcp-utils/fetchproxy');
       bootstrapMock.mockRejectedValue(new FetchproxyProtocolError('timeout'));
 
@@ -249,12 +302,12 @@ describe('captureSessionViaFetchproxy', () => {
         portalOrigin: 'https://x.hbportal.co',
       }).catch((e) => e)) as Error;
 
-      // Names the real cause and the actionable fix (trigger a fresh API request),
-      // NOT the misleading "open the magic-link URL" copy — the link is already open.
       expect(err.message).toMatch(/HoneyBook auth/);
       expect(err.message).toMatch(/timed out/i);
-      expect(err.message).toMatch(/refresh|open a workspace/i);
-      expect(err.message).not.toMatch(/open the vendor magic-link URL/);
+      expect(err.message).toMatch(/signed in|portal tab/i);
+      // The old copy told users to refresh so a fresh API request would fire —
+      // meaningless now that nothing sniffs a live request.
+      expect(err.message).not.toMatch(/hb-api-fingerprint/);
     });
 
     it('handles non-Error rejections from bootstrap()', async () => {

@@ -30,12 +30,25 @@ export interface HBListEnvelope<T> {
 export type CapturedSession = {
   /** Full origin of the vendor's branded portal (e.g. `https://thesilkveileventsbyivy.hbportal.co`). */
   portalOrigin: string;
-  /** Company name as reported by the portal's HB_CURR_USER.company.company_name. Used for display only. */
+  /**
+   * Company name as reported by HONEYBOOK_REACT_CURR_USER.company.company_name.
+   * Display only — `company` is null on a client-side portal user, so this
+   * usually falls back to the portal subdomain.
+   */
   companyName: string;
   authToken: string;
   userId: string;
-  trustedDevice: string;
-  fingerprint: string;
+  /**
+   * `hb-trusted-device`. Optional: the API returns 200 without it, and the
+   * value moved between storage keys once already. Sent when present.
+   */
+  trustedDevice?: string;
+  /**
+   * `hb-api-fingerprint`. No longer captured — the API accepts requests
+   * without it. Retained so sessions persisted by <=0.4.4 keep working, and
+   * still sent when a stored session carries one.
+   */
+  fingerprint?: string;
   /** Epoch millis when this session was captured. */
   capturedAt: number;
 };
