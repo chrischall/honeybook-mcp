@@ -190,6 +190,19 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
+    // The extension gates on the scope approved at pair time, so widening the
+    // declaration — as the HONEYBOOK_REACT_CURR_USER migration did — is refused
+    // until the user re-approves. Every user paired before that upgrade hits
+    // this exactly once. The library types the error with a `.hint` carrying
+    // the one remedy (revoke in the popup, re-run, approve the new scope), and
+    // that remedy is already inlined in `.message`; the generic suffix below is
+    // actively wrong here, because the magic link is already open. Match on the
+    // class name rather than `instanceof` so a duplicated @fetchproxy/server
+    // copy in the dependency tree can't silently defeat the check.
+    const errName = (e as { name?: string } | null)?.name;
+    if (errName === 'FetchproxyScopeError' || /not in declared set/i.test(msg)) {
+      throw new Error(`HoneyBook auth: ${msg}`);
+    }
     // Now that nothing blocks on a live outgoing request, a timeout means the
     // extension never produced the declared storage reads — i.e. there is no
     // signed-in portal tab for it to read from. classifyBridgeError keys off
