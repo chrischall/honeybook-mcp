@@ -310,6 +310,31 @@ describe('captureSessionViaFetchproxy', () => {
       expect(err.message).not.toMatch(/hb-api-fingerprint/);
     });
 
+    it('surfaces the re-pair remedy verbatim on a scope error', async () => {
+      // Every user paired before the HONEYBOOK_REACT_CURR_USER migration hits
+      // this on upgrade: the extension gates on the scope approved at pair
+      // time, so the widened declaration is refused until they re-approve.
+      // The library types this error with a `.hint` precisely because MCPs
+      // re-wrap it and bury the remedy — our generic "open the magic-link URL"
+      // suffix is actively wrong here, since the link is already open and the
+      // real fix is to revoke the MCP in the extension popup.
+      const { FetchproxyScopeError } = await import('@fetchproxy/server');
+      const scopeErr = new FetchproxyScopeError(
+        'localStorage keys not in declared set: HONEYBOOK_REACT_CURR_USER'
+      );
+      bootstrapMock.mockRejectedValue(scopeErr);
+
+      const err = (await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      }).catch((e) => e)) as Error;
+
+      expect(err.message).toMatch(/HoneyBook auth/);
+      // Library owns the remedy copy — confirm it survives, don't lock the text.
+      expect(err.message).toContain(scopeErr.hint);
+      expect(err.message).toMatch(/HONEYBOOK_REACT_CURR_USER/);
+      expect(err.message).not.toMatch(/open the vendor magic-link URL/);
+    });
+
     it('handles non-Error rejections from bootstrap()', async () => {
       bootstrapMock.mockRejectedValue('plain string failure');
 
