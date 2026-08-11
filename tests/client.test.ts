@@ -52,7 +52,7 @@ describe('fetchApiVersion', () => {
 describe('HoneyBookClient.request', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('sends the 8 required headers on a GET', async () => {
+  it('sends the required headers on a GET', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
@@ -69,6 +69,8 @@ describe('HoneyBookClient.request', () => {
     expect(h['hb-api-user-id']).toBe('uid_24');
     expect(h['hb-trusted-device']).toBe('td_64');
     expect(h['hb-api-client-version']).toBe('2578');
+    // Legacy sessions captured before the fingerprint was dropped still carry
+    // one; keep sending it rather than invalidating them on disk.
     expect(h['hb-api-fingerprint']).toBe('fp_32');
     expect(h['hb-admin-login']).toBe('false');
     expect(h['accept']).toBe('application/json, text/plain, */*');
@@ -123,6 +125,65 @@ describe('HoneyBookClient.request', () => {
     await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
       /HoneyBook auth expired for portal "The Silk Veil Events by Ivy".*use_magic_link/
     );
+  });
+
+  it('omits hb-api-fingerprint when the session has none', async () => {
+    // Fresh captures no longer collect the fingerprint — the API returns 200
+    // without it. Sending `undefined` would serialize as the string
+    // "undefined" and is worse than omitting the header.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const { fingerprint: _dropped, ...noFingerprint } = MOCK_SESSION;
+    const client = new HoneyBookClient(noFingerprint, 2578);
+    await client.request('GET', '/api/v2/users/uid_24');
+    const h = fetchSpy.mock.calls[0][1]!.headers as Record<string, string>;
+    expect(h).not.toHaveProperty('hb-api-fingerprint');
+    expect(h['hb-api-auth-token']).toBe('tok_43');
+  });
+
+  it('omits hb-trusted-device when the session has none', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const { trustedDevice: _dropped, ...noTrustedDevice } = MOCK_SESSION;
+    const client = new HoneyBookClient(noTrustedDevice, 2578);
+    await client.request('GET', '/api/v2/users/uid_24');
+    const h = fetchSpy.mock.calls[0][1]!.headers as Record<string, string>;
+    expect(h).not.toHaveProperty('hb-trusted-device');
+  });
+
+  it('treats a 404 HBUnauthorizedError as an expired session', async () => {
+    // A revoked/stale token does NOT come back as 401 — the API answers 404
+    // with an HBUnauthorizedError body, which otherwise surfaced as an opaque
+    // "HoneyBook error 404" instead of the re-capture instruction.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        '{"error":true,"is_timeout":false,"error_type":"HBUnauthorizedError","error_message":"Unexpected server error","error_data":null}',
+        { status: 404, headers: { 'content-type': 'application/json' } }
+      )
+    );
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    await expect(client.request('GET', '/api/v2/users/uid_24')).rejects.toThrow(
+      /HoneyBook auth expired for portal "The Silk Veil Events by Ivy".*use_magic_link/
+    );
+  });
+
+  it('leaves an ordinary 404 as a plain API error', async () => {
+    // A genuinely missing workspace file must not be reported as an auth
+    // problem — only the HBUnauthorizedError body reroutes.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"error":true,"error_type":"HBNotFoundError"}', {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    const err = await client
+      .request('GET', '/api/v2/workspace_files/nope')
+      .catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/HoneyBook error 404/);
+    expect((err as Error).message).not.toMatch(/auth expired/);
   });
 
   it('re-fetches api version and retries once on HBWrongAPIVersionError', async () => {

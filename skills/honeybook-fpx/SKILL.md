@@ -14,9 +14,10 @@ description: >-
 HoneyBook has **no server-side login** a script can drive — a client never
 gets a password, only a magic-link email per vendor. The credential is
 whatever the signed-in `*.hbportal.co` portal tab already holds: a bearer
-token + user id + device id in `localStorage["jStorage"]`, plus a per-device
-`hb-api-fingerprint` request header that only appears on a live outgoing
-`api.honeybook.com/api/v2/*` call (it's FingerprintJS, not stored anywhere).
+token + user id in `localStorage["HONEYBOOK_REACT_CURR_USER"]`. (HoneyBook
+used to keep these in the AngularJS `localStorage["jStorage"]` blob as
+`HB_AUTH_TOKEN`/`HB_AUTH_USER_ID`; that blob is now down to
+`HB_TRUSTED_DEVICE`, `SESSION_COMPANY_ID` and routing state.)
 There's no bot wall on the API itself once you have those — `honeybook-mcp`'s
 own `client.ts` proves plain Node `fetch` works fine against
 `api.honeybook.com`. So this skill is **hybrid**: `fpx` captures the session
@@ -30,9 +31,8 @@ same retry rules.
 
 Two apexes are declared on one profile:
 - `hbportal.co` — the vendor's branded portal (e.g. `acme.hbportal.co`),
-  where `jStorage` lives.
-- `honeybook.com` — required so the extension is allowed to capture the
-  `hb-api-fingerprint` header off requests to `api.honeybook.com`.
+  where the stored session lives.
+- `honeybook.com` — the main app, where the same session is also valid.
 
 ## One-time setup
 
@@ -40,8 +40,8 @@ Two apexes are declared on one profile:
 npm install -g @fetchproxy/cli   # provides `fpx`
 fpx profile add honeybook --domain honeybook.com --domain hbportal.co
 fpx profile declare honeybook \
-  --local-storage jStorage \
-  --capture-header 'hb-api-fingerprint@api.honeybook.com/api/v2/*'
+  --local-storage HONEYBOOK_REACT_CURR_USER \
+  --local-storage jStorage
 fpx pair -p honeybook            # prints a pair code → approve in Transporter
 ```
 
@@ -60,26 +60,23 @@ after the first approval every later `fpx` call reuses it.
 fpx session -p honeybook --storage-domain hbportal.co > /tmp/hb-session.json
 ```
 
-**The fingerprint capture needs a FRESH request, not a loaded page.** A
-portal tab that finished loading and went idle has no outgoing
-`api.honeybook.com/api/v2/*` call left to sniff, so the capture times out.
-While `fpx session` is waiting (~30s window), refresh the portal tab or open
-a workspace/file so the page issues a new API call.
+The tab only has to be **open and signed in**. Nothing is sniffed off a live
+request, so it does not matter whether the page has gone idle.
 
-3. Extract the fields `client.ts` needs (`jStorage` is one raw localStorage
-   value packing several keys as JSON — parse it with `fromjson`):
+3. Extract the fields `client.ts` needs (each localStorage value is one raw
+   JSON string — parse it with `fromjson`):
 
 ```sh
-AUTH_TOKEN=$(jq -r '.localStorage.jStorage | fromjson | .HB_AUTH_TOKEN' /tmp/hb-session.json)
-USER_ID=$(jq -r '.localStorage.jStorage | fromjson | .HB_AUTH_USER_ID' /tmp/hb-session.json)
+AUTH_TOKEN=$(jq -r '.localStorage.HONEYBOOK_REACT_CURR_USER | fromjson | .authentication_token' /tmp/hb-session.json)
+USER_ID=$(jq -r '.localStorage.HONEYBOOK_REACT_CURR_USER | fromjson | ._id' /tmp/hb-session.json)
+# Optional — the API returns 200 without it. The React blob and jStorage hold
+# DIFFERENT values; either is accepted.
 TRUSTED_DEVICE=$(jq -r '.localStorage.jStorage | fromjson | .HB_TRUSTED_DEVICE' /tmp/hb-session.json)
-FINGERPRINT=$(jq -r '.capturedHeaders["hb-api-fingerprint"]' /tmp/hb-session.json)
 PORTAL_ORIGIN='https://<vendor>.hbportal.co'   # the magic-link URL's origin
 ```
 
-If any of `AUTH_TOKEN`/`USER_ID`/`TRUSTED_DEVICE`/`FINGERPRINT` come back
-empty/`null`, the capture didn't see what it needed — re-open the magic link
-(or interact with the tab) and re-run step 2.
+If `AUTH_TOKEN` or `USER_ID` comes back empty/`null`, the capture didn't see
+what it needed — re-open the magic link and re-run step 2.
 
 With more than one vendor tab open at once, disambiguate with
 `--storage-subdomain <vendor>` (e.g. `--storage-subdomain acme`).
@@ -94,8 +91,11 @@ API_VERSION=$(curl -s 'https://api.honeybook.com/api/gon?callback=parseGon' \
 
 ## Core call pattern
 
-Every real request carries the same eight headers
-(`client.ts`'s `HoneyBookClient.request`):
+Every real request carries the same headers
+(`client.ts`'s `HoneyBookClient.request`). Only `hb-api-auth-token`,
+`hb-api-user-id` and a current `hb-api-client-version` are load-bearing —
+`hb-trusted-device` is optional and `hb-api-fingerprint` is no longer
+required at all:
 
 ```sh
 curl -s "https://api.honeybook.com/api/v2/users/$USER_ID/workspace_files" \
@@ -104,7 +104,6 @@ curl -s "https://api.honeybook.com/api/v2/users/$USER_ID/workspace_files" \
   -H "hb-api-user-id: $USER_ID" \
   -H "hb-trusted-device: $TRUSTED_DEVICE" \
   -H "hb-api-client-version: $API_VERSION" \
-  -H "hb-api-fingerprint: $FINGERPRINT" \
   -H "hb-api-duplicate-calls-prevention-uuid: $(uuidgen)" \
   -H 'hb-admin-login: false' \
   | jq '.data'
@@ -120,7 +119,9 @@ Ready-to-run commands for all four read endpoints are in
 
 ## The rules that matter
 
-- **401 → session expired.** Re-run the capture (magic link tab must still
+- **401, or 404 with an `HBUnauthorizedError` body → session expired.** A
+  revoked token does not reliably come back as 401, so check the body type
+  before concluding a resource is missing. Re-run the capture (magic link tab must still
   be open and signed in).
 - **429 → rate limited.** `client.ts` waits 2s and retries once; do the same
   before giving up.
@@ -146,7 +147,7 @@ Ready-to-run commands for all four read endpoints are in
 
 ## Notes
 
-- Session data (`AUTH_TOKEN`, `TRUSTED_DEVICE`, `FINGERPRINT`) is opaque and
+- Session data (`AUTH_TOKEN`, `TRUSTED_DEVICE`) is opaque and
   long-lived server-side (no client-visible JWT expiry) — keep it in shell
   variables, not a world-readable file, if you must persist it at all.
 - This project is developed and maintained by AI (Claude).

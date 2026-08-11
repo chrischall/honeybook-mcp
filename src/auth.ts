@@ -1,5 +1,5 @@
 // ────────────────────────────────────────────────────────────────────────────
-// Session capture — Pattern A template (read_local_storage + capture_header)
+// Session capture — Pattern A template (read_local_storage)
 // ────────────────────────────────────────────────────────────────────────────
 //
 // Mirrors the canonical "browser-bootstrap + Node-direct" shape from
@@ -20,15 +20,23 @@
 //   2. fetchproxy bootstrap (this module).
 //      The user has signed into their vendor portal via a magic link in
 //      their real Chrome (the fetchproxy 0.3.0 extension is installed).
-//      We call `@fetchproxy/bootstrap` once to:
-//        • snapshot localStorage["jStorage"] — the HoneyBook web app
-//          stores the bearer token + user id + trusted device id + the
-//          HB_CURR_USER blob here, all under one key
-//        • capture the `hb-api-fingerprint` request header on the first
-//          api.honeybook.com/api/v2/* call the page makes — this is a
-//          per-device FingerprintJS signal that the API requires on
-//          every request (it's NOT in jStorage)
-//      Then we close the bridge and operate from Node thereafter.
+//      We call `@fetchproxy/bootstrap` once to read the auth fields out
+//      of localStorage["HONEYBOOK_REACT_CURR_USER"], then close the
+//      bridge and operate from Node thereafter.
+//
+//      HoneyBook used to keep this state in the AngularJS `jStorage`
+//      blob (HB_AUTH_TOKEN / HB_AUTH_USER_ID / HB_TRUSTED_DEVICE /
+//      HB_CURR_USER). It has since moved to the React-era
+//      `HONEYBOOK_REACT_CURR_USER` key; on a live signed-in portal
+//      jStorage is down to HB_TRUSTED_DEVICE, SESSION_COMPANY_ID,
+//      REDIRECT_URL and __jstorage_meta. We read the React key and keep
+//      the surviving jStorage trusted-device as a fallback.
+//
+//      We no longer capture the `hb-api-fingerprint` request header.
+//      The API accepts requests without it (verified against
+//      /api/v2/users/{uid}/workspace_files), and capturing it was the
+//      only part of bootstrap that had to block on a live outgoing
+//      request — the "portal tab already went idle" timeout.
 //
 //   3. Error
 //      Nothing to authenticate with. We throw a message that names the
@@ -36,14 +44,14 @@
 //      extension installed) and retry the tool call.
 //
 // Why fetchproxy is only a one-shot read:
-//   The bootstrap call snapshots both buckets (localStorage +
-//   captured header) and returns. The MCP then operates from Node with
-//   direct fetch — latency and reliability are not coupled to the
-//   browser bridge for normal tool calls. When the bearer token
-//   eventually expires, the existing 401 handler in `HoneyBookClient`
-//   surfaces a helpful "re-bootstrap" error and the user re-runs the
-//   capture (typically via the `use_magic_link` tool, which now wraps
-//   this function instead of running Puppeteer).
+//   The bootstrap call snapshots the declared storage fields and
+//   returns. The MCP then operates from Node with direct fetch — latency
+//   and reliability are not coupled to the browser bridge for normal
+//   tool calls. When the bearer token eventually expires, the
+//   expired-session handler in `HoneyBookClient` surfaces a helpful
+//   "re-bootstrap" error and the user re-runs the capture (typically via
+//   the `use_magic_link` tool, which now wraps this function instead of
+//   running Puppeteer).
 //
 // Multi-domain scope:
 //   HoneyBook serves both the main app (honeybook.com) and per-vendor
@@ -111,44 +119,54 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       // portal subdomains (*.hbportal.co). The extension matches on suffix,
       // so listing both apexes covers any vendor.
       //
-      // Both are needed:
-      //   - `hbportal.co` is where the vendor magic-link tab lives, so
-      //     `jStorage` reads target it (via `storageDomain` below).
-      //   - `honeybook.com` is required for the `hb-api-fingerprint`
-      //     capture, because that header rides outgoing requests to
-      //     `api.honeybook.com/api/v2/*` and the extension gates
-      //     every captureHeader `host` against declared domains.
+      // `hbportal.co` is where the vendor magic-link tab lives, so the
+      // storage reads target it (via `storageDomain` below).
+      // `honeybook.com` stays declared because the same session is valid
+      // on the main app and callers may hold either origin.
       //
       // 0.4.1+ requires multi-domain MCPs to pick a `storageDomain` so
       // the cookie / localStorage / sessionStorage / indexedDb reads
-      // know which tab to target. captureRequestHeader is independently
-      // routed by its declared { host, path? }.
+      // know which tab to target.
       domains: ['honeybook.com', 'hbportal.co'],
       storageDomain: 'hbportal.co',
       declare: {
         cookies: [],
-        // We don't need the full `jStorage` blob (it's ~8KB of mostly
-        // unused state). 0.4.0's JSON-pointer extraction lets us
-        // declare exactly the four fields the MCP uses; bootstrap
-        // reads `jStorage` once and applies all pointers in one call.
-        // The extension popup also shows the pointer paths verbatim
-        // so the user can see precisely what's being read.
+        // `HONEYBOOK_REACT_CURR_USER` is ~6.5KB of mostly unused user
+        // state. 0.4.0's JSON-pointer extraction lets us declare exactly
+        // the fields the MCP uses; bootstrap reads each storage key once
+        // and applies all pointers in one call. The extension popup shows
+        // the pointer paths verbatim so the user can see precisely what's
+        // being read.
         localStorage: [],
         localStoragePointers: [
-          { outputKey: 'HB_AUTH_TOKEN', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_TOKEN' },
-          { outputKey: 'HB_AUTH_USER_ID', storageKey: 'jStorage', jsonPointer: '/HB_AUTH_USER_ID' },
-          { outputKey: 'HB_TRUSTED_DEVICE', storageKey: 'jStorage', jsonPointer: '/HB_TRUSTED_DEVICE' },
-          { outputKey: 'HB_COMPANY_NAME', storageKey: 'jStorage', jsonPointer: '/HB_CURR_USER/company/company_name' },
+          {
+            outputKey: 'HB_AUTH_TOKEN',
+            storageKey: 'HONEYBOOK_REACT_CURR_USER',
+            jsonPointer: '/authentication_token',
+          },
+          { outputKey: 'HB_AUTH_USER_ID', storageKey: 'HONEYBOOK_REACT_CURR_USER', jsonPointer: '/_id' },
+          {
+            outputKey: 'HB_TRUSTED_DEVICE',
+            storageKey: 'HONEYBOOK_REACT_CURR_USER',
+            jsonPointer: '/trusted_device',
+          },
+          {
+            outputKey: 'HB_COMPANY_NAME',
+            storageKey: 'HONEYBOOK_REACT_CURR_USER',
+            jsonPointer: '/company/company_name',
+          },
+          // The one field of the old jStorage blob that survived the
+          // migration. Kept as a fallback so a further reshuffle of the
+          // React key doesn't cost us the trusted-device value too.
+          {
+            outputKey: 'HB_TRUSTED_DEVICE_LEGACY',
+            storageKey: 'jStorage',
+            jsonPointer: '/HB_TRUSTED_DEVICE',
+          },
         ],
         sessionStorage: [],
-        captureHeaders: [
-          // The page's first call to api.honeybook.com/api/v2/* carries the
-          // `hb-api-fingerprint` header — a per-device FingerprintJS
-          // signal that the API requires on every subsequent request.
-          // It's NOT stored in jStorage; the only place to get it is off
-          // a real outgoing request.
-          { host: 'api.honeybook.com', path: '/api/v2/*', headerName: 'hb-api-fingerprint' },
-        ],
+        // Nothing to sniff off a live request any more — see the header note above.
+        captureHeaders: [],
       },
       // 0.4.0: surface the pair code (six digits) on stderr so the user
       // can verify it against the extension popup. fetchproxy 0.4.0
@@ -157,9 +175,8 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       onPairCode: (code) => {
         process.stderr.write(`[honeybook-mcp] fetchproxy pair code: ${code}\n`);
       },
-      // 0.4.0: capture_request_header blocks on a real outgoing request
-      // to api.honeybook.com/api/v2/*. Surface a hint so the user knows
-      // to interact with the portal if the bootstrap appears to stall.
+      // Surface the library's own progress hint so a stalled bootstrap
+      // tells the user what it is waiting on.
       onWaiting: (hint) => {
         process.stderr.write(`[honeybook-mcp] ${hint}\n`);
       },
@@ -173,24 +190,17 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
-    // The hb-api-fingerprint capture rejects with a bare `timeout` when no
-    // api.honeybook.com/api/v2/* request fires before its one-shot listener
-    // window elapses. This is the common "tab already loaded and idle" case:
-    // a HoneyBook portal fires its API calls on load, then goes quiet, so by
-    // the time bootstrap has paired, read jStorage, and armed the capture
-    // listener there's no fresh request left to sniff the header off. The fix
-    // is to make the portal issue a *new* request (refresh the tab, open a
-    // workspace) WHILE the capture is waiting — NOT to (re)open the magic
-    // link, which is already open. classifyBridgeError keys off the error
-    // class, so the capture timeout surfaces as a FetchproxyProtocolError
+    // Now that nothing blocks on a live outgoing request, a timeout means the
+    // extension never produced the declared storage reads — i.e. there is no
+    // signed-in portal tab for it to read from. classifyBridgeError keys off
+    // the error class, so this surfaces as a FetchproxyProtocolError
     // ('protocol'), not 'timeout' — match on the message too.
     if (bridgeError.type === 'timeout' || /timeout/i.test(msg)) {
       throw new Error(
-        'HoneyBook auth: fetchproxy capture timed out waiting for the hb-api-fingerprint header. ' +
-          'That header can only be read off a live api.honeybook.com request, and a portal tab that has ' +
-          'already finished loading sits idle. Keep the vendor magic-link URL open in Chrome (with the ' +
-          'fetchproxy extension installed), then re-run use_magic_link and — within ~30s, while it waits — ' +
-          'refresh the portal tab (or open a workspace/file) so the page issues a fresh API request.'
+        'HoneyBook auth: fetchproxy capture timed out. The extension never returned the vendor ' +
+          "portal's stored session, which usually means no tab is open and signed in on that portal. " +
+          'Open the vendor magic-link URL in Chrome (with the fetchproxy extension installed), confirm ' +
+          'the portal page has loaded, then re-run use_magic_link.'
       );
     }
     throw new Error(
@@ -201,37 +211,30 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
   }
 
   // 0.4.0: pointer extractions land in `session.localStorage` keyed by
-  // their declared `outputKey`. The raw `jStorage` JSON is never copied
-  // into this process — only the four specific fields we actually need.
+  // their declared `outputKey`. No raw blob is ever copied into this
+  // process — only the specific fields we actually need.
   const authToken = session.localStorage['HB_AUTH_TOKEN'];
   const userId = session.localStorage['HB_AUTH_USER_ID'];
-  const trustedDevice = session.localStorage['HB_TRUSTED_DEVICE'];
+  // Only these two are load-bearing. `hb-trusted-device` is sent when we have
+  // it but the API returns 200 without it, so a missing value must not fail
+  // the capture — requiring fields the API doesn't is what turned an upstream
+  // storage rename into a total outage.
+  const trustedDevice =
+    session.localStorage['HB_TRUSTED_DEVICE'] || session.localStorage['HB_TRUSTED_DEVICE_LEGACY'];
   const companyNameFromHb = session.localStorage['HB_COMPANY_NAME'];
 
   if (!authToken) {
     throw new Error(
-      'HoneyBook auth: HB_AUTH_TOKEN not found at jStorage./HB_AUTH_TOKEN. ' +
+      'HoneyBook auth: no auth token at HONEYBOOK_REACT_CURR_USER./authentication_token. ' +
         'Sign into the vendor portal via the magic-link URL and retry.'
     );
   }
   if (!userId) {
-    throw new Error('HoneyBook auth: HB_AUTH_USER_ID not found at jStorage./HB_AUTH_USER_ID.');
-  }
-  if (!trustedDevice) {
-    throw new Error('HoneyBook auth: HB_TRUSTED_DEVICE not found at jStorage./HB_TRUSTED_DEVICE.');
+    throw new Error('HoneyBook auth: no user id at HONEYBOOK_REACT_CURR_USER./_id.');
   }
 
-  const fingerprint = session.capturedHeaders['hb-api-fingerprint'];
-  if (!fingerprint) {
-    throw new Error(
-      'HoneyBook auth: hb-api-fingerprint header not captured. ' +
-        'Interact with the vendor portal (refresh the page, open a workspace) so the browser makes an ' +
-        'api.honeybook.com/api/v2/* request, then retry.'
-    );
-  }
-
-  // HB_CURR_USER may not be populated immediately on a fresh tab; fall
-  // back to the portal subdomain so the user has a readable label.
+  // `company` is null on a client-side portal user, so this pointer usually
+  // resolves to nothing; fall back to the portal subdomain for a readable label.
   let companyName = companyNameFromHb || '';
   if (!companyName) {
     try {
@@ -246,8 +249,7 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
     companyName,
     authToken,
     userId,
-    trustedDevice,
-    fingerprint,
+    ...(trustedDevice ? { trustedDevice } : {}),
     capturedAt: Date.now(),
   };
 

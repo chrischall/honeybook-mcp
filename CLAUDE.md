@@ -20,12 +20,13 @@ npm run dev          # node --env-file=.env dist/index.js (requires built dist)
 src/
   index.ts               MCP server entry — registers tool modules, stdio transport
   client.ts              HoneyBookClient — per-session auth headers, fetch wrapper,
-                         401/429/HBWrongAPIVersion retry; getActiveClient() resolves
+                         401 + 404/HBUnauthorizedError, 429, HBWrongAPIVersion
+                         handling; getActiveClient() resolves
                          a session from sessionStore and caches a client per origin
   auth.ts                captureSessionViaFetchproxy() — one-shot @fetchproxy/bootstrap
-                         call that reads localStorage["jStorage"] + the
-                         hb-api-fingerprint request header out of the user's signed-in
-                         portal tab, then closes the bridge. See "Auth flow" below.
+                         call that reads localStorage["HONEYBOOK_REACT_CURR_USER"]
+                         out of the user's signed-in portal tab, then closes the
+                         bridge. See "Auth flow" below.
   sessions.ts            Thin adapter over the disk-persisted SessionStore from
                          @chrischall/mcp-utils/session (this repo was the donor it
                          was extracted from); re-exports normalizeOrigin and the
@@ -48,8 +49,7 @@ Each tool module exports a `register*Tools(server)` function called from `src/in
 No env vars required for HoneyBook itself. Sessions are captured at runtime
 via the [fetchproxy browser extension](https://github.com/chrischall/fetchproxy)
 (installed once per browser, Chrome Web Store / Safari .dmg). The MCP exercises
-TWO capabilities at once: `read_local_storage` AND
-`capture_request_header`.
+a single capability: `read_local_storage`.
 
 1. User clicks a vendor's HoneyBook magic-link in their real Chrome (extension
    installed). The link signs them into `*.hbportal.co`.
@@ -59,12 +59,12 @@ TWO capabilities at once: `read_local_storage` AND
 3. `captureSessionViaFetchproxy` invokes `@fetchproxy/bootstrap` with:
    - `domains: ['honeybook.com', 'hbportal.co']` (multi-domain; extension
      suffix-matches)
-   - `declare.localStorage: ['jStorage']` — single key holding HB_AUTH_TOKEN,
-     HB_AUTH_USER_ID, HB_TRUSTED_DEVICE, HB_CURR_USER
-   - `declare.captureHeaders: [{ host: 'api.honeybook.com', path: '/api/v2/*',
-     headerName: 'hb-api-fingerprint' }]` — captures the per-device
-     FingerprintJS signal off the page's next outgoing API request
-4. Bootstrap snapshots both buckets in one round-trip, closes the bridge.
+   - `declare.localStoragePointers` into `HONEYBOOK_REACT_CURR_USER`:
+     `/authentication_token`, `/_id`, `/trusted_device`,
+     `/company/company_name`, plus a legacy `jStorage./HB_TRUSTED_DEVICE`
+     fallback
+   - `declare.captureHeaders: []` — nothing is sniffed off a live request
+4. Bootstrap snapshots the declared fields in one round-trip, closes the bridge.
 5. The synthesized `CapturedSession` is persisted to
    `~/.honeybook-mcp/sessions.json` (mode 0600, directory mode 0700).
 6. All subsequent API calls go via plain Node `fetch` to api.honeybook.com —
@@ -76,7 +76,7 @@ a specific vendor when multiple sessions are active.
 Optional env vars:
 
 ```
-HONEYBOOK_API_VERSION=2578         # pin instead of auto-fetching from /api/gon
+HONEYBOOK_API_VERSION=2601         # pin instead of auto-fetching from /api/gon
 HONEYBOOK_DISABLE_FETCHPROXY=1     # refuse to call bootstrap (CI / headless)
 ```
 
@@ -149,12 +149,21 @@ publishes to npm with provenance, and pushes to the MCP Registry.
 
 - **ESM + NodeNext**: `.ts` source imports use `.js` extensions
   (e.g. `import { sessionStore } from './sessions.js'`).
-- **`hb-api-fingerprint` is a FingerprintJS signal** — session-constant and
-  captured once at auth time off a real outgoing request via the fetchproxy
-  `captureHeaders` declaration. If HoneyBook rotates accepted fingerprints,
-  users re-run `use_magic_link`.
-- **`HB_AUTH_TOKEN` is opaque (not JWT)** — no client-side TTL; server can
+- **Auth lives in `HONEYBOOK_REACT_CURR_USER`, not `jStorage`.** HoneyBook
+  migrated the client-portal session out of the AngularJS `jStorage` blob;
+  only `HB_TRUSTED_DEVICE` survived there. Pointing at the old keys broke
+  every capture (fixed in 0.4.5).
+- **`hb-api-fingerprint` and `hb-trusted-device` are optional.** The API
+  answers 200 without either, verified against
+  `/api/v2/users/{uid}/workspace_files`. Only `hb-api-auth-token`,
+  `hb-api-user-id` and a current `hb-api-client-version` are load-bearing, so
+  neither is required at capture time and both are sent only when present.
+  Sessions captured by <=0.4.4 still carry a fingerprint and keep working.
+- **The auth token is opaque (not JWT)** — no client-side TTL; server can
   revoke at will. Expired sessions throw a clear "re-run use_magic_link" error.
+- **A dead token returns 404, not 401.** The API answers `404` with an
+  `HBUnauthorizedError` body, so `client.request` reroutes that specific
+  combination to the expired-session error; other 404s stay plain API errors.
 - **Write tools return deep links** — `sign_contract` and `pay_invoice` produce
   portal URLs instead of signing/paying headlessly (browser-side device/SCA
   handling cannot be replayed). Both require `confirm: true`.
