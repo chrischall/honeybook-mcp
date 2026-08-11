@@ -153,6 +153,13 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   migrated the client-portal session out of the AngularJS `jStorage` blob;
   only `HB_TRUSTED_DEVICE` survived there. Pointing at the old keys broke
   every capture (fixed in 0.4.5).
+- **Changing `declare` in `auth.ts` is a BREAKING change for existing users.**
+  The extension approves a scope at pair time, so any new/renamed storage key
+  is refused (`keys not in declared set`) until the user revokes this MCP in
+  the Transporter popup and re-approves. 0.4.5 did exactly that — see
+  "Upgrading from 0.4.4 or earlier" in README.md. Ship a scope change with an
+  upgrade note, and test it by revoking and re-pairing, not just by running a
+  capture on an already-approved machine.
 - **`hb-api-fingerprint` and `hb-trusted-device` are optional.** The API
   answers 200 without either, verified against
   `/api/v2/users/{uid}/workspace_files`. Only `hb-api-auth-token`,
