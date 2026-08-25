@@ -38,6 +38,8 @@ egress:
   allow:
     # Only hosts the SERVER process actually fetches. Hosts that appear
     # solely in a URL this server BUILDS and returns are excluded.
+    # ONLY the API host: client.ts fetches `${API_BASE}` = https://api.honeybook.com
+    # for every call. honeybook.com and hbportal.co are declared to the
+    # fetchproxy BRIDGE — the browser reaches those, not this process — so they
+    # are not server egress.
     - api.honeybook.com
-    - hbportal.co
-    - honeybook.com
