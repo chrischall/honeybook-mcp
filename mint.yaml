@@ -1,0 +1,43 @@
+version: 1
+name: HoneyBook
+slug: honeybook
+summary: >-
+  HoneyBook client-portal MCP — view wedding-vendor contracts and invoices
+#
+# Hosting note (a comment, not user-facing summary text): this is a
+# BROWSER-BRIDGE MCP — it reaches its site through the user's signed-in
+# tab via the fetchproxy bridge. A bridged registration also needs runtime
+# `fly-shared`, `bridge: true` and a `bridgePortEnv`, which are registration
+# fields this manifest has no schema for (set them over the control API).
+# `state.dataDir` below is required for `bridge`.
+env:
+  - name: HONEYBOOK_API_VERSION
+    required: false
+    help: >-
+      Pins the HoneyBook API version instead of detecting it at startup. Leave
+      unset unless a detection failure needs working around.
+  - name: HONEYBOOK_DISABLE_FETCHPROXY
+    required: false
+    help: >-
+      Set to 1 to disable the browser-bridge fallback, making missing
+      credentials a hard error. Recommended for a hosted registration, which has
+      no browser to fall back to.
+  - name: HONEYBOOK_SESSIONS_DIR
+    required: false
+    help: >-
+      Directory for persisted session/cache state. Relates to state.dataDir
+      below; leave unset to use the default under $HOME.
+state:
+  dataDir: true
+  reason: >-
+    The fetchproxy identity lives at $HOME/.fetchproxy/identity/<name>.json
+    and the pair code derives from it. Without a persistent $HOME every cold
+    start mints a fresh identity and re-prompts pairing in the browser; the
+    API refuses bridge without it.
+egress:
+  allow:
+    # Only hosts the SERVER process actually fetches. Hosts that appear
+    # solely in a URL this server BUILDS and returns are excluded.
+    - api.honeybook.com
+    - hbportal.co
+    - honeybook.com
