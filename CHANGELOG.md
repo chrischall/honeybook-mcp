@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/chrischall/honeybook-mcp/compare/v0.4.6...v0.5.0) (2026-08-26)
+
+
+### Features
+
+* **release:** publish honeybook-fpx alongside honeybook ([#144](https://github.com/chrischall/honeybook-mcp/issues/144)) ([a0f75cf](https://github.com/chrischall/honeybook-mcp/commit/a0f75cfc6b117859e3ee18c50712e58bd6b989ac))
+
 ## [0.4.6](https://github.com/chrischall/honeybook-mcp/compare/v0.4.5...v0.4.6) (2026-08-11)
 
 

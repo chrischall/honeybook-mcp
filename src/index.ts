@@ -14,7 +14,7 @@ import { registerInvoiceTools } from './tools/invoices.js';
 
 await runMcp({
   name: 'honeybook-mcp',
-  version: '0.4.6', // x-release-please-version
+  version: '0.5.0', // x-release-please-version
   tools: [
     registerSessionTools,
     registerWorkspaceFileTools,
