@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/chrischall/honeybook-mcp/compare/v0.5.0...v0.6.0) (2026-08-29)
+
+
+### Features
+
+* **deps:** take @fetchproxy/server 2.2.0 so the concentrator can bind its sandbox address ([#147](https://github.com/chrischall/honeybook-mcp/issues/147)) ([ae79feb](https://github.com/chrischall/honeybook-mcp/commit/ae79febca049a23eaf78a2a5d14f864972cc737d))
+
 ## [0.5.0](https://github.com/chrischall/honeybook-mcp/compare/v0.4.6...v0.5.0) (2026-08-26)
 
 
