@@ -65,6 +65,10 @@
     {
       "name": "pay_invoice",
       "description": "Deep link to pay an invoice in the portal"
+    },
+    {
+      "name": "honeybook_healthcheck",
+      "description": "Verify the HoneyBook session and API reachability: checks for an active magic-link session, makes one authenticated call, and distinguishes \"no session\" from \"session rejected\" from \"HoneyBook is down\"."
     }
   ],
   "compatibility": {

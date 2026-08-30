@@ -6,6 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 await loadDotenvSafely({ path: join(__dirname, '..', '.env'), override: false });
 
 import { registerSessionTools } from './tools/sessions.js';
+import { registerHealthcheckTools } from './tools/healthcheck.js';
 import { registerWorkspaceFileTools } from './tools/workspace_files.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
 import { registerPaymentMethodTools } from './tools/payment_methods.js';
@@ -22,5 +23,6 @@ await runMcp({
     registerPaymentMethodTools,
     registerContractTools,
     registerInvoiceTools,
+    registerHealthcheckTools,
   ],
 });

@@ -113,14 +113,20 @@ export function resetClientsForTest(): void {
   moduleState.apiVersionPromise = null;
 }
 
+/**
+ * The one "no session yet" message, shared with `honeybook_healthcheck` so the
+ * two cannot drift into telling the user different things about the same
+ * state.
+ */
+export const NO_ACTIVE_SESSION_MESSAGE =
+  'No active HoneyBook session. Use the `use_magic_link` tool with a magic-link URL from a vendor\'s email to activate one.';
+
 export async function getActiveClient(origin?: string): Promise<HoneyBookClient> {
   const session = sessionStore.get(origin);
   if (!session) {
     const active = sessionStore.list();
     if (active.length === 0) {
-      throw new Error(
-        'No active HoneyBook session. Use the `use_magic_link` tool with a magic-link URL from a vendor\'s email to activate one.'
-      );
+      throw new Error(NO_ACTIVE_SESSION_MESSAGE);
     }
     throw new Error(
       `No active session for origin "${origin}". Active origins: ${active.map((s) => s.portalOrigin).join(', ')}`
