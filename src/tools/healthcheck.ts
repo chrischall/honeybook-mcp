@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerCredentialHealthcheckTool } from '@chrischall/mcp-utils/healthcheck';
-import { getActiveClient } from '../client.js';
+import { getActiveClient, NO_ACTIVE_SESSION_MESSAGE } from '../client.js';
 import { sessionStore } from '../sessions.js';
 
 /**
@@ -26,11 +26,8 @@ export function registerHealthcheckTools(server: McpServer): void {
     resolveCredential: async () => {
       const active = sessionStore.list();
       if (active.length === 0) {
-        // Same wording getActiveClient throws, so the fix is identical
-        // wherever the user meets it.
-        throw new Error(
-          'No active HoneyBook session. Use the `use_magic_link` tool with a magic-link URL from a vendor\'s email to activate one.',
-        );
+        // The SAME constant getActiveClient throws, so the two cannot drift.
+        throw new Error(NO_ACTIVE_SESSION_MESSAGE);
       }
       return {
         source: 'magic-link session',
@@ -43,13 +40,21 @@ export function registerHealthcheckTools(server: McpServer): void {
     },
     classifyThrown: (err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      // 404 + HBUnauthorizedError is HoneyBook's expiry signal. Gated on the
-      // body as well as the status so a genuinely missing resource stays a
-      // plain 404.
-      if (/HBUnauthorizedError/.test(msg)) {
+      // Match the message the CLIENT throws, not HoneyBook's wire error.
+      //
+      // `HoneyBookClient.request()` already converts both 401 and
+      // 404+`HBUnauthorizedError` into one "auth expired … use_magic_link"
+      // error (`authExpiredError`), so nothing carrying the literal
+      // `HBUnauthorizedError` ever reaches here. An earlier version matched
+      // that literal and therefore never fired in production — the mock in its
+      // test bypassed the very transformation that made it dead.
+      //
+      // `HBUnauthorizedError` is kept as a second alternative only for a raw
+      // error that has not been through `request()`.
+      if (/auth expired|use_magic_link|HBUnauthorizedError/.test(msg)) {
         return {
           kind: 'credential_rejected',
-          hint: 'HoneyBook rejected the session (it answers a revoked token with 404 + HBUnauthorizedError, not 401). Re-run `use_magic_link` with a fresh link from a vendor email.',
+          hint: 'HoneyBook rejected the session — it has expired. Re-run `use_magic_link` with a fresh link from a vendor email. (HoneyBook signals this with 404 + HBUnauthorizedError rather than 401; the client normalises both.)',
         };
       }
       return undefined;

@@ -5,7 +5,13 @@ const listMock = vi.fn();
 const getActiveClientMock = vi.fn();
 
 vi.mock('../src/sessions.js', () => ({ sessionStore: { list: () => listMock() } }));
-vi.mock('../src/client.js', () => ({ getActiveClient: () => getActiveClientMock() }));
+// The real constant, not a stub: the whole point of sharing it is that the
+// healthcheck and getActiveClient say the same thing, so mocking it away would
+// let them drift while the test stayed green.
+vi.mock('../src/client.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/client.js')>();
+  return { ...actual, getActiveClient: () => getActiveClientMock() };
+});
 
 const { registerHealthcheckTools } = await import('../src/tools/healthcheck.js');
 
@@ -52,7 +58,27 @@ describe('honeybook_healthcheck', () => {
   // HoneyBook answers a revoked token with 404 + HBUnauthorizedError, not 401.
   // Left unclassified it reads as "that resource does not exist", sending
   // people to look for a missing workspace instead of re-activating a link.
-  it('re-kinds HoneyBook\'s 404 HBUnauthorizedError as a rejected credential', async () => {
+  // The error the REAL client throws. `HoneyBookClient.request()` normalises
+  // both 401 and 404+HBUnauthorizedError into this one message, so a test that
+  // throws the raw wire error asserts a case that cannot happen in production —
+  // which is exactly how the first version of this classifier shipped dead.
+  it('re-kinds the client\'s normalised auth-expired error as a rejected credential', async () => {
+    listMock.mockReturnValue([{ portalOrigin: 'https://vendor.honeybook.com' }]);
+    getActiveClientMock.mockResolvedValue({
+      scope: { userId: 'u1' },
+      request: async () => {
+        throw new Error(
+          'HoneyBook auth expired for portal "Vendor Co" (https://vendor.honeybook.com). Use the `use_magic_link` tool to capture a fresh session.',
+        );
+      },
+    });
+    const r = await call();
+    expect(r.error?.kind).toBe('credential_rejected');
+    expect(r.hint).toMatch(/use_magic_link/);
+  });
+
+  // Belt and braces: a raw wire error that somehow bypassed request().
+  it('also re-kinds a raw HBUnauthorizedError', async () => {
     listMock.mockReturnValue([{ portalOrigin: 'https://vendor.honeybook.com' }]);
     getActiveClientMock.mockResolvedValue({
       scope: { userId: 'u1' },
@@ -60,9 +86,7 @@ describe('honeybook_healthcheck', () => {
         throw Object.assign(new Error('HTTP 404: {"error":"HBUnauthorizedError"}'), { status: 404 });
       },
     });
-    const r = await call();
-    expect(r.error?.kind).toBe('credential_rejected');
-    expect(r.hint).toMatch(/use_magic_link/);
+    expect((await call()).error?.kind).toBe('credential_rejected');
   });
 
   it('leaves a genuine 404 as an ordinary failure', async () => {
