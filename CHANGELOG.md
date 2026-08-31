@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.0](https://github.com/chrischall/honeybook-mcp/compare/v0.7.1...v0.8.0) (2026-08-31)
+
+
+### Features
+
+* **flows:** support questionnaire (/flow/) magic links as their own credential kind ([#158](https://github.com/chrischall/honeybook-mcp/issues/158)) ([daf9a05](https://github.com/chrischall/honeybook-mcp/commit/daf9a057a991bb8aca9d24c4f9b3c4a2eec0c1e6))
+
+
+### Bug Fixes
+
+* **flows:** bound get_flow's payload, and report the field it captured ([#161](https://github.com/chrischall/honeybook-mcp/issues/161)) ([db40779](https://github.com/chrischall/honeybook-mcp/commit/db4077991e1f6819f8618b4e4c78d924ef307817))
+* **flows:** get_flow must call /api/v2/client/flow/&lt;id&gt;/active?ctxc=&lt;companyId&gt; ([#164](https://github.com/chrischall/honeybook-mcp/issues/164)) ([f398ffd](https://github.com/chrischall/honeybook-mcp/commit/f398ffdad697004d5f09b1d819b8673918504c5b))
+* **flows:** keep /minimal's error body, and pin the header that broke get_flow ([#166](https://github.com/chrischall/honeybook-mcp/issues/166)) ([1a40d65](https://github.com/chrischall/honeybook-mcp/commit/1a40d6576938516907a7b1e0d65ed9d37feeffa5))
+
+
+### Documentation
+
+* **flows:** put the MAX_FLOW_BYTES const before getFlow's docblock ([#163](https://github.com/chrischall/honeybook-mcp/issues/163)) ([b8ca9a9](https://github.com/chrischall/honeybook-mcp/commit/b8ca9a95b7eebbcb84ec235617b576487815253f))
+* rewrap the flow-client.ts architecture-map entry ([#168](https://github.com/chrischall/honeybook-mcp/issues/168)) ([df29253](https://github.com/chrischall/honeybook-mcp/commit/df2925301b6febf31e6286e445879557f38f1383))
+
 ## [0.7.1](https://github.com/chrischall/honeybook-mcp/compare/v0.7.0...v0.7.1) (2026-08-31)
 
 
