@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/chrischall/honeybook-mcp/compare/v0.7.0...v0.7.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* **healthcheck:** a missing session is not a rejected one ([#156](https://github.com/chrischall/honeybook-mcp/issues/156)) ([67c29c7](https://github.com/chrischall/honeybook-mcp/commit/67c29c76946c06ab45974a0bbf214be5168efb78))
+
 ## [0.7.0](https://github.com/chrischall/honeybook-mcp/compare/v0.6.0...v0.7.0) (2026-08-30)
 
 
