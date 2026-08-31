@@ -143,9 +143,18 @@ describe('captureFlowCredentialViaFetchproxy', () => {
   // one-click path FIRST or people do the slow one — which is exactly what
   // happened in a real session.
   it('offers Grant before revoke when the extension refuses the scope', async () => {
-    const err = Object.assign(new Error('localStorage keys not in declared set: X'), {
-      name: 'FetchproxyScopeError',
-    });
+    // The REAL upstream text, verbatim from a live capture against Transporter
+    // 2.3.0. It ends with its own "Revoke this MCP …" remedy, and that is the
+    // whole difficulty: a mock without the word passes the ordering assertion
+    // while production still reads "Revoke" first.
+    const err = Object.assign(
+      new Error(
+        'localStorage keys not in declared set: X — the declared scope changed since you ' +
+          'paired, so the extension is refusing the request. Revoke this MCP in the Transporter ' +
+          'extension popup, then re-run — you will be asked to approve the new scope.'
+      ),
+      { name: 'FetchproxyScopeError' }
+    );
     bootstrapMock.mockRejectedValue(err);
     const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
       (x: unknown) => x as Error

@@ -102,23 +102,31 @@ export async function captureFlowCredentialViaFetchproxy(
     // same reasoning as `auth.ts`.
     const errName = (e as { name?: string } | null)?.name;
     if (errName === 'FetchproxyScopeError' || /not in declared set/i.test(msg)) {
-      // Lead with GRANT. A GROWING scope does not block the session: the
-      // extension serves the intersection of approved and declared, stays
-      // connected, and queues a non-blocking "<serverName> wants to expand its
-      // access" offer carrying a Grant button. Only a domains/serverName change
-      // forces a re-pair. The upstream message ends with "revoke … then re-run",
-      // which is true but throws the pairing away to rebuild it — and a real
-      // session followed exactly that advice through a revoke/re-approve dance
-      // when one click would have done. So the cheap path goes first, and the
-      // upstream sentence is named so the two do not read as contradicting.
+      // Lead with GRANT, and put the upstream text LAST.
+      //
+      // A GROWING scope does not block the session: the extension serves the
+      // intersection of approved and declared, stays connected, and queues a
+      // non-blocking "<serverName> wants to expand its access" offer carrying a
+      // Grant button. Only a domains/serverName change forces a re-pair.
+      //
+      // Ordering is the whole point and is easy to get wrong. `msg` is the
+      // upstream FetchproxyScopeError, and it ends with its OWN remedy —
+      // "Revoke this MCP in the Transporter extension popup, then re-run".
+      // Interpolating it first (as this did when the Grant advice was added)
+      // puts "Revoke" ahead of "Grant" no matter what we append, so a reader
+      // still does the expensive thing. It therefore goes at the END, behind an
+      // "Underlying error:" label, where it stays available for diagnosis
+      // without being the first instruction anyone reads.
       throw new Error(
-        `HoneyBook flow auth: ${msg} — the declared scope names ONE key per flow ` +
-          `("${storageKey}"), so the extension asks you to approve each new questionnaire ` +
-          'once. Open the Transporter popup: honeybook-mcp should be offering to "expand its ' +
-          'access" with this questionnaire\'s key — click Grant, then re-run this tool. That ' +
-          'keeps the existing pairing. (The message above suggests revoking instead; that also ' +
-          'works, but it discards the pairing and makes you approve everything again, so try ' +
-          'Grant first.)'
+        'HoneyBook flow auth: the extension is refusing a scope this questionnaire needs ' +
+          `("${storageKey}"). The declared scope names ONE key per flow, so each new ` +
+          'questionnaire is approved once — and it is one click, not a re-pair: open the ' +
+          'Transporter popup, where honeybook-mcp should be offering to "expand its access" ' +
+          'with this key, and press Grant. Then re-run this tool. That keeps the existing ' +
+          'pairing.\n\n' +
+          'Revoking and re-pairing also works — it is what the underlying error suggests — but ' +
+          'it discards the pairing and makes you approve every scope again, so try Grant ' +
+          `first.\n\nUnderlying error: ${msg}`
       );
     }
     if (bridgeError.type === 'timeout' || /timeout/i.test(msg)) {
