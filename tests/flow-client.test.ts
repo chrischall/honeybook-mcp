@@ -244,23 +244,30 @@ describe('the required client version', () => {
     expect(h['hb-api-client-version']).toBe('2610');
   });
 
-  // The version is read from /api/gon at startup, so it tracks HoneyBook — but
-  // HONEYBOOK_API_VERSION can pin a value that rots. When it does, the endpoint
-  // answers a bare 400 "Unexpected server error" with no error_type: nothing in
-  // it says which input was wrong, and it reads exactly like an auth failure.
-  it('turns a bare 400 into an error naming the version and ctxc, and denying it is auth', async () => {
+  // A 400 that reaches here is NOT the version — `hbApiRequest` intercepts
+  // HBWrongAPIVersionError first and retries once on the server-reported
+  // version, so a stale one self-heals before this branch sees it (verified
+  // live: every version failure, stale/garbage/omitted, answers 400 with
+  // error_type HBWrongAPIVersionError and error_data.server_api_version). What
+  // is left is an untyped 400 with no known cause — so the message says the
+  // version is the input to check and stops claiming ctxc is one, but the
+  // load-bearing part is unchanged: this is not an auth failure.
+  it('turns a bare 400 into an error naming the version, and denying it is auth', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({ error: true, error_message: 'Unexpected server error' }),
         { status: 400 }
       )
     );
+    // No ctxc in the path — it is optional now, and its absence makes the
+    // assertion below about the EXPLANATION rather than the echoed URL.
     const err = await new FlowClient(CREDENTIAL, 2610)
-      .request('GET', '/api/v2/client/flow/x/active?ctxc=c1')
+      .request('GET', '/api/v2/client/flow/x/active')
       .catch((e: unknown) => e as Error);
     expect(err.message).toMatch(/hb-api-client-version/);
     expect(err.message).toMatch(/2610/);
-    expect(err.message).toMatch(/ctxc/);
+    // ctxc is ignored by the API, so naming it as a cause only misdirects.
+    expect(err.message).not.toMatch(/ctxc/);
     // The whole point: do NOT send someone to re-capture a working credential.
     expect(err.message).toMatch(/NOT an auth failure/);
     expect(err.message).toMatch(/use_flow_link`? will not help/);

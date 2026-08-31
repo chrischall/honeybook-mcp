@@ -109,26 +109,50 @@ GET /api/v2/client/flow/<flowId>/active?ctxc=<companyId>
     headers: hb-api-w-hash, hb-api-w-user-id, hb-api-client-version
 ```
 
-Three traps, all of them things a static read of the app's adapter gets wrong
-(0.8.0's unreleased first cut got all three; a HAR of the live questionnaire on
-2026-08-31 settled them):
+**Only two things are load-bearing: the weak-auth credential and a current
+`hb-api-client-version`.** Probed against the live API on 2026-08-31 with a
+real credential, these five all return the SAME 200 — byte-identical bodies,
+one sha256, 96,246 bytes each:
 
+    /api/v2/client/flow/<id>/active?ctxc=<real>     ← what the app sends
+    /api/v2/client/flow/<id>/active                 ← no ctxc
+    /api/v2/flow/<id>/active?ctxc=<real>            ← no /client/
+    /api/v2/flow/<id>/active                        ← neither
+    /api/v2/client/flow/<id>/active?ctxc=<bogus>    ← ctxc ignored, not validated
+
+So `ctxc` and the `/client/` rewrite are **inert**. Both are still sent, because
+matching the shipped client costs nothing and is the cheap way to stay right if
+the server ever starts enforcing them — but neither may be treated as required,
+and code must not refuse a read for want of a `ctxc`.
+
+This corrects 0.8.0, which recorded both as required. The elimination test that
+established `hb-api-client-version` ("hash + user-id alone is a 400 … adding the
+version makes it a 200") was run on the `/client/` + `ctxc` URL and never re-run
+without them, so the version header — #166 — was the entire fix, and #164's
+`/client/`+`ctxc` change worked for a reason that was not true.
+
+What the version does:
+
+- **`hb-api-client-version` is required.** Every failure mode — stale, ancient,
+  garbage, empty, omitted — answers `400` with `error_type:
+  HBWrongAPIVersionError` and `error_data.server_api_version`. There is no
+  untyped 400 from a bad version, so `hbApiRequest` adopts the server's number
+  and retries once, and it self-heals.
+- **`ctxc` is `branding_data.company_id`** in `/minimal`, set by the app's
+  interceptor from `clientPortalConfigStore.clientPortalCompanyId`. It is NOT
+  the only 24-hex value there (`theme._id` is another), so read the field by
+  name. `/minimal` takes `user_id` as a QUERY param, not a header, and needs no
+  credential, so it is not given one.
 - **`/client/` is injected below the adapter.** `_fetchFlow` composes
-  `/api/v2/flow/<id>/active`; the shared interceptor then applies
+  `/api/v2/flow/<id>/active`; the shared interceptor applies
   `addClientToUrl(u) => u.replace('/api/v2/', '/api/v2/client/')`. Grepping the
   bundle for the literal path finds only the pre-rewrite form.
-- **`ctxc` is required**, set by that same interceptor from
-  `clientPortalConfigStore.clientPortalCompanyId`. It is
-  `branding_data.company_id` in the `/minimal` response — the only 24-hex value
-  there. `/minimal` takes `user_id` as a QUERY param, not a header, and needs no
-  credential, so it is not given one.
-- **`hb-api-client-version` is required**, isolated by elimination: hash +
-  user-id alone is a 400, adding `hb-api-fingerprint` is still a 400, adding the
-  version makes it a 200 (96,246 bytes).
 
-None of this is visible by probing without a credential: BOTH `/api/v2/flow/…`
-and `/api/v2/client/flow/…` answer 404 + `HBUnauthorizedError` unauthenticated,
-so only a real 200 tells the two apart.
+The 404 disguise is real and is the one thing probing without a credential DOES
+show: both `/api/v2/flow/…` and `/api/v2/client/flow/…` answer 404 +
+`HBUnauthorizedError` unauthenticated, as does a valid path with a bad hash.
+That is why an unauthenticated probe cannot tell the two paths apart — and why
+it was mistaken for evidence that the rewrite mattered.
 
 Optional env vars:
 
@@ -276,14 +300,16 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   the `HbApiCaller` seam. Verified live that a flow route answers the same 404
   disguise: an unauthenticated `GET /api/v2/client/flow/<id>/active` returns
   `404 {"error_type":"HBUnauthorizedError"}`.
-- **A bare 400 from a flow read is NOT an auth failure.** A missing or stale
-  `hb-api-client-version`, or a missing `ctxc`, answers `400 "Unexpected server
-  error"` with no `error_type` — which reads exactly like a dead credential and
-  sends people to re-capture a working one. `hbApiRequest` throws a typed
-  `HoneyBookApiError` carrying `.status`, and `FlowClient.request` branches on
-  that status (never on the message) to name both causes and deny the auth
-  reading. `get_flow` refuses up front when `/minimal` carries no `ctxc`, rather
-  than making the call and inheriting the same ambiguous 400.
+- **An untyped 400 from a flow read is NOT an auth failure.** A 400 with no
+  `error_type` says nothing about which input was wrong and reads exactly like a
+  dead credential, sending people to re-capture a working one. `hbApiRequest`
+  throws a typed `HoneyBookApiError` carrying `.status`, and `FlowClient.request`
+  branches on that status (never on the message) to deny the auth reading.
+  Neither documented cause survives: a bad version is typed
+  (`HBWrongAPIVersionError`) and retried a layer below, and `ctxc` is ignored by
+  the API — so the message offers the version as the input to CHECK rather than
+  as a known cause. `get_flow` used to refuse up front when `/minimal` carried no
+  `ctxc`; that guard could only invent failures and is gone.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes

@@ -89,30 +89,25 @@ export async function getFlow(args: { flow_id?: string; section?: 'summary' | 'r
     apiVersion: client.getApiVersion(),
   });
   const contextId = flowContextId(minimal);
-  // Refuse rather than calling /active without it. A missing ctxc produces the
-  // same bare 400 as a stale client version, and a 400 here reads as an auth
-  // failure — so falling through would send someone to re-capture a credential
-  // that is perfectly good.
-  if (!contextId) {
-    throw new Error(
-      `HoneyBook flow: no context id for flow ${flowId}. The questionnaire read requires ` +
-        '`ctxc`, the vendor company id, and GET /api/v2/flow/<flowId>/minimal did not carry one ' +
-        'at branding_data.company_id. Calling /active without it answers a bare 400 that reads ' +
-        'like an auth failure, so this stops here: it is not an auth problem and re-running ' +
-        '`use_flow_link` will not help.'
-    );
-  }
-
-  const query = new URLSearchParams({ ctxc: contextId });
+  // `ctxc` is sent when /minimal carries one and simply omitted when it does
+  // not. It is NOT required: probed live on 2026-08-31 with a real credential,
+  // omitting it — and sending a bogus one, and dropping `/client/` — returns
+  // the same 200 with a byte-identical body. 0.8.0 refused here instead, which
+  // could only ever invent a failure for a flow whose /minimal lacks
+  // branding_data.company_id. The URL still matches the app's own request,
+  // because matching the shipped client is the cheap way to stay right if the
+  // server ever does start enforcing it.
+  const path = `/api/v2/client/flow/${encodeURIComponent(flowId)}/active`;
   const flow = await client.request(
     'GET',
-    `/api/v2/client/flow/${encodeURIComponent(flowId)}/active?${query}`
+    contextId ? `${path}?${new URLSearchParams({ ctxc: contextId })}` : path
   );
   const head = {
     flowId,
     portalOrigin: client.credential.portalOrigin,
-    // Reported because it is a second input the read depends on: when this call
-    // fails, knowing which company id was used is half the diagnosis.
+    // Reported because it is a second input the request carries: when this call
+    // fails, knowing which company id was sent is half the diagnosis. `null` is
+    // a normal outcome, not an error — the read does not require one.
     contextId,
   };
   if (args.section === 'raw') return textResult({ ...head, flow });
@@ -144,7 +139,7 @@ export function registerFlowTools(server: McpServer): void {
           .string()
           .url()
           .describe(
-            'Full questionnaire link from the vendor email, e.g. https://<vendor>.hbportal.co/flow/<flowId>?hash=…&userId=… The ?hash= parameter is the credential, so use the original link rather than the URL the page rewrites to.'
+            'Questionnaire link, e.g. https://<vendor>.hbportal.co/flow/<flowId>?hash=…&userId=… Only the /flow/<flowId> segment is required: the credential is read out of the open page\'s localStorage, so the rewritten step URL (/flow/<flowId>/1-Questions) works too. The URL\'s ?hash= is used only as a fallback when the page stored none, so prefer the original email link if the capture reports no hash.'
           ),
       },
       annotations: { readOnlyHint: false },

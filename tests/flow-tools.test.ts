@@ -127,14 +127,27 @@ describe('get_flow', () => {
     });
   });
 
-  // A missing ctxc is a 400 that reads like an auth failure, which would send
-  // someone to re-capture a credential that is fine. Refuse before the call.
-  it('refuses when /minimal carries no context id, without calling /active', async () => {
+  // `ctxc` is NOT required, and a missing one must not stop the read.
+  //
+  // 0.8.0 refused here, on the belief that /active without a ctxc answers the
+  // same bare 400 as a stale client version. Probed against the live API on
+  // 2026-08-31 with a real credential, that is false: omitting ctxc, sending a
+  // bogus one, and dropping `/client/` all return the SAME 200 — byte-identical
+  // payloads, same sha256, 96,246 bytes each. Only the credential and a current
+  // `hb-api-client-version` are load-bearing. So the guard could never prevent a
+  // real failure and could only invent one, for any flow whose /minimal happens
+  // not to carry branding_data.company_id.
+  it('reads the flow when /minimal carries no context id, omitting ctxc', async () => {
     stubMinimal(null);
-    const fake = stubClient({});
-    await expect(getFlow({})).rejects.toThrow(/context id/i);
-    await expect(getFlow({})).rejects.toThrow(/not an auth problem/i);
-    expect(fake.request).not.toHaveBeenCalled();
+    const fake = stubClient({ _id: 'f1', title: 'Wedding Questionnaire' });
+    const parsed = parse<{ flow: { title: string }; contextId: string | null }>(await getFlow({}));
+    expect(fake.request).toHaveBeenCalledWith(
+      'GET',
+      '/api/v2/client/flow/69e64b0ff2eb57003a725a2d/active'
+    );
+    expect(parsed.flow.title).toBe('Wedding Questionnaire');
+    // Still reported, so a failure still says which company id was in play.
+    expect(parsed.contextId).toBeNull();
   });
 
   // `pruneWorkspaceFile` exists because a real proposal measured ~1.3 MB, and a
