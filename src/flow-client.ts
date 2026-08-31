@@ -89,24 +89,33 @@ export class FlowClient implements HbApiCaller {
   }
 
   /**
-   * Explain a bare 400.
+   * Explain an untyped 400.
    *
-   * A flow read that is missing a required input answers `400` with
-   * `"Unexpected server error"` and no `error_type` — nothing in the body says
-   * which input, and it reads exactly like an auth failure. Left alone it sends
-   * people to re-capture a credential that is fine, so the two known causes are
-   * named here and the auth reading is denied outright.
+   * A 400 with no `error_type` says nothing about which input was wrong and
+   * reads exactly like an auth failure; left alone it sends people to
+   * re-capture a credential that is fine, so the auth reading is denied
+   * outright.
+   *
+   * What can NOT reach here is the client version. Probed live 2026-08-31,
+   * every version failure — stale, garbage, empty, omitted — answers 400 with
+   * `error_type: HBWrongAPIVersionError` and `error_data.server_api_version`,
+   * which `hbApiRequest` intercepts and retries once on the server's own
+   * number, so it self-heals a layer below. `ctxc` cannot reach here either:
+   * the API ignores it entirely (omitted, bogus, and `/client/`-less all return
+   * the same 200, byte-identical), and naming it here only misdirected. So the
+   * version is offered as the input to CHECK rather than as a known cause, and
+   * this is deliberately vaguer than 0.8.0's message: no cause is confirmed.
    */
   private badRequestError(err: HoneyBookApiError): Error {
     return new Error(
       `${err.message}\n\n` +
-        'HoneyBook answers a flow read with a bare 400 when a required input is missing, without ' +
-        'saying which. The two that do it:\n' +
-        `  1. hb-api-client-version — sent as ${this.apiVersion}. It is read from /api/gon at ` +
-        'startup, so it normally tracks HoneyBook; if HONEYBOOK_API_VERSION is pinned in your ' +
-        'environment that value can have rotted, so unset it to re-read the live one.\n' +
-        '  2. ctxc — the company id from /api/v2/flow/<flowId>/minimal, required on every ' +
-        '/api/v2/client/… read.\n' +
+        'HoneyBook answered this flow read with a 400 carrying no error_type, so nothing in the ' +
+        'response says which input it objected to. The input worth checking is ' +
+        `hb-api-client-version, sent as ${this.apiVersion}: it is read from /api/gon at startup, ` +
+        'so it normally tracks HoneyBook, but a pinned HONEYBOOK_API_VERSION can have rotted — ' +
+        'unset it to re-read the live one. (A version HoneyBook actively rejects answers with ' +
+        'error_type HBWrongAPIVersionError and is retried automatically, so it would not surface ' +
+        'here.)\n' +
         'This is NOT an auth failure — the credential is very likely fine, so re-running ' +
         '`use_flow_link` will not help.'
     );
@@ -219,12 +228,14 @@ export async function fetchFlowMinimal(
  * The `ctxc` value: the vendor's company id.
  *
  * The app sets `params.ctxc` from `clientPortalConfigStore.clientPortalCompanyId`
- * in its request interceptor, and `branding_data.company_id` is that same id —
- * verified live as the only 24-hex value the `/minimal` response carries.
+ * in its request interceptor, and `branding_data.company_id` is that same id.
+ * (0.8.0's docblock called it the only 24-hex value in `/minimal`; it is not —
+ * `theme._id` is another — so this reads the field by name, as it always did.)
  *
- * Returns `null` rather than guessing: a wrong `ctxc` is the same bare 400 as a
- * missing one, so a fabricated value would be indistinguishable from a genuine
- * failure.
+ * Returns `null` rather than guessing, and `null` is a normal outcome: the read
+ * omits `ctxc` entirely in that case. The API ignores the value regardless —
+ * verified live 2026-08-31 that a bogus one returns the same 200 — so a
+ * fabricated id would be neither safer nor more honest than sending none.
  */
 export function flowContextId(minimal: FlowMinimal): string | null {
   return minimal.branding_data?.company_id ?? null;
