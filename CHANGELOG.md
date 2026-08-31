@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.1](https://github.com/chrischall/honeybook-mcp/compare/v0.8.0...v0.8.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* **flows:** stop refusing a flow read for want of a ctxc the API ignores ([#169](https://github.com/chrischall/honeybook-mcp/issues/169)) ([d7a5a5f](https://github.com/chrischall/honeybook-mcp/commit/d7a5a5fadc79613d6c3da2e1f0fb5eeda24cf937))
+
+
+### Documentation
+
+* **flows:** stop fetchFlowMinimal's error calling ctxc required ([#172](https://github.com/chrischall/honeybook-mcp/issues/172)) ([f78b3c9](https://github.com/chrischall/honeybook-mcp/commit/f78b3c9a793f57f2ed71546f7df9da65fdc2d981))
+
 ## [0.8.0](https://github.com/chrischall/honeybook-mcp/compare/v0.7.1...v0.8.0) (2026-08-31)
 
 
