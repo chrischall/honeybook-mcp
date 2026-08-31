@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/chrischall/honeybook-mcp/compare/v0.8.1...v0.8.2) (2026-08-31)
+
+
+### Bug Fixes
+
+* **flows:** offer Grant before revoke when the extension refuses a flow scope ([#174](https://github.com/chrischall/honeybook-mcp/issues/174)) ([f8f9ab6](https://github.com/chrischall/honeybook-mcp/commit/f8f9ab6489702d543a968fdfe7eadecc78649b84))
+
 ## [0.8.1](https://github.com/chrischall/honeybook-mcp/compare/v0.8.0...v0.8.1) (2026-08-31)
 
 
