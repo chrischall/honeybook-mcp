@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/chrischall/honeybook-mcp/compare/v0.6.0...v0.7.0) (2026-08-30)
+
+
+### Features
+
+* add honeybook_healthcheck ([#151](https://github.com/chrischall/honeybook-mcp/issues/151)) ([efe9ae6](https://github.com/chrischall/honeybook-mcp/commit/efe9ae683abc5f7447c503c90b16c5787d0cbc5a)), closes [#152](https://github.com/chrischall/honeybook-mcp/issues/152)
+
 ## [0.6.0](https://github.com/chrischall/honeybook-mcp/compare/v0.5.0...v0.6.0) (2026-08-29)
 
 
