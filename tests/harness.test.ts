@@ -8,12 +8,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createTestHarness, parseToolResult } from '@chrischall/mcp-utils/test';
 import { registerSessionTools } from '../src/tools/sessions.js';
+import { registerFlowTools } from '../src/tools/flows.js';
 import { sessionStore } from '../src/sessions.js';
+import { flowStore } from '../src/flows.js';
 
 describe('session tools via test harness', () => {
-  beforeEach(() => sessionStore.resetForTest());
+  beforeEach(() => {
+    sessionStore.resetForTest();
+    flowStore.resetForTest();
+  });
 
-  it('registers the session tools and list_active_sessions returns an empty array when none are active', async () => {
+  it('registers the session tools and list_active_sessions reports both kinds as empty', async () => {
     const harness = await createTestHarness((server) => registerSessionTools(server));
     try {
       const names = (await harness.listTools()).map((t) => t.name);
@@ -21,7 +26,18 @@ describe('session tools via test harness', () => {
       expect(names).toContain('list_active_sessions');
 
       const result = await harness.callTool('list_active_sessions', {});
-      expect(parseToolResult(result)).toEqual([]);
+      expect(parseToolResult(result)).toEqual({ portalSessions: [], flowCredentials: [] });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('registers the flow tools', async () => {
+    const harness = await createTestHarness((server) => registerFlowTools(server));
+    try {
+      const names = (await harness.listTools()).map((t) => t.name);
+      expect(names).toContain('use_flow_link');
+      expect(names).toContain('get_flow');
     } finally {
       await harness.close();
     }

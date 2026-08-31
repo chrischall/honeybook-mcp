@@ -1,7 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerCredentialHealthcheckTool } from '@chrischall/mcp-utils/healthcheck';
-import { getActiveClient, NO_ACTIVE_SESSION_MESSAGE } from '../client.js';
+import { getActiveClient, isNoPortalSessionError, noPortalSessionError } from '../client.js';
 import { sessionStore } from '../sessions.js';
+import { flowStore } from '../flows.js';
 
 /**
  * Register `honeybook_healthcheck` — checks for an active portal session, then
@@ -26,12 +27,22 @@ export function registerHealthcheckTools(server: McpServer): void {
     resolveCredential: async () => {
       const active = sessionStore.list();
       if (active.length === 0) {
-        // The SAME constant getActiveClient throws, so the two cannot drift.
-        throw new Error(NO_ACTIVE_SESSION_MESSAGE);
+        // The SAME constructor getActiveClient throws, so the two cannot drift
+        // — including on the flow-credential branch, where the message has to
+        // say which kind IS present.
+        throw noPortalSessionError();
       }
+      const flowCount = flowStore.list().length;
       return {
-        source: 'magic-link session',
-        detail: { origins: active.map((s) => s.portalOrigin) },
+        // The label names the KIND, so a reader can tell this apart from the
+        // flow (weak-auth) credential rather than seeing one generic "session".
+        source: 'magic-link portal session',
+        detail: {
+          origins: active.map((s) => s.portalOrigin),
+          // Count only. A healthcheck result is what people paste into chats,
+          // and a flow id is half of a flow credential.
+          ...(flowCount > 0 ? { flowCredentials: flowCount } : {}),
+        },
       };
     },
     probeFn: async () => {
@@ -40,14 +51,26 @@ export function registerHealthcheckTools(server: McpServer): void {
     },
     classifyThrown: (err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      // "No active session" is NOT a rejection — there was nothing to reject.
+      // "No portal session" is NOT a rejection — there was nothing to reject.
       // It has to be excluded explicitly because the message names
       // `use_magic_link` as the FIX, and the regex below matches that literal
       // as a symptom. The two only stopped colliding by luck: this classifier
       // was never consulted for a `resolveCredential` throw until mcp-utils
       // 0.19.3, and that is the exact path this message arrives on. Without
       // this guard, a user who never connected is told their session expired.
-      if (msg === NO_ACTIVE_SESSION_MESSAGE) return undefined;
+      //
+      // Keyed off the error TYPE, never its prose. An equality check against
+      // one message was already fragile; it would have silently stopped
+      // covering the flow-credential variant of the same condition, which is a
+      // DIFFERENT message that also names `use_magic_link`.
+      if (isNoPortalSessionError(err)) {
+        // Same arm and same hint as the unclassified path — this branch exists
+        // only to carry the count, so the report distinguishes "nothing
+        // captured" from "the wrong credential kind is captured".
+        return err.flowCredentialCount > 0
+          ? { kind: 'no_credential', detail: { flowCredentials: err.flowCredentialCount } }
+          : undefined;
+      }
       // Match the message the CLIENT throws, not HoneyBook's wire error.
       //
       // `HoneyBookClient.request()` already converts both 401 and
