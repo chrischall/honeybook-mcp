@@ -217,7 +217,7 @@ export async function fetchFlowMinimal(
           : 'that route is public, so this is a HoneyBook-side problem rather than a credential one';
     throw new Error(
       `HoneyBook flow: GET /api/v2/flow/${flowId}/minimal answered ${response.status} — ${cause}. ` +
-        `It is where the context id (ctxc) required by the questionnaire read comes from.` +
+        `It is where the context id (ctxc) the questionnaire read sends comes from.` +
         (detail ? ` Response: ${detail}` : '')
     );
   }
