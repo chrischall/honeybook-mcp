@@ -98,14 +98,29 @@ export type CapturedFlowCredential = {
    * `HB-Api-W-Hash` and must never appear in a tool response.
    */
   hash: string;
-  /** `_id` from the stored blob → `HB-Api-W-User-Id`. Absent on an anonymous flow. */
+  /**
+   * `_id` from the stored blob → `HB-Api-W-User-Id`, and the `user_id` query
+   * param on the public `/minimal` lookup. Present on the measured capture;
+   * absent on an anonymous flow.
+   */
   userId?: string;
-  /** `email` from the stored blob → `HB-Api-W-Email`. Absent until the client identifies. */
+  /**
+   * `email` from the stored blob → `HB-Api-W-Email`.
+   *
+   * Usually ABSENT. The one live blob measured (2026-08-31) held only `_id` and
+   * `hash`, and the successful read carried no email header at all — so treat
+   * this as the exception rather than a field that is normally there. The app's
+   * `getHeaders()` does send it when the blob has one, which is why it is still
+   * captured and still sent conditionally.
+   */
   email?: string;
   /**
    * `is_real_chargeable_user` from the stored blob. REPORTED by a capture and
    * by `list_active_sessions`; never sent upstream — the weak-auth headers are
-   * hash, user id and email only.
+   * hash, user id and (when present) email only.
+   *
+   * Also usually absent: the measured blob did not carry it, so both consumers
+   * report `null` in the ordinary case. That is the honest answer, not a bug.
    */
   isRealChargeableUser?: boolean;
   /** Epoch millis when this credential was captured. */

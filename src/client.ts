@@ -22,6 +22,49 @@ export async function fetchApiVersion(): Promise<number> {
 export type HbMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 /**
+ * An unsuccessful HoneyBook response, carrying the STATUS a caller has to
+ * branch on.
+ *
+ * The message is unchanged (`formatApiError`), so this is additive; what is new
+ * is that a caller wanting "was this a 400?" reads `.status` instead of
+ * re-parsing prose that exists to be read by a human. The flow client needs
+ * exactly that: a bare 400 from a flow read is the API's way of saying an input
+ * was missing, and it looks nothing like the 404 + `HBUnauthorizedError` an
+ * expired credential produces.
+ */
+export class HoneyBookApiError extends Error {
+  /** Structural marker, so the predicate survives a duplicated module copy. */
+  readonly honeyBookApiError = true;
+  readonly status: number;
+  readonly method: string;
+  readonly path: string;
+  /** Raw response body. Already folded into `message` by `formatApiError`. */
+  readonly body: string;
+
+  constructor(
+    message: string,
+    init: { status: number; method: string; path: string; body: string }
+  ) {
+    super(message);
+    this.name = 'HoneyBookApiError';
+    this.status = init.status;
+    this.method = init.method;
+    this.path = init.path;
+    this.body = init.body;
+  }
+}
+
+/** The predicate a reader imports instead of matching on an error message. */
+export function isHoneyBookApiError(err: unknown): err is HoneyBookApiError {
+  return (
+    err instanceof HoneyBookApiError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { honeyBookApiError?: unknown }).honeyBookApiError === true)
+  );
+}
+
+/**
  * What {@link hbApiRequest} needs from a credential in order to make a call.
  *
  * api.honeybook.com answers to two credential kinds — a portal session and a
@@ -101,7 +144,10 @@ export async function hbApiRequest<T>(
       }
       return hbApiRequest<T>(caller, method, path, body, true, isRateRetry);
     }
-    throw new Error(formatApiError(response.status, method, path, text, { service: 'HoneyBook' }));
+    throw new HoneyBookApiError(
+      formatApiError(response.status, method, path, text, { service: 'HoneyBook' }),
+      { status: response.status, method, path, body: text }
+    );
   }
 
   const text = await response.text();

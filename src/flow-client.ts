@@ -11,13 +11,30 @@
 //   weak_auth_user_id    => HB-Api-W-User-Id
 //   weak_auth_user_email => HB-Api-W-Email
 //
-// and the flow app's `getHeaders()` sends exactly those three, taken from
+// and the flow app's `getHeaders()` sends those, taken from
 // `localStorage[HONEYBOOK_REACT_WEAK_AUTH_<flowId>]`, when the session is
-// weak-authenticated. It sends NO `HB-Api-Auth-Token` and no user id on that
-// branch, which is why this is a separate client rather than a flag on the
-// portal one.
+// weak-authenticated. It sends NO `HB-Api-Auth-Token`, which is why this is a
+// separate client rather than a flag on the portal one.
+//
+// A HAR of a live questionnaire (2026-08-31) then settled what the source could
+// not. A successful read carries exactly THREE headers — `hb-api-w-hash`,
+// `hb-api-w-user-id` and `hb-api-client-version` — and the client version is
+// REQUIRED, isolated by elimination: hash + user-id alone is a 400, adding
+// `hb-api-fingerprint` is still a 400, adding the version makes it a 200. The
+// email header did not appear because the measured blob had no `email` in it at
+// all (only `_id` and `hash`); `getHeaders()` does send it when there is one, so
+// it stays conditional here rather than being deleted on one observation.
 
-import { hbApiRequest, fetchApiVersion, moduleState, type HbApiCaller, type HbMethod } from './client.js';
+import {
+  API_BASE,
+  fetchApiVersion,
+  hbApiRequest,
+  isHoneyBookApiError,
+  moduleState,
+  type HbApiCaller,
+  type HbMethod,
+  type HoneyBookApiError,
+} from './client.js';
 import { flowStore } from './flows.js';
 import type { CapturedFlowCredential } from './types.js';
 
@@ -47,10 +64,12 @@ export class FlowClient implements HbApiCaller {
   }
 
   /**
-   * The hash is the only mandatory field — it IS the credential. The user id
-   * and email are present once the client has identified themselves on the
-   * questionnaire and are omitted otherwise, rather than serialized as the
-   * string "undefined".
+   * The hash is the only mandatory field — it IS the credential.
+   *
+   * `userId` was present on the one live capture; `email` was NOT (the stored
+   * blob held only `_id` and `hash`), so do not read the conditional as "these
+   * are usually there". Both are omitted when absent rather than serialized as
+   * the string "undefined".
    */
   authHeaders(): Record<string, string> {
     const headers: Record<string, string> = { 'hb-api-w-hash': this.credential.hash };
@@ -60,7 +79,37 @@ export class FlowClient implements HbApiCaller {
   }
 
   async request<T>(method: HbMethod, path: string, body?: unknown): Promise<T> {
-    return hbApiRequest<T>(this, method, path, body);
+    try {
+      return await hbApiRequest<T>(this, method, path, body);
+    } catch (err) {
+      // Branch on the STATUS, never on the message.
+      if (isHoneyBookApiError(err) && err.status === 400) throw this.badRequestError(err);
+      throw err;
+    }
+  }
+
+  /**
+   * Explain a bare 400.
+   *
+   * A flow read that is missing a required input answers `400` with
+   * `"Unexpected server error"` and no `error_type` — nothing in the body says
+   * which input, and it reads exactly like an auth failure. Left alone it sends
+   * people to re-capture a credential that is fine, so the two known causes are
+   * named here and the auth reading is denied outright.
+   */
+  private badRequestError(err: HoneyBookApiError): Error {
+    return new Error(
+      `${err.message}\n\n` +
+        'HoneyBook answers a flow read with a bare 400 when a required input is missing, without ' +
+        'saying which. The two that do it:\n' +
+        `  1. hb-api-client-version — sent as ${this.apiVersion}. It is read from /api/gon at ` +
+        'startup, so it normally tracks HoneyBook; if HONEYBOOK_API_VERSION is pinned in your ' +
+        'environment that value can have rotted, so unset it to re-read the live one.\n' +
+        '  2. ctxc — the company id from /api/v2/flow/<flowId>/minimal, required on every ' +
+        '/api/v2/client/… read.\n' +
+        'This is NOT an auth failure — the credential is very likely fine, so re-running ' +
+        '`use_flow_link` will not help.'
+    );
   }
 
   /** The flow twin of the portal client's expired-session error. */
@@ -100,4 +149,69 @@ export async function getActiveFlowClient(flowId?: string): Promise<FlowClient> 
     });
   }
   return new FlowClient(credential, await moduleState.apiVersionPromise);
+}
+
+/**
+ * The public metadata a flow exposes with no credential at all.
+ *
+ * Only the fields this MCP reads are typed; the response carries more (theme,
+ * owner, expiration, `require_authentication`, `client_facing_host`).
+ */
+export interface FlowMinimal {
+  branding_data?: { company_id?: string; title?: string };
+  title?: string;
+}
+
+/**
+ * `GET /api/v2/flow/<flowId>/minimal` — the app's `fetchFlowMinimalData`.
+ *
+ * Three things about it are easy to get wrong:
+ *
+ *  * It is the PUBLIC route, with no `/client/` segment. The app fetches it
+ *    through its no-auth service, which does not run the interceptor that
+ *    rewrites `/api/v2/` to `/api/v2/client/`. Verified live: it answers 200
+ *    with no credential.
+ *  * `user_id` is a QUERY parameter here, not a header — the one place in this
+ *    MCP where a user id travels in the query string.
+ *  * Because it needs no credential, it is not given one. Spending the flow
+ *    hash on a call that does not ask for it is authority for nothing.
+ */
+export async function fetchFlowMinimal(
+  flowId: string,
+  opts: { userId?: string; apiVersion: number }
+): Promise<FlowMinimal> {
+  const query = new URLSearchParams();
+  if (opts.userId) query.set('user_id', opts.userId);
+  const suffix = query.size > 0 ? `?${query}` : '';
+  const url = `${API_BASE}/api/v2/flow/${encodeURIComponent(flowId)}/minimal${suffix}`;
+
+  const response = await fetch(url, {
+    headers: {
+      accept: 'application/json, text/plain, */*',
+      'hb-api-client-version': String(opts.apiVersion),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(
+      `HoneyBook flow: GET /api/v2/flow/${flowId}/minimal answered ${response.status}. That route ` +
+        'is public, so this is a HoneyBook-side problem rather than a credential one; it is where ' +
+        'the context id (ctxc) required by the questionnaire read comes from.'
+    );
+  }
+  return (await response.json()) as FlowMinimal;
+}
+
+/**
+ * The `ctxc` value: the vendor's company id.
+ *
+ * The app sets `params.ctxc` from `clientPortalConfigStore.clientPortalCompanyId`
+ * in its request interceptor, and `branding_data.company_id` is that same id —
+ * verified live as the only 24-hex value the `/minimal` response carries.
+ *
+ * Returns `null` rather than guessing: a wrong `ctxc` is the same bare 400 as a
+ * missing one, so a fabricated value would be indistinguishable from a genuine
+ * failure.
+ */
+export function flowContextId(minimal: FlowMinimal): string | null {
+  return minimal.branding_data?.company_id ?? null;
 }
