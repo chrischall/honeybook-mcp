@@ -98,8 +98,35 @@ and sends it as `HB-Api-W-Hash` / `HB-Api-W-User-Id` / `HB-Api-W-Email` — neve
 names from `hb_api_headers.weak_auth_*` in `https://api.honeybook.com/api/gon`.
 Both read 2026-08-31.)
 
-`use_flow_link` captures it into `~/.honeybook-mcp/flows.json`; `get_flow` reads
-`GET /api/v2/flow/{id}/active`, the call the questionnaire page makes to render.
+`use_flow_link` captures it into `~/.honeybook-mcp/flows.json`; `get_flow`
+performs the read the questionnaire page makes to render — **two calls**:
+
+```
+GET /api/v2/flow/<flowId>/minimal?user_id=<userId>      public, no credential
+GET /api/v2/client/flow/<flowId>/active?ctxc=<companyId>
+    headers: hb-api-w-hash, hb-api-w-user-id, hb-api-client-version
+```
+
+Three traps, all of them things a static read of the app's adapter gets wrong
+(0.8.0's unreleased first cut got all three; a HAR of the live questionnaire on
+2026-08-31 settled them):
+
+- **`/client/` is injected below the adapter.** `_fetchFlow` composes
+  `/api/v2/flow/<id>/active`; the shared interceptor then applies
+  `addClientToUrl(u) => u.replace('/api/v2/', '/api/v2/client/')`. Grepping the
+  bundle for the literal path finds only the pre-rewrite form.
+- **`ctxc` is required**, set by that same interceptor from
+  `clientPortalConfigStore.clientPortalCompanyId`. It is
+  `branding_data.company_id` in the `/minimal` response — the only 24-hex value
+  there. `/minimal` takes `user_id` as a QUERY param, not a header, and needs no
+  credential, so it is not given one.
+- **`hb-api-client-version` is required**, isolated by elimination: hash +
+  user-id alone is a 400, adding `hb-api-fingerprint` is still a 400, adding the
+  version makes it a 200 (96,246 bytes).
+
+None of this is visible by probing without a credential: BOTH `/api/v2/flow/…`
+and `/api/v2/client/flow/…` answer 404 + `HBUnauthorizedError` unauthenticated,
+so only a real 200 tells the two apart.
 
 Optional env vars:
 
@@ -245,8 +272,16 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   `HBWrongAPIVersionError` refresh are identical for both credential kinds;
   only the identity headers and the "re-capture it" error differ, and those are
   the `HbApiCaller` seam. Verified live that a flow route answers the same 404
-  disguise: an unauthenticated `GET /api/v2/flow/<id>/active` returns
+  disguise: an unauthenticated `GET /api/v2/client/flow/<id>/active` returns
   `404 {"error_type":"HBUnauthorizedError"}`.
+- **A bare 400 from a flow read is NOT an auth failure.** A missing or stale
+  `hb-api-client-version`, or a missing `ctxc`, answers `400 "Unexpected server
+  error"` with no `error_type` — which reads exactly like a dead credential and
+  sends people to re-capture a working one. `hbApiRequest` throws a typed
+  `HoneyBookApiError` carrying `.status`, and `FlowClient.request` branches on
+  that status (never on the message) to name both causes and deny the auth
+  reading. `get_flow` refuses up front when `/minimal` carries no `ctxc`, rather
+  than making the call and inheriting the same ambiguous 400.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes

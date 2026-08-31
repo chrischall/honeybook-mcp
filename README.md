@@ -112,6 +112,8 @@ The two credential kinds are kept apart on purpose, in two files and two stores:
 
 Each tool refuses the other's link shape by name, and a portal tool asked to run with only a flow credential says so rather than failing later with an opaque HoneyBook error. `list_active_sessions` reports both kinds, separately.
 
+`get_flow` makes the same two calls the questionnaire page does: the public `GET /api/v2/flow/<flowId>/minimal` for the vendor company id, then `GET /api/v2/client/flow/<flowId>/active?ctxc=<companyId>`. If the first does not carry a company id it stops there and says so — calling `/active` without `ctxc` answers a bare `400` that reads like an expired credential.
+
 One thing to expect: the storage key contains the flow id, so every new questionnaire is a **new key in the declared fetchproxy scope**. The extension gates on the scope you approved at pair time, so it asks you to re-approve once per questionnaire. That is the extension working, not a fault.
 
 ## Available tools
@@ -138,6 +140,8 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 - **"No active HoneyBook portal session. N flow (questionnaire) credentials are active"** — you captured a `/flow/` link but the tool you called needs a client-portal one. Run `use_magic_link` with an `/app/link/resolve/…` link, or use `get_flow` to read the questionnaire.
 - **"that is a questionnaire (flow) link, not a client-portal link"** — use `use_flow_link` for it.
 - **"no auth hash for flow …"** — the link you passed had lost its `?hash=` parameter (the page rewrites the URL after it loads). Re-copy the original link out of the vendor email.
+- **"HoneyBook error 400 … NOT an auth failure"** on `get_flow` — a required input was missing, not your credential. Usually a pinned `HONEYBOOK_API_VERSION` that has gone stale: unset it so the live value is read from `/api/gon`. Re-running `use_flow_link` will not help.
+- **"no context id for flow …"** — HoneyBook's public `/minimal` route did not return the vendor company id the questionnaire read needs. Also not a credential problem.
 - **"fetchproxy capture failed"** — install the [fetchproxy 0.3.0 extension](https://github.com/chrischall/fetchproxy), then open the vendor's magic link in that browser.
 - **"fetchproxy capture timed out"** — the extension found no signed-in portal tab to read. Open the vendor's magic link, confirm the portal page has loaded, then retry.
 - **"no confirmed browser session"** — the extension is connected but has not approved this MCP. Open the Transporter popup and approve the pair code it shows, then retry.

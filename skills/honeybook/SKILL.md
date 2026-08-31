@@ -12,7 +12,7 @@ MCP server for HoneyBook's client portal — viewing contracts, invoices and que
 - `use_magic_link` — Capture a portal session from a vendor magic-link URL (`/app/link/resolve/…`)
 - `use_flow_link` — Capture a questionnaire credential from a flow link (`/flow/<flowId>?hash=…`)
 - `list_active_sessions` — Show active credentials, split into `portalSessions` and `flowCredentials`
-- `get_flow` — Read one questionnaire (flow) and its answers
+- `get_flow` — Read one questionnaire (flow) and its answers (two calls: public `/minimal` for the vendor company id, then `/client/flow/<id>/active?ctxc=…`)
 - `list_workspace_files` — All files one vendor has shared (filter by type)
 - `get_workspace_file` — Full detail for one file
 - `get_workspace` — Workspace detail + status flags

@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { FlowClient, getActiveFlowClient, NO_FLOW_CREDENTIAL_MESSAGE } from '../src/flow-client.js';
+import {
+  FlowClient,
+  fetchFlowMinimal,
+  flowContextId,
+  getActiveFlowClient,
+  NO_FLOW_CREDENTIAL_MESSAGE,
+  type FlowMinimal,
+} from '../src/flow-client.js';
 import { flowStore } from '../src/flows.js';
 import { sessionStore } from '../src/sessions.js';
 import {
@@ -144,5 +151,96 @@ describe('getActiveClient with only a flow credential', () => {
     const err = await getActiveClient().catch((e: unknown) => e);
     expect((err as Error).message).toBe(NO_ACTIVE_SESSION_MESSAGE);
     expect(isNoPortalSessionError(err)).toBe(true);
+  });
+});
+
+// ── The two-step read: /minimal supplies the ctxc that /active requires ──────
+
+describe('fetchFlowMinimal', () => {
+  it('GETs the PUBLIC /api/v2/flow/<id>/minimal with user_id as a query param', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ branding_data: { company_id: 'c1' } }), { status: 200 })
+    );
+    await fetchFlowMinimal('f1', { userId: 'u1', apiVersion: 2610 });
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    // No `/client/` on this one: the app fetches it through its NO-AUTH service,
+    // which does not run the interceptor that rewrites the path.
+    expect(url).toBe('https://api.honeybook.com/api/v2/flow/f1/minimal?user_id=u1');
+    // And the credential is not spent here: verified live that this endpoint
+    // answers 200 unauthenticated, so sending the hash would be authority the
+    // call does not need.
+    const h = (init!.headers ?? {}) as Record<string, string>;
+    expect(h['hb-api-w-hash']).toBeUndefined();
+  });
+
+  it('omits user_id when the credential carries none', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ branding_data: { company_id: 'c1' } }), { status: 200 })
+    );
+    await fetchFlowMinimal('f1', { apiVersion: 2610 });
+    expect(fetchSpy.mock.calls[0]![0]).toBe('https://api.honeybook.com/api/v2/flow/f1/minimal');
+  });
+
+  it('reports a non-200 as a flow-shaped error rather than a bare status', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
+    await expect(fetchFlowMinimal('f1', { apiVersion: 2610 })).rejects.toThrow(/minimal/);
+  });
+});
+
+describe('flowContextId', () => {
+  // Verified live: `branding_data.company_id` is the only 24-hex id in the
+  // /minimal response, and the app's interceptor sets `params.ctxc` from
+  // `clientPortalConfigStore.clientPortalCompanyId` — the same company id.
+  it('reads branding_data.company_id', () => {
+    expect(flowContextId({ branding_data: { company_id: 'c1' } } as FlowMinimal)).toBe('c1');
+  });
+
+  it('is null rather than a guess when the response carries none', () => {
+    expect(flowContextId({} as FlowMinimal)).toBeNull();
+    expect(flowContextId({ branding_data: {} } as FlowMinimal)).toBeNull();
+  });
+});
+
+// `hb-api-client-version` is REQUIRED on a flow read, isolated by elimination
+// against the live API on 2026-08-31: hash + user-id alone answers 400, adding
+// `hb-api-fingerprint` is still 400, adding this header makes it 200.
+describe('the required client version', () => {
+  it('is sent on every flow request', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    await new FlowClient(CREDENTIAL, 2610).request('GET', '/api/v2/client/flow/x/active?ctxc=c1');
+    const h = fetchSpy.mock.calls[0]![1]!.headers as Record<string, string>;
+    expect(h['hb-api-client-version']).toBe('2610');
+  });
+
+  // The version is read from /api/gon at startup, so it tracks HoneyBook — but
+  // HONEYBOOK_API_VERSION can pin a value that rots. When it does, the endpoint
+  // answers a bare 400 "Unexpected server error" with no error_type: nothing in
+  // it says which input was wrong, and it reads exactly like an auth failure.
+  it('turns a bare 400 into an error naming the version and ctxc, and denying it is auth', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: true, error_message: 'Unexpected server error' }),
+        { status: 400 }
+      )
+    );
+    const err = await new FlowClient(CREDENTIAL, 2610)
+      .request('GET', '/api/v2/client/flow/x/active?ctxc=c1')
+      .catch((e: unknown) => e as Error);
+    expect(err.message).toMatch(/hb-api-client-version/);
+    expect(err.message).toMatch(/2610/);
+    expect(err.message).toMatch(/ctxc/);
+    // The whole point: do NOT send someone to re-capture a working credential.
+    expect(err.message).toMatch(/NOT an auth failure/);
+    expect(err.message).toMatch(/use_flow_link`? will not help/);
+  });
+
+  it('leaves a non-400 failure alone', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
+    const err = await new FlowClient(CREDENTIAL, 2610)
+      .request('GET', '/x')
+      .catch((e: unknown) => e as Error);
+    expect(err.message).not.toMatch(/hb-api-client-version/);
   });
 });

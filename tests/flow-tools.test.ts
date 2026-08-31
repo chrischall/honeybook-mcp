@@ -64,35 +64,87 @@ describe('is_real_chargeable_user is reported where it was captured', () => {
   });
 });
 
-describe('get_flow', () => {
-  it('reads the flow the questionnaire page itself reads', async () => {
-    const fake = {
-      credential: CREDENTIAL,
-      request: vi.fn().mockResolvedValue({ _id: 'f1', title: 'Wedding Questionnaire' }),
-    };
-    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
-      fake as unknown as flowClientModule.FlowClient
+const CONTEXT_ID = '6961a7ca172a600029289e98';
+
+/**
+ * Stub the public `/minimal` leg. Kept as a helper because EVERY get_flow test
+ * now needs it — the read is two calls, not one, and a test that stubs only the
+ * second is asserting a request shape that cannot happen.
+ */
+function stubMinimal(contextId: string | null = CONTEXT_ID) {
+  return vi
+    .spyOn(flowClientModule, 'fetchFlowMinimal')
+    .mockResolvedValue(
+      (contextId === null
+        ? { branding_data: {} }
+        : { branding_data: { company_id: contextId } }) as flowClientModule.FlowMinimal
     );
-    const parsed = parse<{ flow: { title: string } }>(await getFlow({}));
-    // Verified from the shipped flow app: `_fetchFlow` GETs
-    // /api/v2/flow/<id>/active. No other read path exists for a flow.
+}
+
+function stubClient(flow: unknown, credential = CREDENTIAL) {
+  const fake = { credential, request: vi.fn().mockResolvedValue(flow), getApiVersion: () => 2610 };
+  vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
+    fake as unknown as flowClientModule.FlowClient
+  );
+  return fake;
+}
+
+describe('get_flow', () => {
+  // The URL the flow app ACTUALLY requests, from a HAR of the live
+  // questionnaire (2026-08-31). Two things are invisible in the app's own
+  // adapter and were wrong in 0.8.0's unreleased code:
+  //
+  //   * `/client/` — injected one layer below the adapter, by
+  //     `addClientToUrl(u) => u.replace('/api/v2/', '/api/v2/client/')` in the
+  //     shared request interceptor. Reading `_fetchFlow` alone cannot see it.
+  //   * `?ctxc=` — the company id, set by that same interceptor from
+  //     `clientPortalConfigStore.clientPortalCompanyId`.
+  //
+  // Neither is detectable by probing unauthenticated: BOTH paths answer
+  // 404 + HBUnauthorizedError with no credential, so only a real 200 tells
+  // them apart.
+  it('GETs /api/v2/client/flow/<id>/active?ctxc=<contextId>', async () => {
+    stubMinimal();
+    const fake = stubClient({ _id: 'f1', title: 'Wedding Questionnaire' });
+    const parsed = parse<{ flow: { title: string }; contextId: string }>(await getFlow({}));
     expect(fake.request).toHaveBeenCalledWith(
       'GET',
-      '/api/v2/flow/69e64b0ff2eb57003a725a2d/active'
+      '/api/v2/client/flow/69e64b0ff2eb57003a725a2d/active?ctxc=6961a7ca172a600029289e98'
     );
     expect(parsed.flow.title).toBe('Wedding Questionnaire');
+    expect(parsed.contextId).toBe(CONTEXT_ID);
+  });
+
+  // /minimal takes user_id as a QUERY parameter, not a header — the one place
+  // in this MCP where a user id travels in the query.
+  it('asks /minimal for the context id, passing the credential\'s user id', async () => {
+    const spy = stubMinimal();
+    stubClient({});
+    await getFlow({});
+    expect(spy).toHaveBeenCalledWith('69e64b0ff2eb57003a725a2d', {
+      userId: 'uid_9',
+      apiVersion: 2610,
+    });
+  });
+
+  // A missing ctxc is a 400 that reads like an auth failure, which would send
+  // someone to re-capture a credential that is fine. Refuse before the call.
+  it('refuses when /minimal carries no context id, without calling /active', async () => {
+    stubMinimal(null);
+    const fake = stubClient({});
+    await expect(getFlow({})).rejects.toThrow(/context id/i);
+    await expect(getFlow({})).rejects.toThrow(/not an auth problem/i);
+    expect(fake.request).not.toHaveBeenCalled();
   });
 
   // `pruneWorkspaceFile` exists because a real proposal measured ~1.3 MB, and a
-  // questionnaire is the same class of object. Nobody has measured a real
-  // `/active` payload, so pruning by FIELD would be invention — but a byte
-  // ceiling needs no schema at all, which is why this guard is schema-agnostic.
+  // questionnaire is the same class of object. A real `/active` payload has now
+  // been measured at 96,246 bytes — comfortably under the ceiling, so it stands
+  // as calibrated rather than guessed. Pruning by FIELD is still not done: one
+  // measurement is a size, not a schema.
   it('refuses to return an oversized flow, and says how to get it anyway', async () => {
-    const huge = { _id: 'f1', title: 'Big', blob: 'x'.repeat(400_000) };
-    const fake = { credential: CREDENTIAL, request: vi.fn().mockResolvedValue(huge) };
-    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
-      fake as unknown as flowClientModule.FlowClient
-    );
+    stubMinimal();
+    stubClient({ _id: 'f1', title: 'Big', blob: 'x'.repeat(400_000) });
     const parsed = parse<{
       flow?: unknown;
       truncated?: { bytes: number; limit: number; topLevelKeys: string[]; hint: string };
@@ -106,36 +158,24 @@ describe('get_flow', () => {
   });
 
   it('returns the whole payload when asked for raw, however big', async () => {
-    const huge = { _id: 'f1', blob: 'x'.repeat(400_000) };
-    const fake = { credential: CREDENTIAL, request: vi.fn().mockResolvedValue(huge) };
-    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
-      fake as unknown as flowClientModule.FlowClient
-    );
+    stubMinimal();
+    stubClient({ _id: 'f1', blob: 'x'.repeat(400_000) });
     const parsed = parse<{ flow: { blob: string } }>(await getFlow({ section: 'raw' }));
     expect(parsed.flow.blob.length).toBe(400_000);
   });
 
   it('returns a small flow untouched, with no truncation envelope', async () => {
-    const fake = {
-      credential: CREDENTIAL,
-      request: vi.fn().mockResolvedValue({ _id: 'f1', title: 'Small' }),
-    };
-    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
-      fake as unknown as flowClientModule.FlowClient
-    );
+    stubMinimal();
+    stubClient({ _id: 'f1', title: 'Small' });
     const parsed = parse<{ flow: unknown; truncated?: unknown }>(await getFlow({}));
     expect(parsed.truncated).toBeUndefined();
     expect(parsed.flow).toEqual({ _id: 'f1', title: 'Small' });
   });
 
   it('passes an explicit flow_id through to the resolver', async () => {
-    const fake = {
-      credential: { ...CREDENTIAL, flowId: 'other' },
-      request: vi.fn().mockResolvedValue({}),
-    };
-    const spy = vi
-      .spyOn(flowClientModule, 'getActiveFlowClient')
-      .mockResolvedValue(fake as unknown as flowClientModule.FlowClient);
+    stubMinimal();
+    stubClient({}, { ...CREDENTIAL, flowId: 'other' });
+    const spy = vi.spyOn(flowClientModule, 'getActiveFlowClient');
     await getFlow({ flow_id: 'other' });
     expect(spy).toHaveBeenCalledWith('other');
   });
