@@ -173,6 +173,36 @@ describe('fetchFlowMinimal', () => {
     expect(h['hb-api-w-hash']).toBeUndefined();
   });
 
+  // `hb-api-client-version` is the entire reason get_flow was broken: without
+  // it every call to the questionnaire read is a 400 "Unexpected server error"
+  // that reads like an auth failure. Nothing asserted it on THIS request, so
+  // deleting it here would have passed the suite.
+  it('sends hb-api-client-version, the header whose absence is a bare 400', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ branding_data: { company_id: 'c1' } }), { status: 200 })
+    );
+    await fetchFlowMinimal('f1', { userId: 'u1', apiVersion: 2610 });
+    const h = (fetchSpy.mock.calls[0]![1]!.headers ?? {}) as Record<string, string>;
+    expect(h['hb-api-client-version']).toBe('2610');
+  });
+
+  it('names the version in the error when HoneyBook rejects it, not "HoneyBook is broken"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error_type: 'HBWrongAPIVersionError' }), { status: 400 })
+    );
+    await expect(fetchFlowMinimal('f1', { apiVersion: 2610 })).rejects.toThrow(/2610/);
+  });
+
+  it('says a 404 is a missing flow rather than a HoneyBook-side problem', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }));
+    await expect(fetchFlowMinimal('gone', { apiVersion: 2610 })).rejects.toThrow(/deleted|wrong/i);
+  });
+
+  it('keeps the response body, which is where the reason usually is', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('upstream detail here', { status: 500 }));
+    await expect(fetchFlowMinimal('f1', { apiVersion: 2610 })).rejects.toThrow(/upstream detail here/);
+  });
+
   it('omits user_id when the credential carries none', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ branding_data: { company_id: 'c1' } }), { status: 200 })

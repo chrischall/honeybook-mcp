@@ -32,7 +32,7 @@ src/
                          (own file, ~/.honeybook-mcp/flows.json)
   flow-auth.ts           captureFlowCredentialViaFetchproxy() — same lift as
                          auth.ts, pointed at HONEYBOOK_REACT_WEAK_AUTH_<flowId>
-  flow-client.ts         FlowClient — weak-auth headers over the shared
+  flow-client.ts         FlowClient — weak-auth headers over the shared hbApiRequest; getActiveFlowClient(); fetchFlowMinimal() + flowContextId() for the public /minimal hop that yields ctxc
                          hbApiRequest; getActiveFlowClient()
   sessions.ts            Thin adapter over the disk-persisted SessionStore from
                          @chrischall/mcp-utils/session (this repo was the donor it

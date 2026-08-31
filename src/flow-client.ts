@@ -192,10 +192,24 @@ export async function fetchFlowMinimal(
     },
   });
   if (!response.ok) {
+    // The body, and a cause keyed on the STATUS — not one blanket "HoneyBook is
+    // broken". This route is public, so it is never a credential problem, but
+    // that does not make every failure the same: a 404 is a flow that is gone
+    // or was never there, and an HBWrongAPIVersionError is this package's
+    // pinned `hb-api-client-version` having rotted, which is ours to fix and
+    // nothing to do with HoneyBook being down.
+    const body = await response.text().catch(() => '');
+    const detail = body.slice(0, 300);
+    const cause =
+      response.status === 404
+        ? `no flow ${flowId} — it may have been deleted, or the id is wrong`
+        : /WrongAPIVersion/i.test(body)
+          ? `HoneyBook rejected hb-api-client-version ${opts.apiVersion}; this package's pinned value needs updating`
+          : 'that route is public, so this is a HoneyBook-side problem rather than a credential one';
     throw new Error(
-      `HoneyBook flow: GET /api/v2/flow/${flowId}/minimal answered ${response.status}. That route ` +
-        'is public, so this is a HoneyBook-side problem rather than a credential one; it is where ' +
-        'the context id (ctxc) required by the questionnaire read comes from.'
+      `HoneyBook flow: GET /api/v2/flow/${flowId}/minimal answered ${response.status} — ${cause}. ` +
+        `It is where the context id (ctxc) required by the questionnaire read comes from.` +
+        (detail ? ` Response: ${detail}` : '')
     );
   }
   return (await response.json()) as FlowMinimal;
