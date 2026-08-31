@@ -46,12 +46,21 @@ describe('honeybook_healthcheck', () => {
     expect(r.credential.detail).toEqual({ origins: ['https://vendor.honeybook.com'] });
   });
 
+  // The message names `use_magic_link` as the FIX, and classifyThrown matches
+  // that same literal as a SYMPTOM of a rejected session. They only stopped
+  // colliding by luck: the classifier was never consulted for a resolver throw
+  // until mcp-utils 0.19.3, and this message arrives on exactly that path.
+  // Without the guard, someone who never connected is told their session
+  // expired and sent to fetch a "fresh" link to replace one they never had.
   it('reports no_credential, and does not probe, with no active session', async () => {
     listMock.mockReturnValue([]);
     const r = await call();
     expect(r.ok).toBe(false);
     expect(r.error?.kind).toBe('no_credential');
     expect(r.error?.message).toMatch(/use_magic_link/);
+    // Not a rejection, and the hint must not claim expiry.
+    expect(r.error?.kind).not.toBe('credential_rejected');
+    expect(r.hint).not.toMatch(/expired|rejected the session/i);
     expect(getActiveClientMock).not.toHaveBeenCalled();
   });
 
