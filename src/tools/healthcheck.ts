@@ -40,6 +40,14 @@ export function registerHealthcheckTools(server: McpServer): void {
     },
     classifyThrown: (err) => {
       const msg = err instanceof Error ? err.message : String(err);
+      // "No active session" is NOT a rejection — there was nothing to reject.
+      // It has to be excluded explicitly because the message names
+      // `use_magic_link` as the FIX, and the regex below matches that literal
+      // as a symptom. The two only stopped colliding by luck: this classifier
+      // was never consulted for a `resolveCredential` throw until mcp-utils
+      // 0.19.3, and that is the exact path this message arrives on. Without
+      // this guard, a user who never connected is told their session expired.
+      if (msg === NO_ACTIVE_SESSION_MESSAGE) return undefined;
       // Match the message the CLIENT throws, not HoneyBook's wire error.
       //
       // `HoneyBookClient.request()` already converts both 401 and
