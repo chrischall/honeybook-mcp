@@ -134,6 +134,42 @@ describe('captureFlowCredentialViaFetchproxy', () => {
     ).rejects.toThrow(/re-approve|approve/i);
   });
 
+  // Leads with GRANT, not revoke. A growing scope is not a blocked one: the
+  // extension serves the intersection, keeps the session up, and queues a
+  // non-blocking "<serverName> wants to expand its access" offer with a Grant
+  // button (fetchproxy background/hello.ts — only a domains/serverName change
+  // forces a re-pair). Revoking works but throws the pairing away to rebuild
+  // it, and it is what the upstream message says, so this has to name the
+  // one-click path FIRST or people do the slow one — which is exactly what
+  // happened in a real session.
+  it('offers Grant before revoke when the extension refuses the scope', async () => {
+    // The REAL upstream text, verbatim from a live capture against Transporter
+    // 2.3.0. It ends with its own "Revoke this MCP …" remedy, and that is the
+    // whole difficulty: a mock without the word passes the ordering assertion
+    // while production still reads "Revoke" first.
+    const err = Object.assign(
+      new Error(
+        'localStorage keys not in declared set: X — the declared scope changed since you ' +
+          'paired, so the extension is refusing the request. Revoke this MCP in the Transporter ' +
+          'extension popup, then re-run — you will be asked to approve the new scope.'
+      ),
+      { name: 'FetchproxyScopeError' }
+    );
+    bootstrapMock.mockRejectedValue(err);
+    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
+      (x: unknown) => x as Error
+    );
+    expect(e.message).toMatch(/Grant/);
+    expect(e.message).toMatch(/expand its access/);
+    // Grant must come before any mention of revoking. Matched on the stem so
+    // "revoke"/"revoking" both count — the upstream half of this message says
+    // "revoke", ours says "revoking", and either one landing first is the bug.
+    const grantAt = e.message.indexOf('Grant');
+    const revokeAt = e.message.search(/revok/i);
+    expect(revokeAt).toBeGreaterThan(-1);
+    expect(grantAt).toBeLessThan(revokeAt);
+  });
+
   it('refuses when fetchproxy capture is disabled', async () => {
     process.env.HONEYBOOK_DISABLE_FETCHPROXY = '1';
     await expect(
