@@ -91,6 +91,29 @@ HoneyBook has no public client-portal API. This MCP reuses the same auth state y
 
 Sessions are stored in memory and persisted to `~/.honeybook-mcp/sessions.json` (mode 0600) so they survive MCP restarts. Re-run `use_magic_link` when a session expires.
 
+### Questionnaire ("flow") links
+
+A vendor can send a second, different shape of link:
+
+```
+https://<vendor>.hbportal.co/flow/<flowId>?hash=…&userId=…
+```
+
+That one does **not** sign you into the portal. It opens a single questionnaire and stores a per-flow credential — HoneyBook calls it *weak auth* — under `localStorage["HONEYBOOK_REACT_WEAK_AUTH_<flowId>"]`. Capture it with `use_flow_link` and read it with `get_flow`.
+
+The two credential kinds are kept apart on purpose, in two files and two stores:
+
+| | portal session | flow credential |
+|---|---|---|
+| capture tool | `use_magic_link` | `use_flow_link` |
+| link shape | `/app/link/resolve/…` | `/flow/<flowId>?hash=…` |
+| stored in | `~/.honeybook-mcp/sessions.json` | `~/.honeybook-mcp/flows.json` |
+| can read | workspaces, files, invoices, payment methods | that one questionnaire |
+
+Each tool refuses the other's link shape by name, and a portal tool asked to run with only a flow credential says so rather than failing later with an opaque HoneyBook error. `list_active_sessions` reports both kinds, separately.
+
+One thing to expect: the storage key contains the flow id, so every new questionnaire is a **new key in the declared fetchproxy scope**. The extension gates on the scope you approved at pair time, so it asks you to re-approve once per questionnaire. That is the extension working, not a fault.
+
 ## Available tools
 
 Tools that touch a vendor accept an optional `origin` argument (e.g. `https://acme.hbportal.co`). When only one session is active it is inferred.
@@ -98,7 +121,9 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 | Tool                   | What it does                                              | Permission |
 |------------------------|-----------------------------------------------------------|------------|
 | `use_magic_link`       | Capture a session from a magic-link URL                   | Confirm    |
-| `list_active_sessions` | Show currently active portal sessions                     | Auto       |
+| `list_active_sessions` | Show active credentials, split by kind                    | Auto       |
+| `use_flow_link`        | Capture a questionnaire (flow) credential                 | Confirm    |
+| `get_flow`             | Read one questionnaire and its answers                    | Auto       |
 | `list_workspace_files` | Files from one vendor; filter by type                     | Auto       |
 | `get_workspace_file`   | Full detail for one file                                  | Auto       |
 | `get_workspace`        | Workspace detail + status flags                           | Auto       |
@@ -110,6 +135,9 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 
 - **"HoneyBook auth expired"** — re-open the vendor's magic link in Chrome and re-run `use_magic_link`.
 - **"No active HoneyBook session"** — call `use_magic_link` first.
+- **"No active HoneyBook portal session. N flow (questionnaire) credentials are active"** — you captured a `/flow/` link but the tool you called needs a client-portal one. Run `use_magic_link` with an `/app/link/resolve/…` link, or use `get_flow` to read the questionnaire.
+- **"that is a questionnaire (flow) link, not a client-portal link"** — use `use_flow_link` for it.
+- **"no auth hash for flow …"** — the link you passed had lost its `?hash=` parameter (the page rewrites the URL after it loads). Re-copy the original link out of the vendor email.
 - **"fetchproxy capture failed"** — install the [fetchproxy 0.3.0 extension](https://github.com/chrischall/fetchproxy), then open the vendor's magic link in that browser.
 - **"fetchproxy capture timed out"** — the extension found no signed-in portal tab to read. Open the vendor's magic link, confirm the portal page has loaded, then retry.
 - **"no confirmed browser session"** — the extension is connected but has not approved this MCP. Open the Transporter popup and approve the pair code it shows, then retry.

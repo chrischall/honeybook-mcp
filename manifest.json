@@ -40,7 +40,15 @@
     },
     {
       "name": "list_active_sessions",
-      "description": "Active HoneyBook sessions"
+      "description": "Active HoneyBook credentials, by kind"
+    },
+    {
+      "name": "use_flow_link",
+      "description": "Capture a questionnaire (flow) credential"
+    },
+    {
+      "name": "get_flow",
+      "description": "Read one questionnaire (flow) and its answers"
     },
     {
       "name": "list_workspace_files",

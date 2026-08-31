@@ -4,6 +4,7 @@ import { textResult } from '@chrischall/mcp-utils';
 import { sessionStore, normalizeOrigin } from '../sessions.js';
 import { clearClientCache } from '../client.js';
 import { captureSessionViaFetchproxy } from '../auth.js';
+import { flowStore, isFlowLinkUrl } from '../flows.js';
 import type { ToolResult } from '../types.js';
 
 /**
@@ -24,6 +25,17 @@ import type { ToolResult } from '../types.js';
  * fail with an actionable error telling them to do so.
  */
 export async function useMagicLink(args: { magic_link_url: string }): Promise<ToolResult> {
+  // A questionnaire link writes a per-flow weak-auth record and never touches
+  // HONEYBOOK_REACT_CURR_USER, so this capture would time out waiting for a key
+  // the page never sets — which reads as "you aren't signed in" rather than
+  // "wrong tool". Refused here, from the SAME predicate `use_flow_link` uses.
+  if (isFlowLinkUrl(args.magic_link_url)) {
+    throw new Error(
+      'HoneyBook auth: that is a questionnaire (flow) link, not a client-portal link. It writes ' +
+        'a per-flow weak-auth credential rather than a portal session — use the `use_flow_link` ' +
+        'tool for it.'
+    );
+  }
   const portalOrigin = normalizeOrigin(args.magic_link_url);
   const session = await captureSessionViaFetchproxy({ portalOrigin });
   // Clear client cache so getActiveClient rebuilds against the fresh token.
@@ -36,13 +48,32 @@ export async function useMagicLink(args: { magic_link_url: string }): Promise<To
   });
 }
 
+/**
+ * List both credential kinds, kept apart in the response.
+ *
+ * They are NOT interchangeable — a portal session reads workspaces, files,
+ * invoices and payment methods; a flow credential reads one questionnaire and
+ * nothing else — so a flat list would invite exactly the substitution the
+ * refusals in `client.ts` and `flow-client.ts` exist to prevent. Each entry
+ * carries its own `kind` so a reader that only looks at rows still sees it.
+ * Neither the portal auth token nor the flow hash is ever returned.
+ */
 export async function listActiveSessions(): Promise<ToolResult> {
-  const sessions = sessionStore.list().map((s) => ({
+  const portalSessions = sessionStore.list().map((s) => ({
+    kind: 'portal-session' as const,
     portalOrigin: s.portalOrigin,
     companyName: s.companyName,
     capturedAt: new Date(s.capturedAt).toISOString(),
   }));
-  return textResult(sessions);
+  const flowCredentials = flowStore.list().map((c) => ({
+    kind: 'flow-credential' as const,
+    flowId: c.flowId,
+    portalOrigin: c.portalOrigin,
+    companyName: c.companyName,
+    email: c.email ?? null,
+    capturedAt: new Date(c.capturedAt).toISOString(),
+  }));
+  return textResult({ portalSessions, flowCredentials });
 }
 
 export function registerSessionTools(server: McpServer): void {
@@ -50,7 +81,7 @@ export function registerSessionTools(server: McpServer): void {
     'use_magic_link',
     {
       description:
-        "Capture a HoneyBook client-portal session via the fetchproxy 0.3.0 browser extension. Prerequisites: install the fetchproxy extension in Chrome/Safari, then open the vendor's magic-link URL in that browser so you're signed into their portal and leave that tab open. This tool then snapshots the auth fields out of the page's localStorage[\"HONEYBOOK_REACT_CURR_USER\"] into ~/.honeybook-mcp/sessions.json. The tab only needs to be open and signed in — nothing is sniffed off a live request, so it does not matter whether the page is idle. All other tools use the most-recently-activated session by default. The magic_link_url arg is used only to derive the portalOrigin (cache key) — the tool does NOT open or navigate to it.",
+        "Capture a HoneyBook client-portal session via the fetchproxy 0.3.0 browser extension. Prerequisites: install the fetchproxy extension in Chrome/Safari, then open the vendor's magic-link URL in that browser so you're signed into their portal and leave that tab open. This tool then snapshots the auth fields out of the page's localStorage[\"HONEYBOOK_REACT_CURR_USER\"] into ~/.honeybook-mcp/sessions.json. The tab only needs to be open and signed in — nothing is sniffed off a live request, so it does not matter whether the page is idle. All other tools use the most-recently-activated session by default. The magic_link_url arg is used only to derive the portalOrigin (cache key) — the tool does NOT open or navigate to it. For a QUESTIONNAIRE link (https://<vendor>.hbportal.co/flow/<flowId>?hash=…) use `use_flow_link` instead — that link writes a different, flow-scoped credential and this tool refuses it.",
       inputSchema: {
         magic_link_url: z
           .string()
@@ -68,7 +99,7 @@ export function registerSessionTools(server: McpServer): void {
     'list_active_sessions',
     {
       description:
-        'List the HoneyBook portal sessions currently active in this MCP (captured via use_magic_link). No API call.',
+        'List the HoneyBook credentials currently active in this MCP, split by kind: `portalSessions` (captured via use_magic_link — read workspaces, files, invoices, payment methods) and `flowCredentials` (captured via use_flow_link — weak auth scoped to ONE questionnaire). The two are not interchangeable. No API call.',
       annotations: { readOnlyHint: true },
     },
     listActiveSessions

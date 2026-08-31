@@ -6,6 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 await loadDotenvSafely({ path: join(__dirname, '..', '.env'), override: false });
 
 import { registerSessionTools } from './tools/sessions.js';
+import { registerFlowTools } from './tools/flows.js';
 import { registerHealthcheckTools } from './tools/healthcheck.js';
 import { registerWorkspaceFileTools } from './tools/workspace_files.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
@@ -18,6 +19,7 @@ await runMcp({
   version: '0.7.1', // x-release-please-version
   tools: [
     registerSessionTools,
+    registerFlowTools,
     registerWorkspaceFileTools,
     registerWorkspaceTools,
     registerPaymentMethodTools,

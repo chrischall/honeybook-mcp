@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTestHarness, parseToolResult } from '@chrischall/mcp-utils/test';
 
 const listMock = vi.fn();
+const flowListMock = vi.fn();
 const getActiveClientMock = vi.fn();
 
 vi.mock('../src/sessions.js', () => ({ sessionStore: { list: () => listMock() } }));
+// Flow (questionnaire) credentials live in their own store. The healthcheck is
+// about the PORTAL credential, so a flow credential must never make it pass —
+// but it must be reported, or "no credential" reads as "nothing captured".
+vi.mock('../src/flows.js', () => ({ flowStore: { list: () => flowListMock() } }));
 // The real constant, not a stub: the whole point of sharing it is that the
 // healthcheck and getActiveClient say the same thing, so mocking it away would
 // let them drift while the test stayed green.
@@ -18,7 +23,7 @@ const { registerHealthcheckTools } = await import('../src/tools/healthcheck.js')
 interface Result {
   ok: boolean;
   credential: { source: string | null; resolved: boolean; detail?: Record<string, unknown> };
-  error?: { kind: string; message: string };
+  error?: { kind: string; message: string; detail?: Record<string, unknown> };
   hint: string;
 }
 
@@ -31,6 +36,8 @@ async function call() {
 
 beforeEach(() => {
   listMock.mockReset();
+  flowListMock.mockReset();
+  flowListMock.mockReturnValue([]);
   getActiveClientMock.mockReset();
 });
 
@@ -108,5 +115,41 @@ describe('honeybook_healthcheck', () => {
     });
     const r = await call();
     expect(r.error?.kind).toBe('http');
+  });
+});
+
+// A flow (questionnaire) credential is weak auth scoped to ONE flow. It is not
+// a portal session, so it must not make this healthcheck pass — and it must not
+// be re-kinded as a REJECTED portal session either. The refusal message names
+// `use_magic_link` as the remedy, and the rejection regex below matches that
+// same literal as a symptom, so the two collide unless the guard keys off the
+// error TYPE rather than its prose.
+describe('honeybook_healthcheck with only a flow credential', () => {
+  beforeEach(() => {
+    listMock.mockReturnValue([]);
+    flowListMock.mockReturnValue([{ flowId: 'f1' }, { flowId: 'f2' }]);
+  });
+
+  it('stays no_credential and does not probe', async () => {
+    const r = await call();
+    expect(r.ok).toBe(false);
+    expect(r.error?.kind).toBe('no_credential');
+    expect(r.error?.kind).not.toBe('credential_rejected');
+    expect(r.hint).not.toMatch(/expired|rejected the session/i);
+    expect(getActiveClientMock).not.toHaveBeenCalled();
+  });
+
+  it('says how many flow credentials are present, and never their ids or hashes', async () => {
+    const r = await call();
+    // A resolver throw reports its detail under `error`, not `credential` —
+    // nothing resolved, so there is no credential to describe.
+    expect(r.error?.detail).toMatchObject({ flowCredentials: 2 });
+    expect(JSON.stringify(r)).not.toContain('f1');
+  });
+
+  it('names the credential kind that is present and the one required', async () => {
+    const r = await call();
+    expect(r.error?.message).toMatch(/flow \(questionnaire\) credential/i);
+    expect(r.error?.message).toMatch(/use_magic_link/);
   });
 });

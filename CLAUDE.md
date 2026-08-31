@@ -27,13 +27,21 @@ src/
                          call that reads localStorage["HONEYBOOK_REACT_CURR_USER"]
                          out of the user's signed-in portal tab, then closes the
                          bridge. See "Auth flow" below.
+  flows.ts               Questionnaire ("flow") links: parseFlowLink /
+                         isFlowLinkUrl / flowStorageKey, and the flowStore
+                         (own file, ~/.honeybook-mcp/flows.json)
+  flow-auth.ts           captureFlowCredentialViaFetchproxy() — same lift as
+                         auth.ts, pointed at HONEYBOOK_REACT_WEAK_AUTH_<flowId>
+  flow-client.ts         FlowClient — weak-auth headers over the shared
+                         hbApiRequest; getActiveFlowClient()
   sessions.ts            Thin adapter over the disk-persisted SessionStore from
                          @chrischall/mcp-utils/session (this repo was the donor it
                          was extracted from); re-exports normalizeOrigin and the
                          configured sessionStore singleton
   types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, FileType
   tools/
-    sessions.ts          use_magic_link, list_active_sessions
+    sessions.ts          use_magic_link, list_active_sessions (both kinds)
+    flows.ts             use_flow_link, get_flow
     workspace_files.ts   list_workspace_files, get_workspace_file (+ section
                          filtering + heavy-field pruning to keep responses small)
     workspaces.ts        get_workspace
@@ -72,6 +80,26 @@ a single capability: `read_local_storage`.
 
 Tools default to the most-recently-activated session; pass `origin` to target
 a specific vendor when multiple sessions are active.
+
+### The second link shape: questionnaires ("flows")
+
+A vendor also sends `/flow/<flowId>?hash=…` links. They do NOT sign anyone into
+the portal — the page writes a per-flow **weak auth** record instead:
+
+```
+localStorage["HONEYBOOK_REACT_WEAK_AUTH_<flowId>"] =
+  {"hash": <?hash= from the URL>, "_id": …, "email": …, "is_real_chargeable_user": …}
+```
+
+and sends it as `HB-Api-W-Hash` / `HB-Api-W-User-Id` / `HB-Api-W-Email` — never
+`HB-Api-Auth-Token`. (Key name and JSON shape from `getLimitedAuthStorageKey` /
+`setWeakTokenInStorage` / `getHeaders` in the shipped flow app at
+`public.honeybook.com/public_react_flow_app/<build>/main.<hash>.js`; header
+names from `hb_api_headers.weak_auth_*` in `https://api.honeybook.com/api/gon`.
+Both read 2026-08-31.)
+
+`use_flow_link` captures it into `~/.honeybook-mcp/flows.json`; `get_flow` reads
+`GET /api/v2/flow/{id}/active`, the call the questionnaire page makes to render.
 
 Optional env vars:
 
@@ -194,6 +222,31 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   proposal) by default. Pass `section: 'raw'` to keep them.
 - **Sessions persist across restarts**: `~/.honeybook-mcp/sessions.json` is
   re-loaded on startup; most-recent origin = last in insertion order.
+- **Two credential kinds, two stores, no fallback between them.** A portal
+  session (`sessionStore`, `sessions.json`) and a flow credential (`flowStore`,
+  `flows.json`) authorise different things, so they are separate types in
+  separate files. That is what makes "a portal tool cannot silently accept a
+  flow credential" structural rather than a check each call site has to
+  remember: `sessionStore.get()` cannot return one. The refusals name the kind
+  present and the kind required, and each capture tool refuses the other's link
+  shape via the ONE shared `isFlowLinkUrl` predicate.
+- **`isNoPortalSessionError`, never a message match.** The "no portal session"
+  refusal names `use_magic_link` as the REMEDY and the healthcheck's rejection
+  regex matches that same literal as a SYMPTOM. `client.ts` exports the error
+  class and the predicate; `tools/healthcheck.ts` imports the predicate. An
+  equality check against one message (what shipped in 0.7.1) would have stopped
+  covering the flow-credential variant of the same condition silently.
+- **A flow's declared scope contains the flow id**, so each new questionnaire
+  is a new key the extension has not approved. The re-approval prompt is
+  expected once per flow, and `flow-auth.ts` says so in the scope-error branch
+  rather than reusing the generic "open the link in Chrome" copy.
+- **`hbApiRequest` is shared by both clients** (`client.ts`). The 401, the
+  404 + `HBUnauthorizedError` disguise, the 429 backoff and the
+  `HBWrongAPIVersionError` refresh are identical for both credential kinds;
+  only the identity headers and the "re-capture it" error differ, and those are
+  the `HbApiCaller` seam. Verified live that a flow route answers the same 404
+  disguise: an unauthenticated `GET /api/v2/flow/<id>/active` returns
+  `404 {"error_type":"HBUnauthorizedError"}`.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes
