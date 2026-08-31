@@ -292,7 +292,15 @@ publishes to npm with provenance, and pushes to the MCP Registry.
 - **A flow's declared scope contains the flow id**, so each new questionnaire
   is a new key the extension has not approved. The re-approval prompt is
   expected once per flow, and `flow-auth.ts` says so in the scope-error branch
-  rather than reusing the generic "open the link in Chrome" copy.
+  rather than reusing the generic "open the link in Chrome" copy. It leads with
+  **Grant**, not revoke: a GROWING scope does not block the session — the
+  extension serves the intersection of approved and declared, stays connected,
+  and queues a non-blocking "<serverName> wants to expand its access" offer with
+  a Grant button (only a domains/serverName change forces a re-pair). The
+  upstream fetchproxy message ends with "revoke … then re-run", which works but
+  discards the pairing; a real session followed it through a full
+  revoke/re-approve dance when one click would have done, so our half names the
+  cheap path first and says why the two differ.
 - **`hbApiRequest` is shared by both clients** (`client.ts`). The 401, the
   404 + `HBUnauthorizedError` disguise, the 429 backoff and the
   `HBWrongAPIVersionError` refresh are identical for both credential kinds;

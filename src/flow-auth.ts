@@ -102,11 +102,23 @@ export async function captureFlowCredentialViaFetchproxy(
     // same reasoning as `auth.ts`.
     const errName = (e as { name?: string } | null)?.name;
     if (errName === 'FetchproxyScopeError' || /not in declared set/i.test(msg)) {
+      // Lead with GRANT. A GROWING scope does not block the session: the
+      // extension serves the intersection of approved and declared, stays
+      // connected, and queues a non-blocking "<serverName> wants to expand its
+      // access" offer carrying a Grant button. Only a domains/serverName change
+      // forces a re-pair. The upstream message ends with "revoke … then re-run",
+      // which is true but throws the pairing away to rebuild it — and a real
+      // session followed exactly that advice through a revoke/re-approve dance
+      // when one click would have done. So the cheap path goes first, and the
+      // upstream sentence is named so the two do not read as contradicting.
       throw new Error(
         `HoneyBook flow auth: ${msg} — the declared scope names ONE key per flow ` +
           `("${storageKey}"), so the extension asks you to approve each new questionnaire ` +
-          'once. Revoke honeybook-mcp in the Transporter popup, re-run this tool, and approve ' +
-          'the new scope.'
+          'once. Open the Transporter popup: honeybook-mcp should be offering to "expand its ' +
+          'access" with this questionnaire\'s key — click Grant, then re-run this tool. That ' +
+          'keeps the existing pairing. (The message above suggests revoking instead; that also ' +
+          'works, but it discards the pairing and makes you approve everything again, so try ' +
+          'Grant first.)'
       );
     }
     if (bridgeError.type === 'timeout' || /timeout/i.test(msg)) {
