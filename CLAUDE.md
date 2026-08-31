@@ -38,7 +38,7 @@ src/
                          @chrischall/mcp-utils/session (this repo was the donor it
                          was extracted from); re-exports normalizeOrigin and the
                          configured sessionStore singleton
-  types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, FileType
+  types.ts               HBListEnvelope<T>, ToolResult, CapturedSession, CapturedFlowCredential, FileType
   tools/
     sessions.ts          use_magic_link, list_active_sessions (both kinds)
     flows.ts             use_flow_link, get_flow

@@ -102,7 +102,11 @@ export type CapturedFlowCredential = {
   userId?: string;
   /** `email` from the stored blob → `HB-Api-W-Email`. Absent until the client identifies. */
   email?: string;
-  /** `is_real_chargeable_user` from the stored blob. Reported, never sent. */
+  /**
+   * `is_real_chargeable_user` from the stored blob. REPORTED by a capture and
+   * by `list_active_sessions`; never sent upstream — the weak-auth headers are
+   * hash, user id and email only.
+   */
   isRealChargeableUser?: boolean;
   /** Epoch millis when this credential was captured. */
   capturedAt: number;
