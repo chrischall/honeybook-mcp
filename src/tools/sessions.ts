@@ -71,6 +71,9 @@ export async function listActiveSessions(): Promise<ToolResult> {
     portalOrigin: c.portalOrigin,
     companyName: c.companyName,
     email: c.email ?? null,
+    // Same reason as the capture result: a field captured and never surfaced is
+    // a claim the code does not keep. `null` when the blob carried none.
+    isRealChargeableUser: c.isRealChargeableUser ?? null,
     capturedAt: new Date(c.capturedAt).toISOString(),
   }));
   return textResult({ portalSessions, flowCredentials });

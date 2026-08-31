@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as flowClientModule from '../src/flow-client.js';
-import { getFlow, useFlowLink } from '../src/tools/flows.js';
+import { flowCaptureResult, getFlow, useFlowLink } from '../src/tools/flows.js';
 import { listActiveSessions, useMagicLink } from '../src/tools/sessions.js';
 import { flowStore } from '../src/flows.js';
 import { sessionStore } from '../src/sessions.js';
@@ -35,6 +35,35 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
+// The field was captured and typed but reported nowhere, and its comment said
+// "Reported, never sent" — which was wrong in both halves: it was neither.
+// Either report it or drop the capture; a credential field nothing consumes is
+// a claim the code does not keep.
+describe('is_real_chargeable_user is reported where it was captured', () => {
+  it('use_flow_link reports it', async () => {
+    const parsed = parse<{ isRealChargeableUser: boolean | null }>(
+      flowCaptureResult({ ...CREDENTIAL, isRealChargeableUser: true })
+    );
+    expect(parsed.isRealChargeableUser).toBe(true);
+  });
+
+  it('reports null rather than omitting it when the blob did not carry it', async () => {
+    const parsed = parse<{ isRealChargeableUser: boolean | null }>(flowCaptureResult(CREDENTIAL));
+    expect(parsed.isRealChargeableUser).toBeNull();
+  });
+
+  // The type's comment claims BOTH sites report it. Asserting the second one
+  // keeps that comment honest — writing it without this test is how the
+  // original "Reported, never sent" came to be wrong in both halves.
+  it('list_active_sessions reports it on every flow row', async () => {
+    flowStore.add({ ...CREDENTIAL, isRealChargeableUser: false });
+    const parsed = parse<{ flowCredentials: { isRealChargeableUser: boolean | null }[] }>(
+      await listActiveSessions()
+    );
+    expect(parsed.flowCredentials[0]!.isRealChargeableUser).toBe(false);
+  });
+});
+
 describe('get_flow', () => {
   it('reads the flow the questionnaire page itself reads', async () => {
     const fake = {
@@ -52,6 +81,51 @@ describe('get_flow', () => {
       '/api/v2/flow/69e64b0ff2eb57003a725a2d/active'
     );
     expect(parsed.flow.title).toBe('Wedding Questionnaire');
+  });
+
+  // `pruneWorkspaceFile` exists because a real proposal measured ~1.3 MB, and a
+  // questionnaire is the same class of object. Nobody has measured a real
+  // `/active` payload, so pruning by FIELD would be invention — but a byte
+  // ceiling needs no schema at all, which is why this guard is schema-agnostic.
+  it('refuses to return an oversized flow, and says how to get it anyway', async () => {
+    const huge = { _id: 'f1', title: 'Big', blob: 'x'.repeat(400_000) };
+    const fake = { credential: CREDENTIAL, request: vi.fn().mockResolvedValue(huge) };
+    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
+      fake as unknown as flowClientModule.FlowClient
+    );
+    const parsed = parse<{
+      flow?: unknown;
+      truncated?: { bytes: number; limit: number; topLevelKeys: string[]; hint: string };
+    }>(await getFlow({}));
+    expect(parsed.flow).toBeUndefined();
+    expect(parsed.truncated?.bytes).toBeGreaterThan(parsed.truncated!.limit);
+    // The keys are the navigational half — a caller has to learn what IS there
+    // without being handed a megabyte to find out.
+    expect(parsed.truncated?.topLevelKeys).toContain('blob');
+    expect(parsed.truncated?.hint).toMatch(/section="raw"/);
+  });
+
+  it('returns the whole payload when asked for raw, however big', async () => {
+    const huge = { _id: 'f1', blob: 'x'.repeat(400_000) };
+    const fake = { credential: CREDENTIAL, request: vi.fn().mockResolvedValue(huge) };
+    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
+      fake as unknown as flowClientModule.FlowClient
+    );
+    const parsed = parse<{ flow: { blob: string } }>(await getFlow({ section: 'raw' }));
+    expect(parsed.flow.blob.length).toBe(400_000);
+  });
+
+  it('returns a small flow untouched, with no truncation envelope', async () => {
+    const fake = {
+      credential: CREDENTIAL,
+      request: vi.fn().mockResolvedValue({ _id: 'f1', title: 'Small' }),
+    };
+    vi.spyOn(flowClientModule, 'getActiveFlowClient').mockResolvedValue(
+      fake as unknown as flowClientModule.FlowClient
+    );
+    const parsed = parse<{ flow: unknown; truncated?: unknown }>(await getFlow({}));
+    expect(parsed.truncated).toBeUndefined();
+    expect(parsed.flow).toEqual({ _id: 'f1', title: 'Small' });
   });
 
   it('passes an explicit flow_id through to the resolver', async () => {
