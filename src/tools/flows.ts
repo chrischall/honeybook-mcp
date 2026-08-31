@@ -42,15 +42,6 @@ export function flowCaptureResult(credential: CapturedFlowCredential): ToolResul
 }
 
 /**
- * Read one questionnaire.
- *
- * `GET /api/v2/flow/{flowId}/active` is the call the questionnaire page itself
- * makes to render (`_fetchFlow` in the shipped flow app). It is the only read
- * path a flow credential has: the other `/api/v2/flow/{id}/…` routes in that
- * bundle are writes (`submit`, `answer_question`, `select_service`,
- * `sign_contract`, the payment routes), and none of them are exposed here.
- */
-/**
  * Byte ceiling on the default `get_flow` response.
  *
  * A questionnaire is the same class of object as a workspace file, and
@@ -61,6 +52,15 @@ export function flowCaptureResult(credential: CapturedFlowCredential): ToolResul
  */
 const MAX_FLOW_BYTES = 200_000;
 
+/**
+ * Read one questionnaire.
+ *
+ * `GET /api/v2/flow/{flowId}/active` is the call the questionnaire page itself
+ * makes to render (`_fetchFlow` in the shipped flow app). It is the only read
+ * path a flow credential has: the other `/api/v2/flow/{id}/…` routes in that
+ * bundle are writes (`submit`, `answer_question`, `select_service`,
+ * `sign_contract`, the payment routes), and none of them are exposed here.
+ */
 export async function getFlow(args: { flow_id?: string; section?: 'summary' | 'raw' }): Promise<ToolResult> {
   const client = await getActiveFlowClient(args.flow_id);
   const flow = await client.request(
