@@ -154,7 +154,8 @@ describe('getActiveClient with only a flow credential', () => {
   });
 });
 
-// ── The two-step read: /minimal supplies the ctxc that /active requires ──────
+// ── The two-step read: /minimal supplies the ctxc that /active SENDS ────────
+// (sends, not requires — the API ignores ctxc; see the flowContextId tests.)
 
 describe('fetchFlowMinimal', () => {
   it('GETs the PUBLIC /api/v2/flow/<id>/minimal with user_id as a query param', async () => {
@@ -214,6 +215,16 @@ describe('fetchFlowMinimal', () => {
   it('reports a non-200 as a flow-shaped error rather than a bare status', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
     await expect(fetchFlowMinimal('f1', { apiVersion: 2610 })).rejects.toThrow(/minimal/);
+  });
+
+  // The third message in this file that described ctxc as required. The other
+  // two went in #169; this one was missed, and a message that contradicts the
+  // docblock two functions below is how the wrong model gets re-learned.
+  it('does not call ctxc required — the API ignores it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
+    const err = await fetchFlowMinimal('f1', { apiVersion: 2610 }).catch((e: unknown) => e as Error);
+    expect(err.message).toMatch(/ctxc/); // still says what this route is FOR
+    expect(err.message).not.toMatch(/required/i);
   });
 });
 

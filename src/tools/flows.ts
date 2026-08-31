@@ -151,7 +151,7 @@ export function registerFlowTools(server: McpServer): void {
     'get_flow',
     {
       description:
-        'Read a HoneyBook questionnaire (flow) — its pages, questions and any answers already submitted — using a credential captured by `use_flow_link`. Requires a flow credential; a client-portal session will NOT work here, and vice versa. Defaults to the most recently captured flow. Makes two calls: the public /api/v2/flow/<id>/minimal for the vendor company id, then /api/v2/client/flow/<id>/active?ctxc=<companyId>. A questionnaire larger than the default ceiling answers with its size and top-level keys instead; call again with section="raw" for the whole thing.',
+        'Read a HoneyBook questionnaire (flow) — its pages, questions and any answers already submitted — using a credential captured by `use_flow_link`. Requires a flow credential; a client-portal session will NOT work here, and vice versa. Defaults to the most recently captured flow. Makes two calls: the public /api/v2/flow/<id>/minimal for the vendor company id, then /api/v2/client/flow/<id>/active, passing that id as ?ctxc= when /minimal supplied one. A questionnaire larger than the default ceiling answers with its size and top-level keys instead; call again with section="raw" for the whole thing.',
       inputSchema: {
         flow_id: z
           .string()
