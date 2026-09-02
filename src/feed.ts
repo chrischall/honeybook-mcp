@@ -32,9 +32,10 @@ export interface WorkspaceFeed {
  */
 export const MESSAGE_TYPES = new Set(['feed_message', 'workspace_email', 'workspace_file_email']);
 
+/** A string field, with the API's empty-string "unset" folded into undefined. */
 function str(o: RawItem | undefined, k: string): string | undefined {
   const v = o?.[k];
-  return typeof v === 'string' ? v : undefined;
+  return typeof v === 'string' && v !== '' ? v : undefined;
 }
 function obj(o: RawItem | undefined, k: string): RawItem | undefined {
   const v = o?.[k];
@@ -59,8 +60,7 @@ export async function fetchWorkspaceFeed(
       _id: id,
       name:
         str(u, 'full_name') ??
-        [str(u, 'first_name'), str(u, 'last_name')].filter(Boolean).join(' ') ??
-        id,
+        ([str(u, 'first_name'), str(u, 'last_name')].filter(Boolean).join(' ') || id),
       email: str(u, 'email'),
       phone: str(u, 'phone_number'),
       company: str(obj(u, 'company'), 'company_name'),
@@ -104,6 +104,15 @@ export function itemAttachments(item: RawItem): RawItem[] | undefined {
 
 export function collapseWhitespace(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/** Collapse runs of spaces but keep paragraph breaks (at most one blank line). */
+export function collapseHorizontalWhitespace(s: string): string {
+  return s
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 const PREVIEW_CHARS = 240;
@@ -156,6 +165,8 @@ export function expandMessage(
   const data = obj(item, 'data');
   const summary = summarizeMessage(item, feed, meId);
   delete summary.preview;
+  // `str` folds '' to undefined, so an empty plain_text falls through to the
+  // html_body rather than returning an empty body next to a real one.
   const body =
     format === 'html'
       ? (str(data, 'html_body') ?? str(data, 'plain_text') ?? '')
@@ -168,9 +179,9 @@ export function expandMessage(
   return { ...summary, body_format: format, body: body.trim(), delivery };
 }
 
-/** Last-resort text for an item whose `plain_text` is missing. */
+/** Last-resort text for an item whose `plain_text` is missing. Paragraph breaks survive. */
 export function htmlToText(html: string): string {
-  return collapseWhitespace(
+  return collapseHorizontalWhitespace(
     html
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|li|h\d|tr)>/gi, '\n')
@@ -211,6 +222,34 @@ export function compactCalendarItem(c: RawItem): RawItem {
   };
 }
 
+/**
+ * Fields that are the VENDOR's credentials, never a client's business. The
+ * known carrier is `calendar_item.video_meeting_host_link` (a Zoom host link
+ * with a `zak` token); `compactCalendarItem` never copies it, and this
+ * denylist covers every other path a payload can take through the
+ * summarizer, so the property does not depend on which item type carried it.
+ */
+export const VENDOR_SECRET_KEYS = new Set([
+  'video_meeting_host_link',
+  'video_meeting_host_url',
+  'host_link',
+  'zak',
+]);
+
+/** Deep-copy `v` with every {@link VENDOR_SECRET_KEYS} key removed. */
+export function scrubVendorSecrets<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(scrubVendorSecrets) as unknown as T;
+  if (v && typeof v === 'object') {
+    const out: RawItem = {};
+    for (const [k, val] of Object.entries(v as RawItem)) {
+      if (VENDOR_SECRET_KEYS.has(k)) continue;
+      out[k] = scrubVendorSecrets(val);
+    }
+    return out as T;
+  }
+  return v;
+}
+
 /** Compact card for a non-message item (activity, recap, anything else). */
 export function summarizeActivity(item: RawItem): RawItem {
   const data = obj(item, 'data') ?? {};
@@ -240,7 +279,7 @@ export function summarizeActivity(item: RawItem): RawItem {
     };
     return base;
   }
-  base.detail = data;
+  base.detail = scrubVendorSecrets(data);
   return base;
 }
 
@@ -258,6 +297,10 @@ function activityDetail(data: RawItem): RawItem {
   const detail: RawItem = {};
   for (const [k, v] of Object.entries(data)) {
     if (ACTIVITY_ENVELOPE_KEYS.has(k)) continue;
+    // The key itself, before any shape-specific branch: scrubVendorSecrets
+    // only sees the VALUE, so a top-level scalar under a secret name would
+    // otherwise pass straight through the generic branch.
+    if (VENDOR_SECRET_KEYS.has(k)) continue;
     if (k === 'calendar_item' && v && typeof v === 'object') {
       Object.assign(detail, compactCalendarItem(v as RawItem));
     } else if (k === 'workspace_file' && v && typeof v === 'object') {
@@ -275,11 +318,12 @@ function activityDetail(data: RawItem): RawItem {
       // Unknown nested object: keep its scalar fields, drop nested blobs.
       const flat: RawItem = {};
       for (const [k2, v2] of Object.entries(v as RawItem)) {
+        if (VENDOR_SECRET_KEYS.has(k2)) continue;
         if (v2 === null || typeof v2 !== 'object') flat[k2] = v2;
       }
       detail[k] = flat;
     } else {
-      detail[k] = v;
+      detail[k] = scrubVendorSecrets(v);
     }
   }
   return detail;

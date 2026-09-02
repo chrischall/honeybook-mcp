@@ -27,13 +27,17 @@ function sortNewestFirst(items: RawItem[]): RawItem[] {
   return [...items].sort((a, b) => (itemDate(b) ?? '').localeCompare(itemDate(a) ?? ''));
 }
 
-function participants(feed: WorkspaceFeed, meId: string) {
+/**
+ * The other people in the workspace. `feed_users` never contains the
+ * signed-in client (verified on both live feeds, 2026-09-02), so there is
+ * no "me" row to flag; your own messages carry `is_from_me` instead.
+ */
+function participants(feed: WorkspaceFeed) {
   return Object.values(feed.users).map((u) => ({
     _id: u._id,
     name: u.name,
     email: u.email,
     ...(u.company ? { company: u.company } : {}),
-    ...(u._id === meId ? { is_me: true } : {}),
   }));
 }
 
@@ -67,7 +71,7 @@ export async function listMessages(args: {
   return textResult({
     workspace_id: args.workspace_id,
     kind,
-    participants: participants(feed, meId),
+    participants: participants(feed),
     total: selected.length,
     unseen_count: unseen,
     items,

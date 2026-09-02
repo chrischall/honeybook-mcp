@@ -7,8 +7,9 @@ import {
   markMessagesSeen,
   bodyToHtml,
 } from '../src/tools/messages.js';
+import { htmlToText, scrubVendorSecrets, summarizeActivity } from '../src/feed.js';
 import { pendingTaskPolling } from '../src/pending-tasks.js';
-import { makeFeed, WORKSPACE_ID, VENDOR_ID, ME_ID } from './fixtures/feed.js';
+import { makeFeed, WORKSPACE_ID, VENDOR_ID, CLIENT_ID, ME_ID } from './fixtures/feed.js';
 
 type FakeClient = {
   request: ReturnType<typeof vi.fn>;
@@ -79,7 +80,8 @@ describe('messages tools', () => {
       expect(email.body).toBeUndefined();
 
       const reply = out.items[0];
-      expect(reply.from.name).toBe('Chris Hall');
+      // the signed-in client is not in feed_users, so `from` is id-only
+      expect(reply.from).toEqual({ _id: ME_ID });
       expect(reply.is_from_me).toBe(true);
       expect(reply.reply_to).toBe('item_email_checklist');
       expect(reply.attachments).toBeUndefined();
@@ -91,9 +93,11 @@ describe('messages tools', () => {
       expect(out.participants).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ _id: VENDOR_ID, name: 'Ivy Honeycutt', company: 'The Silk Veil Events by Ivy LLC' }),
-          expect.objectContaining({ _id: ME_ID, name: 'Chris Hall', is_me: true }),
+          // a user with no name fields falls back to their id, never ''
+          expect.objectContaining({ _id: CLIENT_ID + '_noname', name: CLIENT_ID + '_noname' }),
         ])
       );
+      expect(out.participants.map((p: any) => p._id)).not.toContain(ME_ID);
       // item_email_checklist is unseen and from the vendor; item_my_reply is unseen but mine
       expect(out.unseen_count).toBe(1);
       expect(out.total).toBe(4);
@@ -167,6 +171,15 @@ describe('messages tools', () => {
       expect(html.body).toContain('<p>Checklist time.</p>');
     });
 
+    it('falls back to html_body when plain_text is empty, keeping paragraph breaks', async () => {
+      const feed = makeFeed() as any;
+      const item = feed.feed.feed_items.find((i: any) => i._id === 'item_email_checklist');
+      item.data.plain_text = '';
+      fakeClient.request.mockResolvedValueOnce(feed);
+      const out = parse(await getMessage({ workspace_id: WORKSPACE_ID, message_id: 'item_email_checklist' }));
+      expect(out.body).toBe('Checklist time.\nWe are on the home stretch.\nContact the newspaper');
+    });
+
     it('throws a clear error for an unknown id', async () => {
       fakeClient.request.mockResolvedValueOnce(makeFeed());
       await expect(getMessage({ workspace_id: WORKSPACE_ID, message_id: 'nope' })).rejects.toThrow(/nope/);
@@ -175,6 +188,44 @@ describe('messages tools', () => {
     it('refuses to treat an activity item as a message', async () => {
       fakeClient.request.mockResolvedValueOnce(makeFeed());
       await expect(getMessage({ workspace_id: WORKSPACE_ID, message_id: 'item_payment' })).rejects.toThrow(/not a message/i);
+    });
+  });
+
+  describe('htmlToText', () => {
+    it('keeps line and paragraph breaks while collapsing runs of spaces', () => {
+      expect(htmlToText('<p>a   b</p>\n\n\n<p>c</p><br>d<br><br><br>e')).toBe('a b\n\nc\n\nd\n\ne');
+    });
+  });
+
+  describe('vendor secret scrubbing', () => {
+    it('drops the host link from an unknown item type and from unknown nested objects', () => {
+      const unknown = summarizeActivity({
+        _id: 'x',
+        type: 'some_new_type',
+        created_at: '2026-01-01T00:00:00Z',
+        data: { thing: { video_meeting_host_link: 'zak', title: 't' }, video_meeting_host_link: 'zak2' },
+      });
+      expect(JSON.stringify(unknown)).not.toContain('zak');
+      expect((unknown.detail as any).thing.title).toBe('t');
+
+      const nested = summarizeActivity({
+        _id: 'y',
+        type: 'activity',
+        created_at: '2026-01-01T00:00:00Z',
+        data: { action_type: 'x', object_type: 'y', renamed_item: { video_meeting_host_link: 'zak', title: 't' }, list: [{ zak: 'z' }] },
+      });
+      expect(JSON.stringify(nested)).not.toContain('zak');
+
+      // a top-level scalar under a secret name on a KNOWN activity item
+      const topLevel = summarizeActivity({
+        _id: 'z',
+        type: 'activity',
+        created_at: '2026-01-01T00:00:00Z',
+        data: { action_type: 'x', object_type: 'y', video_meeting_host_link: 'zak-leak', zak: ['zak-leak'], title: 't' },
+      });
+      expect(JSON.stringify(topLevel)).not.toContain('zak-leak');
+      expect((topLevel.detail as any).title).toBe('t');
+      expect(scrubVendorSecrets({ a: [{ host_link: 1, b: 2 }] })).toEqual({ a: [{ b: 2 }] });
     });
   });
 

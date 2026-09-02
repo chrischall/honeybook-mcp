@@ -22,14 +22,17 @@ export async function listPayments(args: { workspace_id: string; origin?: string
     'GET',
     `/api/v2/workspaces/${args.workspace_id}/payments`
   );
-  let paid = 0;
-  let unpaid = 0;
+  // Totals are kept PER CURRENCY: each file names its own, and a workspace
+  // can mix them, so one bare number would be in no currency at all.
+  const totals: Record<string, { paid: number; unpaid: number }> = {};
   const files = (res?.workspace_files ?? []).map((f) => {
     const container = (f.payments_container ?? null) as Raw | null;
+    const currency = typeof f.currency === 'string' && f.currency ? f.currency : 'unknown';
     const payments = (Array.isArray(container?.payments) ? (container!.payments as Raw[]) : []).map((p) => {
       const amount = num(p.amount) ?? num(p.grand_total) ?? 0;
-      if (p.is_paid) paid += amount;
-      else unpaid += amount;
+      const t = (totals[currency] ??= { paid: 0, unpaid: 0 });
+      if (p.is_paid) t.paid += amount;
+      else t.unpaid += amount;
       return {
         _id: p._id,
         description: p.count_description ?? null,
@@ -55,7 +58,7 @@ export async function listPayments(args: { workspace_id: string; origin?: string
       payments,
     };
   });
-  return textResult({ workspace_id: args.workspace_id, totals: { paid, unpaid }, files });
+  return textResult({ workspace_id: args.workspace_id, totals, files });
 }
 
 export function registerPaymentTools(server: McpServer): void {
@@ -64,7 +67,7 @@ export function registerPaymentTools(server: McpServer): void {
     {
       description:
         'Payment schedule for a workspace — the portal\'s Payments tab: each file\'s payments with amount, ' +
-        'due date, paid/pending state, how it was paid and the invoice number, plus paid/unpaid totals. ' +
+        'due date, paid/pending state, how it was paid and the invoice number, plus paid/unpaid totals per currency. ' +
         'To pay one, use pay_invoice.',
       inputSchema: {
         workspace_id: z.string().describe('The workspace _id (from list_projects).'),

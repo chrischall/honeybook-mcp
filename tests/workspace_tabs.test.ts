@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as clientModule from '../src/client.js';
-import { listTasks, toApiDate } from '../src/tools/tasks.js';
+import { listTasks, toApiDate, today } from '../src/tools/tasks.js';
 import { listNotes } from '../src/tools/notes.js';
 import { listAttachments } from '../src/tools/attachments.js';
 import { listPayments } from '../src/tools/payments.js';
@@ -49,6 +49,13 @@ describe('workspace tab tools', () => {
     expect(url).toMatch(/page=2&perPage=10&sort_by=due_date&sort_desc=false&curr_date=\d{2}%2F\d{2}%2F\d{4}$/);
   });
 
+  it('today() is the LOCAL date, not the UTC one', () => {
+    // 23:30 local on the 2nd; in any zone west of UTC the UTC date is already the 3rd
+    const late = new Date(2026, 8, 2, 23, 30);
+    expect(today(late)).toBe('2026-09-02');
+    expect(today(new Date(2026, 0, 5, 0, 10))).toBe('2026-01-05');
+  });
+
   it('toApiDate converts ISO to the MM/DD/YYYY the tasks API accepts and rejects anything else', () => {
     expect(toApiDate('2026-09-02')).toBe('09/02/2026');
     expect(() => toApiDate('09/02/2026')).toThrow(/YYYY-MM-DD/);
@@ -67,7 +74,12 @@ describe('workspace tab tools', () => {
     });
     const out = parse(await listAttachments({ workspace_id: WORKSPACE_ID }));
     expect(fakeClient.request).toHaveBeenCalledWith('GET', `/api/v2/workspaces/${WORKSPACE_ID}/attachments`);
-    expect(out).toEqual({ images: [{ _id: 'i1' }], files: [{ _id: 'f1', name: 'timeline.pdf' }], bookmarks: [] });
+    expect(out).toEqual({
+      workspace_id: WORKSPACE_ID,
+      images: [{ _id: 'i1' }],
+      files: [{ _id: 'f1', name: 'timeline.pdf' }],
+      bookmarks: [],
+    });
   });
 
   it('listPayments reads /workspaces/{id}/payments and returns one row per payment', async () => {
@@ -134,7 +146,18 @@ describe('workspace tab tools', () => {
         ],
       },
     ]);
-    expect(out.totals).toEqual({ paid: 1350, unpaid: 0 });
+    expect(out.totals).toEqual({ USD: { paid: 1350, unpaid: 0 } });
+  });
+
+  it('listPayments keeps totals per currency when files disagree', async () => {
+    fakeClient.request.mockResolvedValueOnce({
+      workspace_files: [
+        { _id: 'a', currency: 'USD', payments_container: { payments: [{ _id: 'p1', amount: 100, is_paid: true }] } },
+        { _id: 'b', currency: 'EUR', payments_container: { payments: [{ _id: 'p2', amount: 40, is_paid: false }] } },
+      ],
+    });
+    const out = parse(await listPayments({ workspace_id: WORKSPACE_ID }));
+    expect(out.totals).toEqual({ USD: { paid: 100, unpaid: 0 }, EUR: { paid: 0, unpaid: 40 } });
   });
 
   it('listMeetings derives meetings from the feed, keeping the latest version of each calendar item', async () => {
