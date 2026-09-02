@@ -297,6 +297,10 @@ function activityDetail(data: RawItem): RawItem {
   const detail: RawItem = {};
   for (const [k, v] of Object.entries(data)) {
     if (ACTIVITY_ENVELOPE_KEYS.has(k)) continue;
+    // The key itself, before any shape-specific branch: scrubVendorSecrets
+    // only sees the VALUE, so a top-level scalar under a secret name would
+    // otherwise pass straight through the generic branch.
+    if (VENDOR_SECRET_KEYS.has(k)) continue;
     if (k === 'calendar_item' && v && typeof v === 'object') {
       Object.assign(detail, compactCalendarItem(v as RawItem));
     } else if (k === 'workspace_file' && v && typeof v === 'object') {

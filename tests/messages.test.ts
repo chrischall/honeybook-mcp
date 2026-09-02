@@ -215,6 +215,16 @@ describe('messages tools', () => {
         data: { action_type: 'x', object_type: 'y', renamed_item: { video_meeting_host_link: 'zak', title: 't' }, list: [{ zak: 'z' }] },
       });
       expect(JSON.stringify(nested)).not.toContain('zak');
+
+      // a top-level scalar under a secret name on a KNOWN activity item
+      const topLevel = summarizeActivity({
+        _id: 'z',
+        type: 'activity',
+        created_at: '2026-01-01T00:00:00Z',
+        data: { action_type: 'x', object_type: 'y', video_meeting_host_link: 'zak-leak', zak: ['zak-leak'], title: 't' },
+      });
+      expect(JSON.stringify(topLevel)).not.toContain('zak-leak');
+      expect((topLevel.detail as any).title).toBe('t');
       expect(scrubVendorSecrets({ a: [{ host_link: 1, b: 2 }] })).toEqual({ a: [{ b: 2 }] });
     });
   });
