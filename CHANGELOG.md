@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/chrischall/honeybook-mcp/compare/v0.8.2...v0.9.0) (2026-09-02)
+
+
+### Features
+
+* messaging, projects, meetings, tasks, notes, attachments and payments tools ([#182](https://github.com/chrischall/honeybook-mcp/issues/182)) ([1337b18](https://github.com/chrischall/honeybook-mcp/commit/1337b18ac548442540f0d9b95f885048d3b8ebf1))
+
+
+### Bug Fixes
+
+* **messages:** keep paragraph breaks, scrub host links everywhere, local today, per-currency totals ([#185](https://github.com/chrischall/honeybook-mcp/issues/185)) ([eda664d](https://github.com/chrischall/honeybook-mcp/commit/eda664dc8fcbcadb65f515f8bd12f2091839510d))
+
 ## [0.8.2](https://github.com/chrischall/honeybook-mcp/compare/v0.8.1...v0.8.2) (2026-08-31)
 
 
