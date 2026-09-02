@@ -18,7 +18,12 @@ export async function listAttachments(args: { workspace_id: string; origin?: str
     `/api/v2/workspaces/${args.workspace_id}/attachments`
   );
   const a = res?.attachments ?? {};
-  return textResult({ images: a.images ?? [], files: a.files ?? [], bookmarks: a.bookmarks ?? [] });
+  return textResult({
+    workspace_id: args.workspace_id,
+    images: a.images ?? [],
+    files: a.files ?? [],
+    bookmarks: a.bookmarks ?? [],
+  });
 }
 
 export function registerAttachmentTools(server: McpServer): void {

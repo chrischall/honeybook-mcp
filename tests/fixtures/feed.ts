@@ -31,7 +31,9 @@ export function makeFeed(): Record<string, unknown> {
           last_name: 'Hall',
           email: 'meredith@example.com',
         },
-        [ME_ID]: { full_name: 'Chris Hall', first_name: 'Chris', last_name: 'Hall', email: 'chris@example.com' },
+        // The signed-in client (ME_ID) is NOT in feed_users — verified on both
+        // live feeds; their own messages resolve `from` by id only.
+        [CLIENT_ID + '_noname']: { email: 'plusone@example.com' },
       },
       feed_items: [
         {
