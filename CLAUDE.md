@@ -36,6 +36,13 @@ src/
                          hbApiRequest; getActiveFlowClient(); plus
                          fetchFlowMinimal() + flowContextId(), the public
                          /minimal hop that yields the ctxc a flow read needs
+  feed.ts                Workspace feed (GET /workspaces/<id>/feed): fetch,
+                         message vs activity classification, compact
+                         summarizers, calendar-item compaction (host link
+                         stripped). Shared by messages, meetings tools
+  pending-tasks.ts       runClientPendingTask(): POST /client_pending_task +
+                         poll /client_pending_tasks?task_ids[]= until Finished.
+                         The portal's write protocol (send_message uses it)
   sessions.ts            Thin adapter over the disk-persisted SessionStore from
                          @chrischall/mcp-utils/session (this repo was the donor it
                          was extracted from); re-exports normalizeOrigin and the
@@ -50,6 +57,15 @@ src/
     payment_methods.ts   list_payment_methods
     contracts.ts         sign_contract (deep-link fallback + confirm guard)
     invoices.ts          pay_invoice (deep-link fallback + confirm guard)
+    projects.ts          list_projects (/client/events), get_project
+                         (/events/<id>/details, trimmed of the vendor account blob)
+    messages.ts          list_messages, get_message, send_message (confirm
+                         guard + pending task), mark_messages_seen
+    meetings.ts          list_meetings — folded out of feed calendar_item activity
+    tasks.ts             list_tasks (/tasks/workspaces/<id> + /counts + /taskgroup)
+    notes.ts             list_notes (/notes/workspace/<id>)
+    attachments.ts       list_attachments (/workspaces/<id>/attachments)
+    payments.ts          list_payments (/workspaces/<id>/payments, per-payment rows)
 ```
 
 Each tool module exports a `register*Tools(server)` function called from `src/index.ts`.
@@ -318,6 +334,61 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   the API — so the message offers the version as the input to CHECK rather than
   as a known cause. `get_flow` used to refuse up front when `/minimal` carried no
   `ctxc`; that guard could only invent failures and is gone.
+
+## The portal's write protocol: client pending tasks
+
+The client portal does not POST a message. `send_message` reproduces what
+the Activity-tab composer does (read out of
+`public.honeybook.com/public_router_app_cp/<build>/cp.4171.*.js` and
+`cp.6478.*.js` on 2026-09-02):
+
+```
+POST /api/v2/client_pending_task
+     {task_type: "send_workspace_message",
+      task_data: {ws_id, subject, html_body, force:false,
+                  general_files:[], image_files:[], flow_attachments:[],
+                  feed_to_reply_id?}}
+  → {task_id}
+GET  /api/v2/client_pending_tasks?task_ids[]=<task_id>   (poll)
+  → [{_id, pending_task_state_cd, pending_task_result, pending_task_error_message}]
+```
+
+`pending_task_state_cd`: 0 Pending, 1 Started, 2 Finished, 3 Aborted. The
+result of a finished send is `{workspaces:{result:{failed, send_results}}}`;
+`failed:true` with per-recipient `send_results` is how a bounce comes back
+inside a *Finished* task, so `send_message` checks both. A task the server
+stops reporting is treated as canceled, as the app does. `src/pending-tasks.ts`
+is the generic runner; `pendingTaskPolling` is mutable so tests poll at 0 ms.
+
+There is also a legacy `POST /api/v2/workspaces/<id>/message` path builder in
+the bundle (`v2WorkspaceSendMessagePath`) with no callers; it is not used.
+
+**The live send path has been verified only against the bundle, not by
+sending.** A real send goes to the vendor as email, so it was not exercised
+during development; the first live `send_message` should be a deliberate one.
+
+## Workspace feed notes
+
+- **One GET feeds three tools.** `/workspaces/<id>/feed` is what the Overview
+  "Messages" card, the Activity tab, and the meeting rows all render from.
+  `feed_users` is a map keyed by user id; the signed-in client is NOT in it.
+- **Message types** are `feed_message` (portal composer), `workspace_email`
+  (vendor emails, often from a workflow — `from_workflow_title`) and
+  `workspace_file_email` (the email that delivered a brochure/proposal;
+  carries `workspace_files`). Everything else is activity: `activity`
+  (`action_type` × `object_type`: `meeting_scheduled/calendar_item`,
+  `signed/signature`, `set_as_paid/payment`, `added_user/couple_card`,
+  `reminder_sent/…`) and `ai_meeting_recap_generated`.
+- **`calendar_item.video_meeting_host_link` is the vendor's Zoom host link**
+  (carries a `zak` token). `compactCalendarItem` drops it; only the join link
+  and password are exposed.
+- **Reading never marks seen.** The portal PUTs `/feed_items/seen` when the
+  tab opens; `mark_messages_seen` is that call, opt-in.
+- **`/tasks/workspaces/<id>` wants `curr_date` as `MM/DD/YYYY`.** ISO answers
+  `400 HBIllegalParamError` (verified live). `list_tasks` takes ISO and converts.
+- **`event_users` on `/events/<id>/details` repeats a person** who reaches the
+  project by two paths, and uses `""` for unset phone/job title. `get_project`
+  dedupes by `_id` and folds empty strings to undefined.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes

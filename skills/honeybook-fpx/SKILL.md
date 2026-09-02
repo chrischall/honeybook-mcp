@@ -118,6 +118,29 @@ repeat as a duplicate.
 Ready-to-run commands for all four read endpoints are in
 `references/requests.md`.
 
+## Other reads the portal makes (same headers)
+
+```sh
+# Projects ("events") and the workspace id each one carries
+curl -s "https://api.honeybook.com/api/v2/client/events" "${HB_HEADERS[@]}"
+curl -s "https://api.honeybook.com/api/v2/events/$EVENT_ID/details" "${HB_HEADERS[@]}"
+# The feed: messages (feed_message / workspace_email / workspace_file_email) and activity
+curl -s "https://api.honeybook.com/api/v2/workspaces/$WS_ID/feed" "${HB_HEADERS[@]}" \
+  | jq '.feed.feed_items[] | select(.type|test("email|message")) | {id:._id, subject:.data.subject, from:.sender_id, sent:.data.sent_on}'
+# Tasks (curr_date MUST be MM/DD/YYYY), notes, loose files, payment schedule
+curl -s "https://api.honeybook.com/api/v2/tasks/workspaces/$WS_ID?page=1&perPage=30&sort_by=due_date&sort_desc=false&curr_date=09%2F02%2F2026" "${HB_HEADERS[@]}"
+curl -s "https://api.honeybook.com/api/v2/notes/workspace/$WS_ID" "${HB_HEADERS[@]}"
+curl -s "https://api.honeybook.com/api/v2/workspaces/$WS_ID/attachments" "${HB_HEADERS[@]}"
+curl -s "https://api.honeybook.com/api/v2/workspaces/$WS_ID/payments" "${HB_HEADERS[@]}"
+```
+
+Sending a message is a two-step "client pending task", not a POST of the
+message: `POST /api/v2/client_pending_task` with
+`{"task_type":"send_workspace_message","task_data":{"ws_id":…,"subject":…,"html_body":…,"force":false,"general_files":[],"image_files":[],"flow_attachments":[]}}`
+returns `{task_id}`; poll `GET /api/v2/client_pending_tasks?task_ids[]=<id>`
+until `pending_task_state_cd` is 2 (Finished) or 3 (Aborted). It emails the
+vendor for real — prefer the MCP's `send_message`, which previews first.
+
 ## The rules that matter
 
 - **401, or 404 with an `HBUnauthorizedError` body → session expired.** A
