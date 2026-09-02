@@ -13,6 +13,13 @@ import { registerWorkspaceTools } from './tools/workspaces.js';
 import { registerPaymentMethodTools } from './tools/payment_methods.js';
 import { registerContractTools } from './tools/contracts.js';
 import { registerInvoiceTools } from './tools/invoices.js';
+import { registerProjectTools } from './tools/projects.js';
+import { registerMessageTools } from './tools/messages.js';
+import { registerMeetingTools } from './tools/meetings.js';
+import { registerTaskTools } from './tools/tasks.js';
+import { registerNoteTools } from './tools/notes.js';
+import { registerAttachmentTools } from './tools/attachments.js';
+import { registerPaymentTools } from './tools/payments.js';
 
 await runMcp({
   name: 'honeybook-mcp',
@@ -25,6 +32,13 @@ await runMcp({
     registerPaymentMethodTools,
     registerContractTools,
     registerInvoiceTools,
+    registerProjectTools,
+    registerMessageTools,
+    registerMeetingTools,
+    registerTaskTools,
+    registerNoteTools,
+    registerAttachmentTools,
+    registerPaymentTools,
     registerHealthcheckTools,
   ],
 });

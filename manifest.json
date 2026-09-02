@@ -4,7 +4,7 @@
   "name": "honeybook-mcp",
   "display_name": "HoneyBook",
   "version": "0.8.2",
-  "description": "HoneyBook client-portal MCP — view wedding-vendor contracts and invoices",
+  "description": "HoneyBook client-portal MCP — wedding-vendor contracts, invoices, messages, meetings and payments",
   "author": {
     "name": "Chris Chall",
     "email": "chris.c.hall@gmail.com",
@@ -73,6 +73,50 @@
     {
       "name": "pay_invoice",
       "description": "Deep link to pay an invoice in the portal"
+    },
+    {
+      "name": "list_projects",
+      "description": "Your projects with a vendor + workspace ids"
+    },
+    {
+      "name": "get_project",
+      "description": "Project details, people and custom fields"
+    },
+    {
+      "name": "list_messages",
+      "description": "Messages or activity in a workspace"
+    },
+    {
+      "name": "get_message",
+      "description": "One message in full"
+    },
+    {
+      "name": "send_message",
+      "description": "Send or reply to a message via the portal"
+    },
+    {
+      "name": "mark_messages_seen",
+      "description": "Mark feed items as seen"
+    },
+    {
+      "name": "list_meetings",
+      "description": "Scheduled meetings with join links"
+    },
+    {
+      "name": "list_tasks",
+      "description": "Tasks assigned to you, with counts"
+    },
+    {
+      "name": "list_notes",
+      "description": "Notes the vendor shared"
+    },
+    {
+      "name": "list_attachments",
+      "description": "Images, files and bookmarks in a workspace"
+    },
+    {
+      "name": "list_payments",
+      "description": "Payment schedule with paid/unpaid totals"
     },
     {
       "name": "honeybook_healthcheck",

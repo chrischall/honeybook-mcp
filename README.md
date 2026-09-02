@@ -18,6 +18,10 @@ Ask Claude things like:
 - *"What invoices do I have due in the next month?"*
 - *"Summarize the contract from Silk Veil Events."*
 - *"Give me a deep link to sign the photographer's contract."*
+- *"What has the planner sent me this month? Read me the checklist."*
+- *"Reply to Ivy's last message and ask about the rehearsal time."*
+- *"When is my next Zoom with the planner, and what's the link?"*
+- *"What have I paid so far, and what's still owed?"*
 
 ## Requirements
 
@@ -132,6 +136,22 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 | `list_payment_methods` | Saved payment methods                                     | Auto       |
 | `sign_contract`        | Deep link to sign in portal (requires `confirm:true`)     | Confirm    |
 | `pay_invoice`          | Deep link to pay in portal (requires `confirm:true`)      | Confirm    |
+| `list_projects`        | Your projects with a vendor + their workspace ids         | Auto       |
+| `get_project`          | Project details: date, location, people, custom fields    | Auto       |
+| `list_messages`        | Messages (or the activity log) in a workspace, newest first | Auto     |
+| `get_message`          | One message in full: body, attachments, delivery status   | Auto       |
+| `send_message`         | Send or reply through the portal (requires `confirm:true`) | Confirm   |
+| `mark_messages_seen`   | Mark feed items seen (reads never do this on their own)   | Auto       |
+| `list_meetings`        | Scheduled meetings with join links, latest time wins      | Auto       |
+| `list_tasks`           | Tasks the vendor assigned you, with counts                | Auto       |
+| `list_notes`           | Notes the vendor shared                                   | Auto       |
+| `list_attachments`     | Loose images, files and bookmarks in a workspace          | Auto       |
+| `list_payments`        | Payment schedule with paid/unpaid totals                  | Auto       |
+
+`send_message` is the one tool that acts on your behalf: it creates the same
+`send_workspace_message` job the portal's Activity composer creates and waits
+for HoneyBook to finish it, so the vendor receives a normal HoneyBook email.
+Without `confirm:true` it only previews the recipients, subject and body.
 
 ## Troubleshooting
 

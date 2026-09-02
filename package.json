@@ -16,7 +16,9 @@
     "contracts",
     "invoices",
     "model-context-protocol",
-    "claude"
+    "claude",
+    "messages",
+    "meetings"
   ],
   "files": [
     "dist",
