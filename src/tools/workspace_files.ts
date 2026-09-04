@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, rawTextResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, rawTextResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { HBListEnvelope, ToolResult } from '../types.js';
 import { FILE_TYPES } from '../types.js';
@@ -265,7 +265,7 @@ export async function getWorkspaceFile(args: {
       break;
   }
 
-  return textResult(body);
+  return minifiedResult(body);
 }
 
 export function registerWorkspaceFileTools(server: McpServer): void {

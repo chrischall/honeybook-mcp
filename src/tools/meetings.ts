@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import { fetchWorkspaceFeed, compactCalendarItem, itemDate, type RawItem } from '../feed.js';
 import type { ToolResult } from '../types.js';
@@ -41,7 +41,7 @@ export async function listMeetings(args: {
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
   const feed = await fetchWorkspaceFeed(client, args.workspace_id);
-  return textResult({ workspace_id: args.workspace_id, meetings: meetingsFromFeed(feed.items) });
+  return minifiedResult({ workspace_id: args.workspace_id, meetings: meetingsFromFeed(feed.items) });
 }
 
 export function registerMeetingTools(server: McpServer): void {

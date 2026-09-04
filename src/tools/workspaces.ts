@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -13,7 +13,7 @@ export async function getWorkspace(args: {
     'GET',
     `/api/v2/workspaces/${args.workspace_id}`
   );
-  return textResult(res);
+  return minifiedResult(res);
 }
 
 export function registerWorkspaceTools(server: McpServer): void {

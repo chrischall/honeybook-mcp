@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -9,7 +9,7 @@ export async function listPaymentMethods(args: { origin?: string }): Promise<Too
     'GET',
     `/api/v2/users/${client.scope.userId}/payment_methods`
   );
-  return textResult(res);
+  return minifiedResult(res);
 }
 
 export function registerPaymentMethodTools(server: McpServer): void {

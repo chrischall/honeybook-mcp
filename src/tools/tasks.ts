@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -53,7 +53,7 @@ export async function listTasks(args: {
     'GET',
     `/api/v2/workspaces/${args.workspace_id}/taskgroup`
   );
-  return textResult({
+  return minifiedResult({
     workspace_id: args.workspace_id,
     page,
     per_page: perPage,

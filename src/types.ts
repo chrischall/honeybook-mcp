@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /**
  * Standard MCP tool return type. Aliased to the SDK's `CallToolResult` so
  * handlers can return the shared `@chrischall/mcp-utils` formatters
- * (`textResult`, `rawTextResult`) directly. All tool handlers still emit a
+ * (`minifiedResult`, `rawTextResult`) directly. All tool handlers still emit a
  * single text block.
  */
 export type ToolResult = CallToolResult;
