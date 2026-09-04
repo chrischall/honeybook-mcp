@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as clientModule from '../src/client.js';
-import { listProjects, getProject } from '../src/tools/projects.js';
+import { listProjects, getProject, PROJECT_VIEWS } from '../src/tools/projects.js';
 
 function parse(result: { content: Array<{ text?: string }> }): any {
   return JSON.parse(result.content[0].text as string);
@@ -119,9 +119,24 @@ describe('project tools', () => {
     expect(JSON.stringify(out)).not.toContain('huge');
   });
 
-  it('getProject section=raw returns the response untouched', async () => {
+  it('getProject view=raw returns the response untouched', async () => {
     fakeClient.request.mockResolvedValueOnce(DETAILS);
-    const out = parse(await getProject({ project_id: 'ev1', section: 'raw' }));
+    const out = parse(await getProject({ project_id: 'ev1', view: 'raw' }));
     expect(out.creator.company.account.enormous).toBe(true);
+  });
+
+  // The whole point of the vocabulary is that the cheap rung is what you get
+  // without asking. An omitted `view` must project, not pass through.
+  it('getProject projects when no view is given', async () => {
+    fakeClient.request.mockResolvedValueOnce(DETAILS);
+    const out = parse(await getProject({ project_id: 'ev1' }));
+    expect(out.creator).toBeUndefined();
+    expect(JSON.stringify(out)).not.toContain('enormous');
+  });
+
+  // No `full`: `raw` already IS every field we received here, and a rung that
+  // silently aliases to another is a lie in the schema.
+  it('advertises only the rungs it honours', () => {
+    expect(PROJECT_VIEWS).toEqual(['compact', 'raw']);
   });
 });

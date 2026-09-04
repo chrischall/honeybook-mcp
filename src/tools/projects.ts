@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, resolveView, schemaOrigin, viewParam, viewResult } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -93,14 +93,21 @@ function summarizeProject(d: Raw): Raw {
   };
 }
 
+/**
+ * The rungs this tool honours. No `full`: `raw` already IS every field we
+ * received, so a third value would silently alias to another.
+ */
+export const PROJECT_VIEWS = ['compact', 'raw'] as const;
+
 export async function getProject(args: {
   project_id: string;
-  section?: 'summary' | 'raw';
+  view?: string;
   origin?: string;
 }): Promise<ToolResult> {
+  const view = resolveView(args.view, PROJECT_VIEWS);
   const client = await getActiveClient(args.origin);
   const res = await client.request<Raw>('GET', `/api/v2/events/${args.project_id}/details`);
-  return minifiedResult(args.section === 'raw' ? res : summarizeProject(res));
+  return viewResult(view, view === 'raw' ? res : summarizeProject(res));
 }
 
 export function registerProjectTools(server: McpServer): void {
@@ -127,10 +134,12 @@ export function registerProjectTools(server: McpServer): void {
       description:
         'Project details — the portal\'s Overview "Project details" card plus the people on it: name, date, ' +
         'time, timezone, location, guest count, custom fields, cover image, and each participant\'s name / ' +
-        'email / phone / role. section="raw" returns the untrimmed response (large: it embeds the vendor\'s account).',
+        'email / phone / role. view="raw" returns the untrimmed response (large: it embeds the vendor\'s account).',
       inputSchema: {
         project_id: z.string().describe('The project (event) _id from list_projects.'),
-        section: z.enum(['summary', 'raw']).optional().describe('Default "summary".'),
+        view: viewParam(PROJECT_VIEWS, {
+          note: 'compact returns the Overview card plus participants; "raw" returns the untrimmed /details response, which embeds the vendor\'s whole account.',
+        }),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),

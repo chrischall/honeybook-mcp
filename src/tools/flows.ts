@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { minifiedResult } from '@chrischall/mcp-utils';
+import { minifiedResult, resolveView, viewParam, viewResult } from '@chrischall/mcp-utils';
 import { captureFlowCredentialViaFetchproxy } from '../flow-auth.js';
 import { fetchFlowMinimal, flowContextId, getActiveFlowClient } from '../flow-client.js';
 import type { CapturedFlowCredential, ToolResult } from '../types.js';
@@ -80,7 +80,14 @@ const MAX_FLOW_BYTES = 200_000;
  * (`submit`, `answer_question`, `select_service`, `sign_contract`, `auth`, the
  * payment routes), and none of them are exposed here.
  */
-export async function getFlow(args: { flow_id?: string; section?: 'summary' | 'raw' }): Promise<ToolResult> {
+/**
+ * The rungs this tool honours. No `full`: `raw` already IS the whole payload
+ * we received, so a third value would silently alias to another.
+ */
+export const FLOW_VIEWS = ['compact', 'raw'] as const;
+
+export async function getFlow(args: { flow_id?: string; view?: string }): Promise<ToolResult> {
+  const view = resolveView(args.view, FLOW_VIEWS);
   const client = await getActiveFlowClient(args.flow_id);
   const flowId = client.credential.flowId;
 
@@ -110,20 +117,20 @@ export async function getFlow(args: { flow_id?: string; section?: 'summary' | 'r
     // a normal outcome, not an error — the read does not require one.
     contextId,
   };
-  if (args.section === 'raw') return minifiedResult({ ...head, flow });
+  if (view === 'raw') return viewResult(view, { ...head, flow });
 
   const bytes = Buffer.byteLength(JSON.stringify(flow ?? null), 'utf8');
-  if (bytes <= MAX_FLOW_BYTES) return minifiedResult({ ...head, flow });
+  if (bytes <= MAX_FLOW_BYTES) return viewResult(view, { ...head, flow });
   // The keys are the navigational half: a caller has to be able to learn what
   // IS in there without being handed the whole thing to find out.
-  return minifiedResult({
+  return viewResult(view, {
     ...head,
     truncated: {
       bytes,
       limit: MAX_FLOW_BYTES,
       topLevelKeys:
         flow && typeof flow === 'object' && !Array.isArray(flow) ? Object.keys(flow).sort() : [],
-      hint: 'This questionnaire is larger than the default ceiling. Call get_flow again with section="raw" for the full payload (may exceed MCP size limits).',
+      hint: 'This questionnaire is larger than the default ceiling. Call get_flow again with view="raw" for the full payload (may exceed MCP size limits).',
     },
   });
 }
@@ -151,7 +158,7 @@ export function registerFlowTools(server: McpServer): void {
     'get_flow',
     {
       description:
-        'Read a HoneyBook questionnaire (flow) — its pages, questions and any answers already submitted — using a credential captured by `use_flow_link`. Requires a flow credential; a client-portal session will NOT work here, and vice versa. Defaults to the most recently captured flow. Makes two calls: the public /api/v2/flow/<id>/minimal for the vendor company id, then /api/v2/client/flow/<id>/active, passing that id as ?ctxc= when /minimal supplied one. A questionnaire larger than the default ceiling answers with its size and top-level keys instead; call again with section="raw" for the whole thing.',
+        'Read a HoneyBook questionnaire (flow) — its pages, questions and any answers already submitted — using a credential captured by `use_flow_link`. Requires a flow credential; a client-portal session will NOT work here, and vice versa. Defaults to the most recently captured flow. Makes two calls: the public /api/v2/flow/<id>/minimal for the vendor company id, then /api/v2/client/flow/<id>/active, passing that id as ?ctxc= when /minimal supplied one. A questionnaire larger than the default ceiling answers with its size and top-level keys instead; call again with view="raw" for the whole thing.',
       inputSchema: {
         flow_id: z
           .string()
@@ -159,12 +166,9 @@ export function registerFlowTools(server: McpServer): void {
           .describe(
             'Flow id to read. Omit to use the most recently captured flow credential. Run `list_active_sessions` to see the active flow ids.'
           ),
-        section: z
-          .enum(['summary', 'raw'])
-          .optional()
-          .describe(
-            'Default "summary" returns the questionnaire unless it exceeds a byte ceiling, in which case it answers with its size and top-level keys instead. "raw" returns the full payload however large (may exceed MCP size limits).'
-          ),
+        view: viewParam(FLOW_VIEWS, {
+          note: 'compact returns the questionnaire unless it exceeds a byte ceiling, in which case it answers with its size and top-level keys instead; "raw" returns the full payload however large (may exceed MCP size limits).',
+        }),
       },
       annotations: { readOnlyHint: true },
     },
