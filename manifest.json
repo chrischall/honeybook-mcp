@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "honeybook-mcp",
   "display_name": "HoneyBook",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "HoneyBook client-portal MCP — wedding-vendor contracts, invoices, messages, meetings and payments",
   "author": {
     "name": "Chris Chall",

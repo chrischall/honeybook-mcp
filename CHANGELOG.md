@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/chrischall/honeybook-mcp/compare/v0.10.0...v0.10.1) (2026-09-04)
+
+
+### Documentation
+
+* **skill:** document the view/section response shapes callers cannot discover ([#196](https://github.com/chrischall/honeybook-mcp/issues/196)) ([be25633](https://github.com/chrischall/honeybook-mcp/commit/be256337d1225d8c30df59393736d5dab3d92b41))
+
 ## [0.10.0](https://github.com/chrischall/honeybook-mcp/compare/v0.9.0...v0.10.0) (2026-09-04)
 
 
