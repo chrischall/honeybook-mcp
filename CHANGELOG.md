@@ -5,7 +5,7 @@
 
 ### Features
 
-* **tools:** compact by default — strip media URLs, and minify every response ([#189](https://github.com/chrischall/honeybook-mcp/issues/189)) ([1751df9](https://github.com/chrischall/honeybook-mcp/commit/1751df9baedba4e426df02bbe0d92d14cade5a10))
+* **tools:** minify every response — no formatting whitespace on any payload ([#189](https://github.com/chrischall/honeybook-mcp/issues/189)) ([1751df9](https://github.com/chrischall/honeybook-mcp/commit/1751df9baedba4e426df02bbe0d92d14cade5a10))
 * **tools:** put get_project and get_flow on the fleet `view` vocabulary ([#193](https://github.com/chrischall/honeybook-mcp/issues/193)) ([1f078a4](https://github.com/chrischall/honeybook-mcp/commit/1f078a46872a0a0e7f091c487a68bd11acc823c5))
 
 
