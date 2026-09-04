@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as flowClientModule from '../src/flow-client.js';
-import { flowCaptureResult, getFlow, useFlowLink } from '../src/tools/flows.js';
+import { FLOW_VIEWS, flowCaptureResult, getFlow, useFlowLink } from '../src/tools/flows.js';
 import { listActiveSessions, useMagicLink } from '../src/tools/sessions.js';
 import { flowStore } from '../src/flows.js';
 import { sessionStore } from '../src/sessions.js';
@@ -90,6 +90,15 @@ function stubClient(flow: unknown, credential = CREDENTIAL) {
 }
 
 describe('get_flow', () => {
+  // No `full`: `raw` already IS the whole payload we received here, and a rung
+  // that silently aliases to another is a lie in the schema. Pinned rather
+  // than assumed — `PROJECT_VIEWS` has the same assertion in projects.test.ts,
+  // and #193 claimed both were covered when only one was.
+  it('advertises only the rungs it honours', () => {
+    expect(FLOW_VIEWS).toEqual(['compact', 'raw']);
+  });
+
+
   // The URL the flow app ACTUALLY requests, from a HAR of the live
   // questionnaire (2026-08-31). Two things are invisible in the app's own
   // adapter and were wrong in 0.8.0's unreleased code:
