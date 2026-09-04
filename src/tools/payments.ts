@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -58,7 +58,7 @@ export async function listPayments(args: { workspace_id: string; origin?: string
       payments,
     };
   });
-  return textResult({ workspace_id: args.workspace_id, totals, files });
+  return minifiedResult({ workspace_id: args.workspace_id, totals, files });
 }
 
 export function registerPaymentTools(server: McpServer): void {

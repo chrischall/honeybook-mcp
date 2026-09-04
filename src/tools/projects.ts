@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -22,7 +22,7 @@ export async function listProjects(args: { page?: number; origin?: string }): Pr
   const client = await getActiveClient(args.origin);
   const path = args.page ? `/api/v2/client/events?page=${args.page}` : '/api/v2/client/events';
   const res = await client.request<ClientEventsPage>('GET', path);
-  return textResult({
+  return minifiedResult({
     projects: (res.data ?? []).map((e) => ({
       project_id: e._id,
       workspace_id: e.workspace_id,
@@ -100,7 +100,7 @@ export async function getProject(args: {
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
   const res = await client.request<Raw>('GET', `/api/v2/events/${args.project_id}/details`);
-  return textResult(args.section === 'raw' ? res : summarizeProject(res));
+  return minifiedResult(args.section === 'raw' ? res : summarizeProject(res));
 }
 
 export function registerProjectTools(server: McpServer): void {

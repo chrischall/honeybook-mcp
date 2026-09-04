@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult } from '@chrischall/mcp-utils';
+import { minifiedResult } from '@chrischall/mcp-utils';
 import { captureFlowCredentialViaFetchproxy } from '../flow-auth.js';
 import { fetchFlowMinimal, flowContextId, getActiveFlowClient } from '../flow-client.js';
 import type { CapturedFlowCredential, ToolResult } from '../types.js';
@@ -23,7 +23,7 @@ export async function useFlowLink(args: { flow_link_url: string }): Promise<Tool
  * the browser — and so the "never return the hash" rule has one place to hold.
  */
 export function flowCaptureResult(credential: CapturedFlowCredential): ToolResult {
-  return textResult({
+  return minifiedResult({
     ok: true,
     kind: 'flow-credential',
     flowId: credential.flowId,
@@ -110,13 +110,13 @@ export async function getFlow(args: { flow_id?: string; section?: 'summary' | 'r
     // a normal outcome, not an error — the read does not require one.
     contextId,
   };
-  if (args.section === 'raw') return textResult({ ...head, flow });
+  if (args.section === 'raw') return minifiedResult({ ...head, flow });
 
   const bytes = Buffer.byteLength(JSON.stringify(flow ?? null), 'utf8');
-  if (bytes <= MAX_FLOW_BYTES) return textResult({ ...head, flow });
+  if (bytes <= MAX_FLOW_BYTES) return minifiedResult({ ...head, flow });
   // The keys are the navigational half: a caller has to be able to learn what
   // IS in there without being handed the whole thing to find out.
-  return textResult({
+  return minifiedResult({
     ...head,
     truncated: {
       bytes,

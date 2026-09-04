@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -18,7 +18,7 @@ export async function listAttachments(args: { workspace_id: string; origin?: str
     `/api/v2/workspaces/${args.workspace_id}/attachments`
   );
   const a = res?.attachments ?? {};
-  return textResult({
+  return minifiedResult({
     workspace_id: args.workspace_id,
     images: a.images ?? [],
     files: a.files ?? [],

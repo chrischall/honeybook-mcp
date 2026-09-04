@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
+import { minifiedResult, rawTextResult, schemaConfirm, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import {
   fetchWorkspaceFeed,
@@ -68,7 +68,7 @@ export async function listMessages(args: {
     (item) => isMessageItem(item) && !item.seen_at && item.sender_id !== meId
   ).length;
 
-  return textResult({
+  return minifiedResult({
     workspace_id: args.workspace_id,
     kind,
     participants: participants(feed),
@@ -103,7 +103,7 @@ export async function getMessage(args: {
         `list_messages with kind="activity" already shows everything it carries.`
     );
   }
-  return textResult(expandMessage(item, feed, client.scope.userId, args.format ?? 'text'));
+  return minifiedResult(expandMessage(item, feed, client.scope.userId, args.format ?? 'text'));
 }
 
 /**
@@ -195,7 +195,7 @@ export async function sendMessage(args: {
       `HoneyBook reported the message as not delivered to every recipient: ${JSON.stringify(failed.length ? failed : sendResults)}`
     );
   }
-  return textResult({
+  return minifiedResult({
     status: 'sent',
     task_id,
     workspace_id: args.workspace_id,
@@ -215,7 +215,7 @@ export async function markMessagesSeen(args: {
   await client.request<unknown>('PUT', `/api/v2/workspaces/${args.workspace_id}/feed_items/seen`, {
     item_ids: args.message_ids,
   });
-  return textResult({ workspace_id: args.workspace_id, marked: args.message_ids });
+  return minifiedResult({ workspace_id: args.workspace_id, marked: args.message_ids });
 }
 
 export function registerMessageTools(server: McpServer): void {

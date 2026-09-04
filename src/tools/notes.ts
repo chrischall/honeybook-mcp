@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
@@ -10,7 +10,7 @@ export async function listNotes(args: { workspace_id: string; origin?: string })
     'GET',
     `/api/v2/notes/workspace/${args.workspace_id}`
   );
-  return textResult({ workspace_id: args.workspace_id, notes: notes ?? [] });
+  return minifiedResult({ workspace_id: args.workspace_id, notes: notes ?? [] });
 }
 
 export function registerNoteTools(server: McpServer): void {

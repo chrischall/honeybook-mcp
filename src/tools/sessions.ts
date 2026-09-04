@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { textResult } from '@chrischall/mcp-utils';
+import { minifiedResult } from '@chrischall/mcp-utils';
 import { sessionStore, normalizeOrigin } from '../sessions.js';
 import { clearClientCache } from '../client.js';
 import { captureSessionViaFetchproxy } from '../auth.js';
@@ -40,7 +40,7 @@ export async function useMagicLink(args: { magic_link_url: string }): Promise<To
   const session = await captureSessionViaFetchproxy({ portalOrigin });
   // Clear client cache so getActiveClient rebuilds against the fresh token.
   clearClientCache();
-  return textResult({
+  return minifiedResult({
     ok: true,
     portalOrigin: session.portalOrigin,
     companyName: session.companyName,
@@ -76,7 +76,7 @@ export async function listActiveSessions(): Promise<ToolResult> {
     isRealChargeableUser: c.isRealChargeableUser ?? null,
     capturedAt: new Date(c.capturedAt).toISOString(),
   }));
-  return textResult({ portalSessions, flowCredentials });
+  return minifiedResult({ portalSessions, flowCredentials });
 }
 
 export function registerSessionTools(server: McpServer): void {
