@@ -289,6 +289,18 @@ publishes to npm with provenance, and pushes to the MCP Registry.
 - **Heavy-field pruning**: `workspace_files.ts#pruneWorkspaceFile` strips
   vendor-side fields like `vendor_emails` (observed ~1.3 MB on a single real
   proposal) by default. Pass `section: 'raw'` to keep them.
+- **Two response-shape parameters, on purpose.** `get_project` and `get_flow`
+  take the fleet's `view` (`compact` | `raw` — no `full`, because `raw` already
+  IS every field we received). `get_workspace_file` keeps `section`
+  (`summary|pricing|agreement|payments|all|raw`) because it asks a strictly
+  larger question: which PART of a proposal-class record to expand — line
+  items, contract HTML, payment schedule — not merely how much of the whole to
+  keep. The other two only ever offered `summary|raw`, which is `view` in
+  different words, so they were migrated rather than grandfathered. Do not
+  "finish the job" by collapsing `section` into `view`: it would hand the
+  caller two overlapping dials with no rule for which wins. This is recorded as
+  a deliberate fleet exception in `chrischall/workflows`
+  `docs/fleet-conventions.md`.
 - **Sessions persist across restarts**: `~/.honeybook-mcp/sessions.json` is
   re-loaded on startup; most-recent origin = last in insertion order.
 - **Two credential kinds, two stores, no fallback between them.** A portal

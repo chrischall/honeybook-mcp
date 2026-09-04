@@ -167,13 +167,13 @@ describe('get_flow', () => {
     // The keys are the navigational half — a caller has to learn what IS there
     // without being handed a megabyte to find out.
     expect(parsed.truncated?.topLevelKeys).toContain('blob');
-    expect(parsed.truncated?.hint).toMatch(/section="raw"/);
+    expect(parsed.truncated?.hint).toMatch(/view="raw"/);
   });
 
   it('returns the whole payload when asked for raw, however big', async () => {
     stubMinimal();
     stubClient({ _id: 'f1', blob: 'x'.repeat(400_000) });
-    const parsed = parse<{ flow: { blob: string } }>(await getFlow({ section: 'raw' }));
+    const parsed = parse<{ flow: { blob: string } }>(await getFlow({ view: 'raw' }));
     expect(parsed.flow.blob.length).toBe(400_000);
   });
 
