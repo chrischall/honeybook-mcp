@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.0](https://github.com/chrischall/honeybook-mcp/compare/v0.9.0...v0.10.0) (2026-09-04)
+
+
+### Features
+
+* **tools:** compact by default — strip media URLs, and minify every response ([#189](https://github.com/chrischall/honeybook-mcp/issues/189)) ([1751df9](https://github.com/chrischall/honeybook-mcp/commit/1751df9baedba4e426df02bbe0d92d14cade5a10))
+* **tools:** put get_project and get_flow on the fleet `view` vocabulary ([#193](https://github.com/chrischall/honeybook-mcp/issues/193)) ([1f078a4](https://github.com/chrischall/honeybook-mcp/commit/1f078a46872a0a0e7f091c487a68bd11acc823c5))
+
+
+### Refactor
+
+* **tools:** drop the unwired view.ts — `section` already does this job ([#192](https://github.com/chrischall/honeybook-mcp/issues/192)) ([96a9d20](https://github.com/chrischall/honeybook-mcp/commit/96a9d2095c48ca01cdbc9a5929f23a93cd826edb))
+
 ## [0.9.0](https://github.com/chrischall/honeybook-mcp/compare/v0.8.2...v0.9.0) (2026-09-02)
 
 
