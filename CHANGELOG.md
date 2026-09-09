@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2](https://github.com/chrischall/honeybook-mcp/compare/v0.10.1...v0.10.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **deps:** bump hono from 4.13.0 to 4.13.7 ([#206](https://github.com/chrischall/honeybook-mcp/issues/206)) ([26b4554](https://github.com/chrischall/honeybook-mcp/commit/26b45542f493fff9d929e89b2a8ca36f5f8c7222))
+* **deps:** require @fetchproxy/server ^2.7.0, the first that reads FETCHPROXY_IDENTITY_DIR ([#204](https://github.com/chrischall/honeybook-mcp/issues/204)) ([b53cc63](https://github.com/chrischall/honeybook-mcp/commit/b53cc63ca2a499e5550f02ba04d395d70d3dfd2c))
+
 ## [0.10.1](https://github.com/chrischall/honeybook-mcp/compare/v0.10.0...v0.10.1) (2026-09-04)
 
 
