@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.3](https://github.com/chrischall/honeybook-mcp/compare/v0.10.2...v0.10.3) (2026-09-10)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 2.10.0 and @chrischall/mcp-utils 0.26.1 ([#209](https://github.com/chrischall/honeybook-mcp/issues/209)) ([3689579](https://github.com/chrischall/honeybook-mcp/commit/368957997c321d14a56c1ce66b0efe718361c0bb))
+* **deps:** declare the peer floors mcp-utils 0.26.1 requires ([#210](https://github.com/chrischall/honeybook-mcp/issues/210)) ([6484e26](https://github.com/chrischall/honeybook-mcp/commit/6484e262fe6faf1cf4fac04805454765a01045f1))
+* **deps:** take @fetchproxy/server 2.9.1 so a pairing prompt survives ([#207](https://github.com/chrischall/honeybook-mcp/issues/207)) ([683ea55](https://github.com/chrischall/honeybook-mcp/commit/683ea55abdd09a08496e07f14f9c89594ce1092d))
+
 ## [0.10.2](https://github.com/chrischall/honeybook-mcp/compare/v0.10.1...v0.10.2) (2026-09-09)
 
 
