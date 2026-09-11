@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.4](https://github.com/chrischall/honeybook-mcp/compare/v0.10.3...v0.10.4) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 2.11.3, so the hosted extension pin persists ([#212](https://github.com/chrischall/honeybook-mcp/issues/212)) ([e6b0bc6](https://github.com/chrischall/honeybook-mcp/commit/e6b0bc66a9cf64cee8588caaa69de1056ae7b3a7))
+
 ## [0.10.3](https://github.com/chrischall/honeybook-mcp/compare/v0.10.2...v0.10.3) (2026-09-10)
 
 
