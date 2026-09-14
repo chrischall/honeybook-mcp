@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.4](https://github.com/chrischall/honeybook-mcp/compare/v0.10.3...v0.10.4) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 2.11.3, so the hosted extension pin persists ([#212](https://github.com/chrischall/honeybook-mcp/issues/212)) ([e6b0bc6](https://github.com/chrischall/honeybook-mcp/commit/e6b0bc66a9cf64cee8588caaa69de1056ae7b3a7))
+* **deps:** @fetchproxy/server 3.0.0 — protocol v4 (forward secrecy, AAD over the frame) ([#216](https://github.com/chrischall/honeybook-mcp/issues/216)) ([0e80a1b](https://github.com/chrischall/honeybook-mcp/commit/0e80a1b70efa85f0d44ff2422cc7736dfd9e89b3))
+* **deps:** bump the production-dependencies group with 2 updates ([ee66d9c](https://github.com/chrischall/honeybook-mcp/commit/ee66d9c1e5b3eefec5df479577abebe8d87fd7e1))
+
 ## [0.10.3](https://github.com/chrischall/honeybook-mcp/compare/v0.10.2...v0.10.3) (2026-09-10)
 
 
