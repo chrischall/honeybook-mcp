@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.5](https://github.com/chrischall/honeybook-mcp/compare/v0.10.4...v0.10.5) (2026-09-15)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 3.0.1 — capped peer frames, logged load drops, atomic identity writes ([#217](https://github.com/chrischall/honeybook-mcp/issues/217)) ([4f9a183](https://github.com/chrischall/honeybook-mcp/commit/4f9a183a5c2c406d37eafa087b48f4051313a90a))
+
 ## [0.10.4](https://github.com/chrischall/honeybook-mcp/compare/v0.10.3...v0.10.4) (2026-09-14)
 
 
