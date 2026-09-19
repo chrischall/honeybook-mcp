@@ -26,7 +26,7 @@ Ask Claude things like:
 ## Requirements
 
 - [Claude Desktop](https://claude.ai/download) or [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- [Node.js](https://nodejs.org) 20.6 or later
+- [Node.js](https://nodejs.org) 22 or later
 - Magic-link emails from the wedding vendors that use HoneyBook
 - [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy) — installed in Chrome (Web Store) or Safari (.dmg). Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
 
