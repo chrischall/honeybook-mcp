@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -22,14 +22,14 @@ export function registerWorkspaceTools(server: McpServer): void {
     {
       description:
         'Get full detail for a workspace (vendor project). Includes status flags like has_sent_files, has_signed_files, has_paid_payments.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z
           .string()
           .describe('The workspace _id (found on any workspace_file under .workspace._id).'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     getWorkspace

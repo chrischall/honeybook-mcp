@@ -1,4 +1,5 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
+import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
@@ -18,11 +19,11 @@ export function registerPaymentMethodTools(server: McpServer): void {
     {
       description:
         'List saved payment methods for your client account with a vendor. Empty array if none are saved.',
-      inputSchema: {
+      inputSchema: z.object({
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listPaymentMethods

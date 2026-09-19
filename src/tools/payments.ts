@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -69,12 +69,12 @@ export function registerPaymentTools(server: McpServer): void {
         'Payment schedule for a workspace — the portal\'s Payments tab: each file\'s payments with amount, ' +
         'due date, paid/pending state, how it was paid and the invoice number, plus paid/unpaid totals per currency. ' +
         'To pay one, use pay_invoice.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe('The workspace _id (from list_projects).'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listPayments

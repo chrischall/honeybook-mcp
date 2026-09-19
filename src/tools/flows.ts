@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, resolveView, viewParam, viewResult } from '@chrischall/mcp-utils';
 import { captureFlowCredentialViaFetchproxy } from '../flow-auth.js';
@@ -141,14 +141,14 @@ export function registerFlowTools(server: McpServer): void {
     {
       description:
         "Capture a HoneyBook QUESTIONNAIRE (flow) credential via the fetchproxy browser extension. Use this for a link shaped https://<vendor>.hbportal.co/flow/<flowId>?hash=… — for a client-portal link (/app/link/resolve/…) use `use_magic_link` instead. Prerequisites: install the fetchproxy extension, open the questionnaire link in that browser and let the page render, then run this tool. It snapshots localStorage[\"HONEYBOOK_REACT_WEAK_AUTH_<flowId>\"] into ~/.honeybook-mcp/flows.json. A flow credential is HoneyBook's 'weak auth': it is scoped to that ONE questionnaire and cannot read portal workspaces, files, invoices or payment methods. Because the storage key contains the flow id, the extension asks you to re-approve the scope once per new questionnaire.",
-      inputSchema: {
+      inputSchema: z.object({
         flow_link_url: z
           .string()
           .url()
           .describe(
             'Questionnaire link, e.g. https://<vendor>.hbportal.co/flow/<flowId>?hash=…&userId=… Only the /flow/<flowId> segment is required: the credential is read out of the open page\'s localStorage, so the rewritten step URL (/flow/<flowId>/1-Questions) works too. The URL\'s ?hash= is used only as a fallback when the page stored none, so prefer the original email link if the capture reports no hash.'
           ),
-      },
+      }),
       annotations: { readOnlyHint: false },
     },
     useFlowLink
@@ -159,7 +159,7 @@ export function registerFlowTools(server: McpServer): void {
     {
       description:
         'Read a HoneyBook questionnaire (flow) — its pages, questions and any answers already submitted — using a credential captured by `use_flow_link`. Requires a flow credential; a client-portal session will NOT work here, and vice versa. Defaults to the most recently captured flow. Makes two calls: the public /api/v2/flow/<id>/minimal for the vendor company id, then /api/v2/client/flow/<id>/active, passing that id as ?ctxc= when /minimal supplied one. A questionnaire larger than the default ceiling answers with its size and top-level keys instead; call again with view="raw" for the whole thing.',
-      inputSchema: {
+      inputSchema: z.object({
         flow_id: z
           .string()
           .optional()
@@ -169,7 +169,7 @@ export function registerFlowTools(server: McpServer): void {
         view: viewParam(FLOW_VIEWS, {
           note: 'compact returns the questionnaire unless it exceeds a byte ceiling, in which case it answers with its size and top-level keys instead; "raw" returns the full payload however large (may exceed MCP size limits).',
         }),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     getFlow

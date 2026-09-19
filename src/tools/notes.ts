@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -19,12 +19,12 @@ export function registerNoteTools(server: McpServer): void {
     {
       description:
         'Notes the vendor has shared with you in a workspace (meeting notes, AI recaps) — the portal\'s Notes tab.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe('The workspace _id (from list_projects).'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listNotes

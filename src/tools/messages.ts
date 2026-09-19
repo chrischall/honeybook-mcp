@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, rawTextResult, schemaConfirm, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -226,7 +226,7 @@ export function registerMessageTools(server: McpServer): void {
         'List the messages (and optionally the activity log) in a workspace — the portal\'s Activity tab. ' +
         'Returns compact cards (sender, subject, preview, seen state, attachments), newest first; ' +
         'call get_message for a full body. Reading does NOT mark anything as seen.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         kind: z
           .enum(FEED_KINDS)
@@ -237,7 +237,7 @@ export function registerMessageTools(server: McpServer): void {
           ),
         limit: z.number().int().positive().max(500).optional().describe('Max items to return (default 50).'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listMessages
@@ -249,12 +249,12 @@ export function registerMessageTools(server: McpServer): void {
       description:
         'Read one message in full: body (plain text by default, or the original HTML), sender, recipients, ' +
         'attachments and per-recipient delivery status.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         message_id: z.string().describe('The message _id from list_messages.'),
         format: z.enum(['text', 'html']).optional().describe('Body format. Default "text".'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     getMessage
@@ -267,7 +267,7 @@ export function registerMessageTools(server: McpServer): void {
         'Send a message to the vendor (and the other members of the workspace) through the HoneyBook portal, ' +
         'exactly as the Activity tab composer does. HoneyBook emails it to every recipient. ' +
         'Pass reply_to_message_id to reply in-thread (the subject is inherited). Requires confirm:true.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         body: z
           .string()
@@ -281,7 +281,7 @@ export function registerMessageTools(server: McpServer): void {
         confirm: schemaConfirm.describe(
           'Must be true to actually send. Without it the tool returns a preview of what would go out.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     sendMessage
@@ -293,11 +293,11 @@ export function registerMessageTools(server: McpServer): void {
       description:
         'Mark feed items as seen (what the portal does when you open the Activity tab). ' +
         'list_messages and get_message never do this on their own.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         message_ids: z.array(z.string()).min(1).describe('Feed item _ids from list_messages.'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
-      },
+      }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
     markMessagesSeen

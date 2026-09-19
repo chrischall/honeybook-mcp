@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, resolveView, schemaOrigin, viewParam, viewResult } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -117,12 +117,12 @@ export function registerProjectTools(server: McpServer): void {
       description:
         'List your projects with a vendor (HoneyBook calls them events): name, date, booked flag and the ' +
         'workspace_id that every other workspace tool takes. This is the portal\'s project switcher.',
-      inputSchema: {
+      inputSchema: z.object({
         page: z.number().int().positive().optional().describe('Page number; omit for the first page.'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listProjects
@@ -135,7 +135,7 @@ export function registerProjectTools(server: McpServer): void {
         'Project details — the portal\'s Overview "Project details" card plus the people on it: name, date, ' +
         'time, timezone, location, guest count, custom fields, cover image, and each participant\'s name / ' +
         'email / phone / role. view="raw" returns the untrimmed response (large: it embeds the vendor\'s account).',
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string().describe('The project (event) _id from list_projects.'),
         view: viewParam(PROJECT_VIEWS, {
           note: 'compact returns the Overview card plus participants; "raw" returns the untrimmed /details response, which embeds the vendor\'s whole account.',
@@ -143,7 +143,7 @@ export function registerProjectTools(server: McpServer): void {
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     getProject

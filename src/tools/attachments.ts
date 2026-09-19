@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -33,12 +33,12 @@ export function registerAttachmentTools(server: McpServer): void {
       description:
         'Loose images, files and bookmarks shared in a workspace — the portal\'s Files tab, minus the ' +
         'contracts/invoices/proposals that list_workspace_files covers.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe('The workspace _id (from list_projects).'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listAttachments

@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, rawTextResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -274,7 +274,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
     {
       description:
         'List all files a vendor has shared with you (contracts, invoices, brochures, proposals). Optionally filter by file_type.',
-      inputSchema: {
+      inputSchema: z.object({
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co) to target. Optional — defaults to the most recently activated session.'
         ),
@@ -282,7 +282,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           .enum(FILE_TYPES)
           .optional()
           .describe('Filter to one file type. Omit to return all.'),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listWorkspaceFiles
@@ -292,7 +292,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
     {
       description:
         'Get detail for one workspace file. Returns a compact summary by default (metadata, vendor, event, pricing totals, payment schedule, agreement presence). Use `section` to drill into a specific part of the file: "pricing" for full line items + tax/svc detail, "agreement" for contract HTML + signatures, "payments" for full payment-schedule detail, "all" for the pruned full response, or "raw" for the entirely-unpruned response (may exceed MCP size limits on proposal-class files).',
-      inputSchema: {
+      inputSchema: z.object({
         file_id: z.string().describe('The file _id from list_workspace_files.'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
@@ -303,7 +303,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           .describe(
             'Which view to return. Default "summary" (~5-15 kB). Others return focused sections of the raw response.'
           ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     getWorkspaceFile
