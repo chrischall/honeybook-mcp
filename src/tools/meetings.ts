@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -52,12 +52,12 @@ export function registerMeetingTools(server: McpServer): void {
         'Meetings the vendor has scheduled in a workspace (consultations, Zoom calls, walkthroughs): ' +
         'title, start/end, timezone, join link and password. Derived from the workspace feed, ' +
         'so a rescheduled meeting shows its latest time. Sorted by start.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe('The workspace _id (from list_projects).'),
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listMeetings

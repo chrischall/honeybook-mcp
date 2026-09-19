@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { registerCredentialHealthcheckTool } from '@chrischall/mcp-utils/healthcheck';
 import { getActiveClient, isNoPortalSessionError, noPortalSessionError } from '../client.js';
 import { sessionStore } from '../sessions.js';

@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult } from '@chrischall/mcp-utils';
 import { sessionStore, normalizeOrigin } from '../sessions.js';
@@ -85,14 +85,14 @@ export function registerSessionTools(server: McpServer): void {
     {
       description:
         "Capture a HoneyBook client-portal session via the fetchproxy 0.3.0 browser extension. Prerequisites: install the fetchproxy extension in Chrome/Safari, then open the vendor's magic-link URL in that browser so you're signed into their portal and leave that tab open. This tool then snapshots the auth fields out of the page's localStorage[\"HONEYBOOK_REACT_CURR_USER\"] into ~/.honeybook-mcp/sessions.json. The tab only needs to be open and signed in — nothing is sniffed off a live request, so it does not matter whether the page is idle. All other tools use the most-recently-activated session by default. The magic_link_url arg is used only to derive the portalOrigin (cache key) — the tool does NOT open or navigate to it. For a QUESTIONNAIRE link (https://<vendor>.hbportal.co/flow/<flowId>?hash=…) use `use_flow_link` instead — that link writes a different, flow-scoped credential and this tool refuses it.",
-      inputSchema: {
+      inputSchema: z.object({
         magic_link_url: z
           .string()
           .url()
           .describe(
             "Full magic-link URL from the vendor's HoneyBook email, e.g. https://<vendor>.hbportal.co/app/workspace_file/<id>/...  Used only to derive the portal origin; you must already have this URL open in a Chrome tab with the fetchproxy extension installed."
           ),
-      },
+      }),
       annotations: { readOnlyHint: false },
     },
     useMagicLink

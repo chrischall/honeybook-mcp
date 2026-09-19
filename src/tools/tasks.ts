@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -71,7 +71,7 @@ export function registerTaskTools(server: McpServer): void {
       description:
         'Tasks the vendor has assigned to you in a workspace — the portal\'s Tasks tab — with the ' +
         'today / this week / overdue / completed counts and any task groups. Sorted by due date.',
-      inputSchema: {
+      inputSchema: z.object({
         workspace_id: z.string().describe('The workspace _id (from list_projects).'),
         page: z.number().int().positive().optional().describe('Page number (default 1).'),
         per_page: z.number().int().positive().max(200).optional().describe('Page size (default 50).'),
@@ -83,7 +83,7 @@ export function registerTaskTools(server: McpServer): void {
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     listTasks

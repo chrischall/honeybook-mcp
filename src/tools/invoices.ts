@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
@@ -46,7 +46,7 @@ export function registerInvoiceTools(server: McpServer): void {
     {
       description:
         'Pay an invoice from a vendor. In v1 this returns a deep link to the HoneyBook portal instead of paying headlessly. Requires confirm:true.',
-      inputSchema: {
+      inputSchema: z.object({
         file_id: z
           .string()
           .describe('The invoice file _id from list_workspace_files (file_type=invoice).'),
@@ -56,7 +56,7 @@ export function registerInvoiceTools(server: McpServer): void {
         confirm: schemaConfirm.describe(
           'Must be true to proceed. Without this, tool returns a preview.'
         ),
-      },
+      }),
       annotations: { destructiveHint: true },
     },
     payInvoice
