@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/chrischall/honeybook-mcp/compare/v0.10.5...v1.0.0) (2026-09-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcp:** migrate server to SDK v2 ([#220](https://github.com/chrischall/honeybook-mcp/issues/220))
+
+### Features
+
+* **mcp:** migrate server to SDK v2 ([#220](https://github.com/chrischall/honeybook-mcp/issues/220)) ([992c0c2](https://github.com/chrischall/honeybook-mcp/commit/992c0c25aad69c19df28db5a31e41b942eb6bfae))
+
 ## [0.10.5](https://github.com/chrischall/honeybook-mcp/compare/v0.10.4...v0.10.5) (2026-09-15)
 
 
