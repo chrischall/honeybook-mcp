@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/chrischall/honeybook-mcp/compare/v1.0.0...v1.1.0) (2026-09-19)
+
+
+### Features
+
+* **deps:** take mcp-utils 1.0.0 so server/discover answers ([#222](https://github.com/chrischall/honeybook-mcp/issues/222)) ([7326b06](https://github.com/chrischall/honeybook-mcp/commit/7326b06b226a2907b6c1b271489d9543b0fd091a))
+
+
+### Bug Fixes
+
+* **deps:** raise the manifest node floor to match mcp-utils 1.0.0 ([#224](https://github.com/chrischall/honeybook-mcp/issues/224)) ([4f88315](https://github.com/chrischall/honeybook-mcp/commit/4f88315c870ae888bcf16f367365285d31ea0051))
+
 ## [1.0.0](https://github.com/chrischall/honeybook-mcp/compare/v0.10.5...v1.0.0) (2026-09-19)
 
 
