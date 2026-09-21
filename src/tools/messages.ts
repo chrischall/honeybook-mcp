@@ -282,7 +282,7 @@ export function registerMessageTools(server: McpServer): void {
           'Must be true to actually send. Without it the tool returns a preview of what would go out.'
         ),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     },
     sendMessage
   );
