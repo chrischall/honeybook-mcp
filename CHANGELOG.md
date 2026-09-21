@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/chrischall/honeybook-mcp/compare/v1.1.1...v1.1.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* **tools:** send_message is destructive ([#229](https://github.com/chrischall/honeybook-mcp/issues/229)) ([98c7d48](https://github.com/chrischall/honeybook-mcp/commit/98c7d48a3824421cb7dee6cf6d1dd021003a7766))
+
 ## [1.1.1](https://github.com/chrischall/honeybook-mcp/compare/v1.1.0...v1.1.1) (2026-09-21)
 
 
