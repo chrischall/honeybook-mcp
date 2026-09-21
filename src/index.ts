@@ -23,7 +23,7 @@ import { registerPaymentTools } from './tools/payments.js';
 
 await runMcp({
   name: 'honeybook-mcp',
-  version: '1.1.1', // x-release-please-version
+  version: '1.1.2', // x-release-please-version
   tools: [
     registerSessionTools,
     registerFlowTools,
