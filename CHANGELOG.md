@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chrischall/honeybook-mcp/compare/v1.1.0...v1.1.1) (2026-09-21)
+
+
+### Documentation
+
+* AGENTS.md pointed at a directory that does not exist ([#227](https://github.com/chrischall/honeybook-mcp/issues/227)) ([80f1153](https://github.com/chrischall/honeybook-mcp/commit/80f1153350dd1258307e56a07898116b8019c280))
+
 ## [1.1.0](https://github.com/chrischall/honeybook-mcp/compare/v1.0.0...v1.1.0) (2026-09-19)
 
 
