@@ -198,13 +198,13 @@ thresholds — CI runs `npm test` (no coverage gate).
 
 ```
 .claude-plugin/
-  plugin.json       Claude plugin manifest (points at .mcp.json + skills/)
+  plugin.json       Claude Code plugin manifest (points at .mcp.json + skills/)
   marketplace.json  Marketplace catalog entry
 skills/
   honeybook/SKILL.md
   honeybook-fpx/SKILL.md
 manifest.json       mcpb bundle manifest
-.mcp.json           MCP server configuration for Codex
+.mcp.json           MCP server configuration for Claude Code
 server.json         modelcontextprotocol/registry manifest
 ```
 
