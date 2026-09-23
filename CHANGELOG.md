@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/chrischall/honeybook-mcp/compare/v1.1.3...v1.1.4) (2026-09-23)
+
+
+### Bug Fixes
+
+* harden HoneyBook request paths, timeouts, slow sends and session capture origin ([#234](https://github.com/chrischall/honeybook-mcp/issues/234)) ([de1282d](https://github.com/chrischall/honeybook-mcp/commit/de1282d9d6fc1c4ee3416ba6411c39312e59d1ab))
+
 ## [1.1.3](https://github.com/chrischall/honeybook-mcp/compare/v1.1.2...v1.1.3) (2026-09-23)
 
 
