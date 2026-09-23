@@ -51,6 +51,41 @@ export interface PendingTaskOutcome<T> {
   result: T;
 }
 
+/**
+ * The task was still Pending/Started when polling gave up. It was NOT
+ * cancelled server-side and may still complete — for `send_workspace_message`
+ * that means the email may still go out, so a caller must not present this as
+ * a plain failure that invites a resend.
+ */
+export class PendingTaskTimeoutError extends Error {
+  /** Structural marker, so the predicate survives a duplicated module copy. */
+  readonly pendingTaskTimeout = true;
+  readonly taskId: string;
+  readonly taskType: string;
+  /** The last `pending_task_state_cd` seen (Pending or Started). */
+  readonly lastState: number;
+
+  constructor(taskId: string, taskType: string, lastState: number, polls: number) {
+    super(
+      `HoneyBook task ${taskId} ("${taskType}") timed out after ${polls} polls without finishing. ` +
+        'It was not cancelled and may still complete.'
+    );
+    this.name = 'PendingTaskTimeoutError';
+    this.taskId = taskId;
+    this.taskType = taskType;
+    this.lastState = lastState;
+  }
+}
+
+export function isPendingTaskTimeoutError(err: unknown): err is PendingTaskTimeoutError {
+  return (
+    err instanceof PendingTaskTimeoutError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { pendingTaskTimeout?: unknown }).pendingTaskTimeout === true)
+  );
+}
+
 export async function runClientPendingTask<T = unknown>(
   client: PendingTaskCaller,
   taskType: string,
@@ -68,6 +103,7 @@ export async function runClientPendingTask<T = unknown>(
     );
   }
 
+  let lastState: number = PENDING_TASK_STATE.Pending;
   for (let poll = 0; poll < pendingTaskPolling.maxPolls; poll++) {
     if (poll > 0 && pendingTaskPolling.intervalMs > 0) {
       await new Promise<void>((r) => setTimeout(r, pendingTaskPolling.intervalMs));
@@ -89,14 +125,15 @@ export async function runClientPendingTask<T = unknown>(
     if (state === PENDING_TASK_STATE.Finished) {
       return { task_id: taskId, result: task.pending_task_result as T };
     }
-    if (state === PENDING_TASK_STATE.Pending || state === PENDING_TASK_STATE.Started) continue;
+    if (state === PENDING_TASK_STATE.Pending || state === PENDING_TASK_STATE.Started) {
+      lastState = state;
+      continue;
+    }
     throw new Error(
       `HoneyBook task ${taskId} ("${taskType}") failed: ${
         task.pending_task_error_message || `state ${state}`
       }`
     );
   }
-  throw new Error(
-    `HoneyBook task ${taskId} ("${taskType}") timed out after ${pendingTaskPolling.maxPolls} polls without finishing.`
-  );
+  throw new PendingTaskTimeoutError(taskId, taskType, lastState, pendingTaskPolling.maxPolls);
 }

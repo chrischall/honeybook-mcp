@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runClientPendingTask, pendingTaskPolling, PENDING_TASK_STATE } from '../src/pending-tasks.js';
+import {
+  runClientPendingTask,
+  pendingTaskPolling,
+  PENDING_TASK_STATE,
+  isPendingTaskTimeoutError,
+} from '../src/pending-tasks.js';
 
 describe('runClientPendingTask', () => {
   const request = vi.fn();
@@ -47,7 +52,12 @@ describe('runClientPendingTask', () => {
   it('rejects after maxPolls without a terminal state', async () => {
     request.mockResolvedValueOnce({ task_id: 't4' });
     request.mockResolvedValue([{ _id: 't4', pending_task_state_cd: 1 }]);
-    await expect(runClientPendingTask(client, 'x', {})).rejects.toThrow(/timed out/i);
+    const err = await runClientPendingTask(client, 'x', {}).catch((e: unknown) => e);
+    expect((err as Error).message).toMatch(/timed out/i);
+    // Typed, carrying the task id, so a caller can say "may still complete".
+    expect(isPendingTaskTimeoutError(err)).toBe(true);
+    expect((err as { taskId: string }).taskId).toBe('t4');
+    expect((err as { lastState: number }).lastState).toBe(1);
     expect(request).toHaveBeenCalledTimes(1 + 5);
   });
 

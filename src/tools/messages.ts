@@ -12,7 +12,7 @@ import {
   type RawItem,
   type WorkspaceFeed,
 } from '../feed.js';
-import { runClientPendingTask } from '../pending-tasks.js';
+import { runClientPendingTask, isPendingTaskTimeoutError } from '../pending-tasks.js';
 import type { ToolResult } from '../types.js';
 
 export const FEED_KINDS = ['messages', 'activity', 'all'] as const;
@@ -183,11 +183,28 @@ export async function sendMessage(args: {
   };
   if (replyTo) taskData.feed_to_reply_id = replyTo._id;
 
-  const { task_id, result } = await runClientPendingTask<SendResult | null>(
-    client,
-    'send_workspace_message',
-    taskData
-  );
+  let outcome;
+  try {
+    outcome = await runClientPendingTask<SendResult | null>(client, 'send_workspace_message', taskData);
+  } catch (err) {
+    // The task is still running server-side and may yet email every recipient.
+    // Reporting that as an error invites a resend, which creates a SECOND task
+    // (fleet-audit#136) — so it comes back as a non-error "pending" result.
+    if (!isPendingTaskTimeoutError(err)) throw err;
+    return minifiedResult({
+      status: 'pending',
+      task_id: err.taskId,
+      workspace_id: args.workspace_id,
+      subject,
+      to: recipients.map((u) => u.name),
+      reply_to: replyTo ? replyTo._id : null,
+      warning:
+        'HoneyBook had not finished sending when polling stopped. The task was not cancelled and the ' +
+        'message may still be delivered. Check list_messages for this workspace before resending — ' +
+        'do NOT re-run send_message until you have confirmed it did not go out.',
+    });
+  }
+  const { task_id, result } = outcome;
   const sendResults = result?.workspaces?.result?.send_results;
   if (result?.workspaces?.result?.failed) {
     const failed = (sendResults ?? []).filter((r) => r.success === false);
@@ -266,7 +283,9 @@ export function registerMessageTools(server: McpServer): void {
       description:
         'Send a message to the vendor (and the other members of the workspace) through the HoneyBook portal, ' +
         'exactly as the Activity tab composer does. HoneyBook emails it to every recipient. ' +
-        'Pass reply_to_message_id to reply in-thread (the subject is inherited). Requires confirm:true.',
+        'Pass reply_to_message_id to reply in-thread (the subject is inherited). Requires confirm:true. ' +
+        'If HoneyBook has not finished sending within about a minute the result has status "pending" and a ' +
+        'task_id: the message may still be delivered, so check list_messages before resending.',
       inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         body: z

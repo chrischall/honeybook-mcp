@@ -294,6 +294,29 @@ describe('messages tools', () => {
       expect(fakeClient.request).toHaveBeenCalledTimes(4);
     });
 
+    it('on a poll timeout returns a pending result with the task id instead of an error (fleet-audit#136)', async () => {
+      pendingTaskPolling.maxPolls = 3;
+      try {
+        fakeClient.request
+          .mockResolvedValueOnce(makeFeed())
+          .mockResolvedValueOnce({ task_id: 'task_slow' })
+          .mockResolvedValue([{ _id: 'task_slow', pending_task_state_cd: 1 }]);
+        const res = await sendMessage({ workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi', confirm: true });
+        expect((res as { isError?: boolean }).isError).toBeFalsy();
+        const out = parse(res);
+        expect(out.status).toBe('pending');
+        expect(out.task_id).toBe('task_slow');
+        expect(out.warning).toMatch(/may still be delivered/i);
+        expect(out.warning).toMatch(/list_messages/);
+        expect(out.warning).toMatch(/before resending/i);
+        // No second task was created.
+        const posts = fakeClient.request.mock.calls.filter((c) => c[0] === 'POST');
+        expect(posts).toHaveLength(1);
+      } finally {
+        pendingTaskPolling.maxPolls = 60;
+      }
+    });
+
     it('replies to an existing message: inherits its subject and sets feed_to_reply_id', async () => {
       fakeClient.request
         .mockResolvedValueOnce(makeFeed())

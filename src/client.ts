@@ -131,13 +131,19 @@ export async function hbApiRequest<T>(
   path: string,
   body?: unknown,
   isVersionRetry = false,
-  isRateRetry = false
+  isRateRetry = false,
+  /**
+   * One id per LOGICAL request, reused by the 429 and version retries below so
+   * HoneyBook's own duplicate-call prevention can recognise a replay. A fresh
+   * id per attempt would let a retried POST create a second pending task.
+   */
+  dedupeId: string = crypto.randomUUID()
 ): Promise<T> {
   assertNoPathTraversal(path);
   const headers: Record<string, string> = {
     accept: 'application/json, text/plain, */*',
     'hb-api-client-version': String(caller.getApiVersion()),
-    'hb-api-duplicate-calls-prevention-uuid': crypto.randomUUID(),
+    'hb-api-duplicate-calls-prevention-uuid': dedupeId,
     ...caller.authHeaders(),
   };
   if (body !== undefined) headers['content-type'] = 'application/json';
@@ -153,7 +159,7 @@ export async function hbApiRequest<T>(
   if (response.status === 429) {
     if (!isRateRetry) {
       await new Promise<void>((r) => setTimeout(r, 2000));
-      return hbApiRequest<T>(caller, method, path, body, isVersionRetry, true);
+      return hbApiRequest<T>(caller, method, path, body, isVersionRetry, true, dedupeId);
     }
     throw new Error('Rate limited by HoneyBook API');
   }
@@ -178,7 +184,7 @@ export async function hbApiRequest<T>(
       } catch {
         caller.setApiVersion(await fetchApiVersion());
       }
-      return hbApiRequest<T>(caller, method, path, body, true, isRateRetry);
+      return hbApiRequest<T>(caller, method, path, body, true, isRateRetry, dedupeId);
     }
     throw new HoneyBookApiError(
       formatApiError(response.status, method, path, text, { service: 'HoneyBook' }),
