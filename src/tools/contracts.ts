@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
+import { vendorPortalSubdomain } from '../sessions.js';
 import type { ToolResult } from '../types.js';
 
 interface ContractFile {
@@ -37,7 +38,10 @@ export async function signContract(args: {
         `Re-run sign_contract with { confirm: true } to proceed.`
     );
   }
-  const url = `${client.scope.portalOrigin}/app/workspace_file/${file._id}/agreement`;
+  // Re-checked here, not only at capture: a sessions.json written before the
+  // host rule existed can still hold a foreign origin (fleet-audit#139).
+  vendorPortalSubdomain(client.scope.portalOrigin);
+  const url = `${client.scope.portalOrigin}/app/workspace_file/${encodeURIComponent(String(file._id))}/agreement`;
   return rawTextResult(
     `HoneyBook's signing flow requires a browser signature that this MCP cannot replay headlessly yet.\n\n` +
       `Open this link to sign the contract in your HoneyBook portal:\n\n${url}\n\n` +

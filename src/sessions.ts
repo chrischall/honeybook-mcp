@@ -33,3 +33,34 @@ export const sessionStore = new SessionStore<CapturedSession>({
   keyOf: (session) => session.portalOrigin,
   normalizeKey: normalizeOrigin,
 });
+
+/**
+ * The vendor label of a HoneyBook client-portal origin — `acme` for
+ * `https://acme.hbportal.co` — or a refusal for anything else.
+ *
+ * Captures read the signed-in tab's storage, so the origin a session is
+ * labelled with must be the tab it was read from. Only a single-label
+ * `https://<vendor>.hbportal.co` (default port) qualifies: that is the one
+ * shape the fetchproxy read can be pinned to (`storageSubdomain`), and the one
+ * whose deep links (`pay_invoice`, `sign_contract`) are safe to hand the user.
+ * Any other host would store a real token under a name that is not where it
+ * came from, and turn those links into a phishing primitive (fleet-audit#139).
+ */
+export function vendorPortalSubdomain(input: string): string {
+  let url: URL | null = null;
+  try {
+    url = new URL(input);
+  } catch {
+    url = null;
+  }
+  const match = url && url.protocol === 'https:' && url.port === ''
+    ? /^([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\.hbportal\.co$/.exec(url.hostname)
+    : null;
+  if (!match) {
+    throw new Error(
+      `"${input}" is not a HoneyBook vendor portal link. Expected https://<vendor>.hbportal.co/… ` +
+        '(the link in the vendor\'s HoneyBook email).'
+    );
+  }
+  return match[1]!;
+}

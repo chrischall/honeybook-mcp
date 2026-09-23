@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
+import { vendorPortalSubdomain } from '../sessions.js';
 import type { ToolResult } from '../types.js';
 
 interface InvoiceFile {
@@ -30,7 +31,10 @@ export async function payInvoice(args: {
         `Re-run pay_invoice with { confirm: true } to proceed.`
     );
   }
-  const url = `${client.scope.portalOrigin}/app/workspace_file/${file._id}/invoice`;
+  // Re-checked here, not only at capture: a sessions.json written before the
+  // host rule existed can still hold a foreign origin (fleet-audit#139).
+  vendorPortalSubdomain(client.scope.portalOrigin);
+  const url = `${client.scope.portalOrigin}/app/workspace_file/${encodeURIComponent(String(file._id))}/invoice`;
   const pendingNote = file.has_pending_payment
     ? '\n\nNote: this invoice already has a pending payment — check the status before re-paying.'
     : '';
