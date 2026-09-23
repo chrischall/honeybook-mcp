@@ -1,4 +1,4 @@
-import type { HoneyBookClient } from './client.js';
+import { apiPath, type HoneyBookClient } from './client.js';
 
 /**
  * The workspace feed — `GET /api/v2/workspaces/<id>/feed` — is the one
@@ -50,7 +50,7 @@ export async function fetchWorkspaceFeed(
   client: HoneyBookClient,
   workspaceId: string
 ): Promise<WorkspaceFeed> {
-  const res = await client.request<RawItem>('GET', `/api/v2/workspaces/${workspaceId}/feed`);
+  const res = await client.request<RawItem>('GET', apiPath`/api/v2/workspaces/${workspaceId}/feed`);
   const feed = obj(res, 'feed');
   const users: Record<string, FeedUser> = {};
   const feedUsers = obj(feed, 'feed_users') ?? {};

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 interface ContractFile {
@@ -21,7 +21,7 @@ export async function signContract(args: {
   const client = await getActiveClient(args.origin);
   const file = await client.request<ContractFile>(
     'GET',
-    `/api/v2/workspace_files/${args.file_id}`
+    apiPath`/api/v2/workspace_files/${args.file_id}`
   );
   if (file.file_type !== 'agreement') {
     throw new Error(

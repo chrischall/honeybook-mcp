@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, resolveView, schemaOrigin, viewParam, viewResult } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 type Raw = Record<string, unknown>;
@@ -106,7 +106,7 @@ export async function getProject(args: {
 }): Promise<ToolResult> {
   const view = resolveView(args.view, PROJECT_VIEWS);
   const client = await getActiveClient(args.origin);
-  const res = await client.request<Raw>('GET', `/api/v2/events/${args.project_id}/details`);
+  const res = await client.request<Raw>('GET', apiPath`/api/v2/events/${args.project_id}/details`);
   return viewResult(view, view === 'raw' ? res : summarizeProject(res));
 }
 

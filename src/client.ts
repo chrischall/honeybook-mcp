@@ -22,6 +22,41 @@ export async function fetchApiVersion(): Promise<number> {
 export type HbMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 /**
+ * Build an API path from a template, encoding every interpolated value as ONE
+ * path segment.
+ *
+ * Tool ids come from the model, and the model reads vendor-written text. A raw
+ * `workspaces/${id}/feed_items/seen` with `id = "x/../../users/me/foo?"` is
+ * normalized by the URL parser into a request to a different endpoint under the
+ * user's token (fleet-audit#138). `encodeURIComponent` neutralizes `/`, `?` and
+ * `#`, but not a bare `.` or `..`, so those — and the empty id — are refused.
+ */
+export function apiPath(strings: TemplateStringsArray, ...values: Array<string | number>): string {
+  let out = strings[0] ?? '';
+  values.forEach((value, i) => {
+    const raw = String(value);
+    if (raw === '' || raw === '.' || raw === '..') {
+      throw new Error(`${JSON.stringify(raw)} is not a valid HoneyBook id.`);
+    }
+    out += encodeURIComponent(raw) + (strings[i + 1] ?? '');
+  });
+  return out;
+}
+
+/**
+ * Last line of defence behind {@link apiPath}: refuse any path the URL parser
+ * would rewrite — a `.`/`..` segment (percent-encoded or not) or a backslash,
+ * which WHATWG treats as `/` for https URLs.
+ */
+function assertNoPathTraversal(path: string): void {
+  const pathname = path.split(/[?#]/, 1)[0] ?? '';
+  const dotSegment = /^(?:\.|%2e){1,2}$/i;
+  if (pathname.includes('\\') || pathname.split('/').some((seg) => dotSegment.test(seg))) {
+    throw new Error(`Refusing HoneyBook API path with a path traversal segment: ${path}`);
+  }
+}
+
+/**
  * An unsuccessful HoneyBook response, carrying the STATUS a caller has to
  * branch on.
  *
@@ -98,6 +133,7 @@ export async function hbApiRequest<T>(
   isVersionRetry = false,
   isRateRetry = false
 ): Promise<T> {
+  assertNoPathTraversal(path);
   const headers: Record<string, string> = {
     accept: 'application/json, text/plain, */*',
     'hb-api-client-version': String(caller.getApiVersion()),

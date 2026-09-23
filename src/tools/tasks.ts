@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 type Raw = Record<string, unknown>;
@@ -43,7 +43,7 @@ export async function listTasks(args: {
   const perPage = args.per_page ?? 50;
   const currDate = args.curr_date ?? today();
   const apiDate = encodeURIComponent(toApiDate(currDate));
-  const base = `/api/v2/tasks/workspaces/${args.workspace_id}`;
+  const base = apiPath`/api/v2/tasks/workspaces/${args.workspace_id}`;
   const tasks = await client.request<Raw[] | null>(
     'GET',
     `${base}?page=${page}&perPage=${perPage}&sort_by=due_date&sort_desc=false&curr_date=${apiDate}`
@@ -51,7 +51,7 @@ export async function listTasks(args: {
   const counts = await client.request<Raw | null>('GET', `${base}/counts?curr_date=${apiDate}`);
   const groups = await client.request<Raw[] | null>(
     'GET',
-    `/api/v2/workspaces/${args.workspace_id}/taskgroup`
+    apiPath`/api/v2/workspaces/${args.workspace_id}/taskgroup`
   );
   return minifiedResult({
     workspace_id: args.workspace_id,

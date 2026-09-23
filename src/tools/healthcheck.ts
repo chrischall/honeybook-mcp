@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { registerCredentialHealthcheckTool } from '@chrischall/mcp-utils/healthcheck';
-import { getActiveClient, isNoPortalSessionError, noPortalSessionError } from '../client.js';
+import { apiPath, getActiveClient, isNoPortalSessionError, noPortalSessionError } from '../client.js';
 import { sessionStore } from '../sessions.js';
 import { flowStore } from '../flows.js';
 
@@ -47,7 +47,7 @@ export function registerHealthcheckTools(server: McpServer): void {
     },
     probeFn: async () => {
       const client = await getActiveClient();
-      return client.request('GET', `/api/v2/users/${client.scope.userId}/payment_methods`);
+      return client.request('GET', apiPath`/api/v2/users/${client.scope.userId}/payment_methods`);
     },
     classifyThrown: (err) => {
       const msg = err instanceof Error ? err.message : String(err);

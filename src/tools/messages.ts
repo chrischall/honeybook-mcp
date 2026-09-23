@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, rawTextResult, schemaConfirm, schemaOrigin } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import {
   fetchWorkspaceFeed,
   isMessageItem,
@@ -212,7 +212,7 @@ export async function markMessagesSeen(args: {
   origin?: string;
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
-  await client.request<unknown>('PUT', `/api/v2/workspaces/${args.workspace_id}/feed_items/seen`, {
+  await client.request<unknown>('PUT', apiPath`/api/v2/workspaces/${args.workspace_id}/feed_items/seen`, {
     item_ids: args.message_ids,
   });
   return minifiedResult({ workspace_id: args.workspace_id, marked: args.message_ids });

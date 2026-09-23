@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 type Raw = Record<string, unknown>;
@@ -15,7 +15,7 @@ export async function listAttachments(args: { workspace_id: string; origin?: str
   const client = await getActiveClient(args.origin);
   const res = await client.request<{ attachments?: { images?: Raw[]; files?: Raw[]; bookmarks?: Raw[] } } | null>(
     'GET',
-    `/api/v2/workspaces/${args.workspace_id}/attachments`
+    apiPath`/api/v2/workspaces/${args.workspace_id}/attachments`
   );
   const a = res?.attachments ?? {};
   return minifiedResult({

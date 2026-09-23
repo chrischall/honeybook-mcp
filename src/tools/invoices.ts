@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { rawTextResult, schemaOrigin, schemaConfirm } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 interface InvoiceFile {
@@ -18,7 +18,7 @@ export async function payInvoice(args: {
   confirm?: boolean;
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
-  const file = await client.request<InvoiceFile>('GET', `/api/v2/workspace_files/${args.file_id}`);
+  const file = await client.request<InvoiceFile>('GET', apiPath`/api/v2/workspace_files/${args.file_id}`);
   if (file.file_type !== 'invoice') {
     throw new Error(
       `File ${args.file_id} is not an invoice (file_type=${file.file_type}). Only invoices can be paid.`

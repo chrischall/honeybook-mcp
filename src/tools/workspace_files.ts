@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, rawTextResult, schemaOrigin } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { HBListEnvelope, ToolResult } from '../types.js';
 import { FILE_TYPES } from '../types.js';
 
@@ -221,7 +221,7 @@ export async function listWorkspaceFiles(args: {
   const client = await getActiveClient(args.origin);
   const res = await client.request<HBListEnvelope<Record<string, unknown>>>(
     'GET',
-    `/api/v2/users/${client.scope.userId}/workspace_files`
+    apiPath`/api/v2/users/${client.scope.userId}/workspace_files`
   );
   const filtered = args.file_type
     ? res.data.filter((f) => f.file_type === args.file_type)
@@ -240,7 +240,7 @@ export async function getWorkspaceFile(args: {
 }): Promise<ToolResult> {
   const section: WorkspaceFileSection = args.section ?? 'summary';
   const client = await getActiveClient(args.origin);
-  const raw = await client.request<RawFile>('GET', `/api/v2/workspace_files/${args.file_id}`);
+  const raw = await client.request<RawFile>('GET', apiPath`/api/v2/workspace_files/${args.file_id}`);
 
   let body: unknown;
   switch (section) {
