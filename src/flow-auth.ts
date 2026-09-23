@@ -21,6 +21,7 @@ import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
 import { parseBoolEnv } from '@chrischall/mcp-utils';
 import pkg from '../package.json' with { type: 'json' };
 import { flowStorageKey, flowStore, parseFlowLink } from './flows.js';
+import { vendorPortalSubdomain } from './sessions.js';
 import type { CapturedFlowCredential } from './types.js';
 
 export interface CaptureFlowOpts {
@@ -47,6 +48,8 @@ export async function captureFlowCredentialViaFetchproxy(
   // Parse BEFORE the disabled check and before the bridge opens: a portal link
   // handed to this tool is a mistake we can name without touching the browser.
   const link = parseFlowLink(opts.flowLinkUrl);
+  // Same host rule, and the same tab pinning, as a portal capture (fleet-audit#139).
+  const vendorSubdomain = vendorPortalSubdomain(link.portalOrigin);
 
   if (fetchproxyDisabled()) {
     throw new Error(
@@ -64,6 +67,7 @@ export async function captureFlowCredentialViaFetchproxy(
       version: pkg.version,
       domains: ['honeybook.com', 'hbportal.co'],
       storageDomain: 'hbportal.co',
+      storageSubdomain: vendorSubdomain,
       declare: {
         cookies: [],
         localStorage: [],

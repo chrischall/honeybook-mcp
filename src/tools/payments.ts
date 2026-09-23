@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
-import { getActiveClient } from '../client.js';
+import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 
 type Raw = Record<string, unknown>;
@@ -20,7 +20,7 @@ export async function listPayments(args: { workspace_id: string; origin?: string
   const client = await getActiveClient(args.origin);
   const res = await client.request<{ workspace_files?: Raw[] } | null>(
     'GET',
-    `/api/v2/workspaces/${args.workspace_id}/payments`
+    apiPath`/api/v2/workspaces/${args.workspace_id}/payments`
   );
   // Totals are kept PER CURRENCY: each file names its own, and a workspace
   // can mix them, so one bare number would be in no currency at all.

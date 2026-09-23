@@ -251,6 +251,35 @@ describe('HoneyBookClient.request', () => {
     }
   });
 
+  it('reuses one duplicate-prevention uuid across the retries of one logical request', async () => {
+    // fleet-audit#136: a fresh uuid per retry defeats HoneyBook's own dedupe.
+    vi.useFakeTimers();
+    try {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('', { status: 429 }));
+      fetchSpy.mockResolvedValueOnce(
+        new Response('{"error":true,"error_type":"HBWrongAPIVersionError","error_data":{"server_api_version":9999}}', {
+          status: 400,
+        })
+      );
+      fetchSpy.mockResolvedValueOnce(
+        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+      );
+      const client = new HoneyBookClient(MOCK_SESSION, 2578);
+      const p = client.request('POST', '/api/v2/client_pending_task', { a: 1 });
+      await vi.advanceTimersByTimeAsync(2000);
+      await p;
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      const ids = fetchSpy.mock.calls.map(
+        (c) => (c[1]!.headers as Record<string, string>)['hb-api-duplicate-calls-prevention-uuid']
+      );
+      expect(ids[0]).toBeTruthy();
+      expect(new Set(ids).size).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('throws "Rate limited" after two consecutive 429s', async () => {
     vi.useFakeTimers();
     try {

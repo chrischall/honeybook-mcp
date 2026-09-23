@@ -68,7 +68,7 @@ import { bootstrap } from '@fetchproxy/bootstrap';
 import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
 import { parseBoolEnv } from '@chrischall/mcp-utils';
 import pkg from '../package.json' with { type: 'json' };
-import { sessionStore, normalizeOrigin } from './sessions.js';
+import { sessionStore, normalizeOrigin, vendorPortalSubdomain } from './sessions.js';
 import type { CapturedSession } from './types.js';
 
 /** True if the user has explicitly disabled the fetchproxy capture path. */
@@ -101,6 +101,8 @@ export interface CaptureOpts {
  * subsequent tool call without an explicit `origin` will use it.
  */
 export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<CapturedSession> {
+  // Refuse a foreign host before the bridge opens (fleet-audit#139).
+  const vendorSubdomain = vendorPortalSubdomain(opts.portalOrigin);
   if (fetchproxyDisabled()) {
     throw new Error(
       'HoneyBook auth: fetchproxy capture is disabled by HONEYBOOK_DISABLE_FETCHPROXY. ' +
@@ -129,6 +131,10 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       // know which tab to target.
       domains: ['honeybook.com', 'hbportal.co'],
       storageDomain: 'hbportal.co',
+      // Pin the read to the vendor's own tab. Without it the extension reads
+      // whichever hbportal.co tab is open, so vendor A's token could be
+      // stored under vendor B's origin (fleet-audit#139).
+      storageSubdomain: vendorSubdomain,
       declare: {
         cookies: [],
         // `HONEYBOOK_REACT_CURR_USER` is ~6.5KB of mostly unused user

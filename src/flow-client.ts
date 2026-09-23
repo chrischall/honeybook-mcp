@@ -31,6 +31,7 @@ import {
   hbApiRequest,
   isHoneyBookApiError,
   moduleState,
+  withHbTimeout,
   type HbApiCaller,
   type HbMethod,
   type HoneyBookApiError,
@@ -194,11 +195,15 @@ export async function fetchFlowMinimal(
   const suffix = query.size > 0 ? `?${query}` : '';
   const url = `${API_BASE}/api/v2/flow/${encodeURIComponent(flowId)}/minimal${suffix}`;
 
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json, text/plain, */*',
-      'hb-api-client-version': String(opts.apiVersion),
-    },
+  const { response, body } = await withHbTimeout(`GET /api/v2/flow/${flowId}/minimal`, async (signal) => {
+    const response = await fetch(url, {
+      signal,
+      headers: {
+        accept: 'application/json, text/plain, */*',
+        'hb-api-client-version': String(opts.apiVersion),
+      },
+    });
+    return { response, body: await response.text().catch(() => '') };
   });
   if (!response.ok) {
     // The body, and a cause keyed on the STATUS — not one blanket "HoneyBook is
@@ -207,7 +212,6 @@ export async function fetchFlowMinimal(
     // or was never there, and an HBWrongAPIVersionError is this package's
     // pinned `hb-api-client-version` having rotted, which is ours to fix and
     // nothing to do with HoneyBook being down.
-    const body = await response.text().catch(() => '');
     const detail = body.slice(0, 300);
     const cause =
       response.status === 404
@@ -221,7 +225,7 @@ export async function fetchFlowMinimal(
         (detail ? ` Response: ${detail}` : '')
     );
   }
-  return (await response.json()) as FlowMinimal;
+  return JSON.parse(body) as FlowMinimal;
 }
 
 /**
