@@ -1,4 +1,5 @@
-import type { HbMethod } from './client.js';
+import { throwIfCancelled } from '@chrischall/mcp-utils';
+import { cancellableDelay, type HbMethod } from './client.js';
 
 /**
  * HoneyBook's "client pending task" protocol.
@@ -105,8 +106,11 @@ export async function runClientPendingTask<T = unknown>(
 
   let lastState: number = PENDING_TASK_STATE.Pending;
   for (let poll = 0; poll < pendingTaskPolling.maxPolls; poll++) {
+    // A caller that has gone stops the polling (fleet-audit#137). The task
+    // itself is not cancelled — HoneyBook offers no cancel — only our wait.
+    throwIfCancelled();
     if (poll > 0 && pendingTaskPolling.intervalMs > 0) {
-      await new Promise<void>((r) => setTimeout(r, pendingTaskPolling.intervalMs));
+      await cancellableDelay(pendingTaskPolling.intervalMs);
     }
     const raw = await client.request<ClientPendingTask[] | ClientPendingTask | null>(
       'GET',

@@ -1,7 +1,7 @@
 import type { CapturedSession } from './types.js';
 import { sessionStore } from './sessions.js';
 import { flowStore } from './flows.js';
-import { readEnvVar, formatApiError } from '@chrischall/mcp-utils';
+import { readEnvVar, formatApiError, withAmbientCancellation, currentCallSignal } from '@chrischall/mcp-utils';
 
 export const API_BASE = 'https://api.honeybook.com';
 
@@ -9,11 +9,66 @@ export const API_BASE = 'https://api.honeybook.com';
 const clientCache = new Map<string, HoneyBookClient>();
 export const moduleState: { apiVersionPromise: Promise<number> | null } = { apiVersionPromise: null };
 
+/**
+ * Per-request bound on every HoneyBook fetch. Mutable so tests can shrink it.
+ *
+ * Without one a stalled api.honeybook.com connection hung the tool call until
+ * the client gave up — and because `getActiveClient` memoizes the `/api/gon`
+ * promise, a hung version fetch hung every later call in the process
+ * (fleet-audit#137).
+ */
+export const httpTimeouts = { requestMs: 30_000 };
+
+/**
+ * The signal for one HoneyBook fetch: the per-request timeout, combined with
+ * the running tool call's cancellation (made ambient by mcp-utils' tool
+ * wrapper) so a caller that goes away stops the request too.
+ */
+export function hbRequestSignal(): AbortSignal {
+  return withAmbientCancellation(AbortSignal.timeout(httpTimeouts.requestMs))!;
+}
+
+/**
+ * Run one fetch (and its body read) under {@link hbRequestSignal}, turning the
+ * timeout's bare `TimeoutError` into a message that says what happened. A
+ * caller's own cancellation propagates with its own reason.
+ */
+export async function withHbTimeout<T>(what: string, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const signal = hbRequestSignal();
+  try {
+    return await fn(signal);
+  } catch (err) {
+    if ((err as { name?: string } | null)?.name === 'TimeoutError' && !currentCallSignal()?.aborted) {
+      throw new Error(`HoneyBook did not respond within ${httpTimeouts.requestMs / 1000}s (${what}).`);
+    }
+    throw err;
+  }
+}
+
+/** A delay that ends early, rejecting, when the tool call is cancelled. */
+export function cancellableDelay(ms: number): Promise<void> {
+  const signal = currentCallSignal();
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal!.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 export async function fetchApiVersion(): Promise<number> {
   const override = readEnvVar('HONEYBOOK_API_VERSION');
   if (override) return Number(override);
-  const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`);
-  const text = await res.text();
+  const text = await withHbTimeout('GET /api/gon', async (signal) => {
+    const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`, { signal });
+    return res.text();
+  });
   const m = /"api_version":\s*(\d+)/.exec(text);
   if (!m) throw new Error(`Could not parse api_version from /api/gon response: ${text.slice(0, 200)}`);
   return Number(m[1]);
@@ -148,31 +203,39 @@ export async function hbApiRequest<T>(
   };
   if (body !== undefined) headers['content-type'] = 'application/json';
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  // The status and the body are read under one timeout, so a server that sends
+  // headers and then stalls mid-body cannot hang the call either.
+  const { status, ok, text } = await withHbTimeout(`${method} ${path}`, async (signal) => {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      signal,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    if (response.status === 401 || response.status === 429) {
+      return { status: response.status, ok: false, text: '' };
+    }
+    return { status: response.status, ok: response.ok, text: await response.text() };
   });
 
-  if (response.status === 401) throw caller.authExpiredError();
+  if (status === 401) throw caller.authExpiredError();
 
-  if (response.status === 429) {
+  if (status === 429) {
     if (!isRateRetry) {
-      await new Promise<void>((r) => setTimeout(r, 2000));
+      await cancellableDelay(2000);
       return hbApiRequest<T>(caller, method, path, body, isVersionRetry, true, dedupeId);
     }
     throw new Error('Rate limited by HoneyBook API');
   }
 
-  if (!response.ok) {
-    const text = await response.text();
+  if (!ok) {
     // A revoked or stale credential does NOT come back as 401 — the API answers
     // 404 with an HBUnauthorizedError body. Without this, an expired session
     // surfaced as an opaque "HoneyBook error 404" instead of the re-capture
     // instruction. Gate on the body so a genuinely missing resource stays a
     // plain 404. Verified live for the flow path too: an unauthenticated GET of
     // /api/v2/flow/<id>/active answers exactly this shape.
-    if (response.status === 404 && text.includes('HBUnauthorizedError')) {
+    if (status === 404 && text.includes('HBUnauthorizedError')) {
       throw caller.authExpiredError();
     }
     if (text.includes('HBWrongAPIVersionError') && !isVersionRetry) {
@@ -187,12 +250,11 @@ export async function hbApiRequest<T>(
       return hbApiRequest<T>(caller, method, path, body, true, isRateRetry, dedupeId);
     }
     throw new HoneyBookApiError(
-      formatApiError(response.status, method, path, text, { service: 'HoneyBook' }),
-      { status: response.status, method, path, body: text }
+      formatApiError(status, method, path, text, { service: 'HoneyBook' }),
+      { status, method, path, body: text }
     );
   }
 
-  const text = await response.text();
   return (text ? JSON.parse(text) : null) as T;
 }
 
