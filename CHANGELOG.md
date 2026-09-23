@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.3](https://github.com/chrischall/honeybook-mcp/compare/v1.1.2...v1.1.3) (2026-09-23)
+
+
+### Bug Fixes
+
+* **deps:** require zod ^4.6.5 to match @chrischall/mcp-utils 2.4.0 ([#233](https://github.com/chrischall/honeybook-mcp/issues/233)) ([b4af8e2](https://github.com/chrischall/honeybook-mcp/commit/b4af8e20dcc339c625b53ba42303d9745223f4d5))
+* **deps:** upgrade @chrischall/mcp-utils to 2.4.0 and @fetchproxy/* to 3.2.0 ([#231](https://github.com/chrischall/honeybook-mcp/issues/231)) ([520ec6a](https://github.com/chrischall/honeybook-mcp/commit/520ec6a4cf8f69e9a382203e22b2cf9b9edcb25e))
+
 ## [1.1.2](https://github.com/chrischall/honeybook-mcp/compare/v1.1.1...v1.1.2) (2026-09-21)
 
 
