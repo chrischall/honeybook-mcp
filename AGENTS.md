@@ -55,12 +55,12 @@ src/
                          filtering + heavy-field pruning to keep responses small)
     workspaces.ts        get_workspace
     payment_methods.ts   list_payment_methods
-    contracts.ts         sign_contract (deep-link fallback + confirm guard)
-    invoices.ts          pay_invoice (deep-link fallback + confirm guard)
+    contracts.ts         sign_contract (deep-link fallback + confirm-token gate)
+    invoices.ts          pay_invoice (deep-link fallback + confirm-token gate)
     projects.ts          list_projects (/client/events), get_project
                          (/events/<id>/details, trimmed of the vendor account blob)
-    messages.ts          list_messages, get_message, send_message (confirm
-                         guard + pending task), mark_messages_seen
+    messages.ts          list_messages, get_message, send_message (confirm-
+                         token gate + pending task), mark_messages_seen
     meetings.ts          list_meetings — folded out of feed calendar_item activity
     tasks.ts             list_tasks (/tasks/workspaces/<id> + /counts + /taskgroup)
     notes.ts             list_notes (/notes/workspace/<id>)
@@ -270,7 +270,15 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   combination to the expired-session error; other 404s stay plain API errors.
 - **Write tools return deep links** — `sign_contract` and `pay_invoice` produce
   portal URLs instead of signing/paying headlessly (browser-side device/SCA
-  handling cannot be replayed). Both require `confirm: true`.
+  handling cannot be replayed).
+- **Writes are gated by `requireConfirmationWithFallback`** (mcp-utils
+  `confirmationFromEnv`) — `sign_contract`, `pay_invoice`, `send_message`.
+  A client with elicitation gets a prompt; one without gets a preview plus a
+  `confirmToken` on the first call and acts only on a repeat call carrying it
+  (`MCP_CONFIRM_MODE`, README "Confirmations"). The file/feed read and every
+  refusal run BEFORE the gate on every call, and the token binds the resolved
+  portal origin plus the exact payload (for `send_message`, the task data and
+  recipient ids), so a change between the calls is refused as DRAFT_CHANGED.
 - **Per-vendor tools** take an optional `origin` arg. When only one session is
   active, it is inferred. With multiple, callers must pass `origin`.
 - **No Puppeteer in the bundle.** v0.2 replaced the embedded headless Chrome

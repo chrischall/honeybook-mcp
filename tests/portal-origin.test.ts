@@ -17,8 +17,10 @@ const { vendorPortalSubdomain, sessionStore } = await import('../src/sessions.js
 const { flowStore } = await import('../src/flows.js');
 const { useMagicLink } = await import('../src/tools/sessions.js');
 const clientModule = await import('../src/client.js');
-const { payInvoice } = await import('../src/tools/invoices.js');
-const { signContract } = await import('../src/tools/contracts.js');
+const { registerInvoiceTools } = await import('../src/tools/invoices.js');
+const { registerContractTools } = await import('../src/tools/contracts.js');
+const { createTestHarness } = await import('@chrischall/mcp-utils/test');
+const { callConfirmed, restoreConfirmEnv, textOf } = await import('./confirm-helpers.js');
 
 const BAD_ORIGINS = [
   'https://evil.example/x',
@@ -107,14 +109,30 @@ describe('deep links refuse a stored session on a foreign host', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  restoreConfirmEnv();
+
   it('pay_invoice', async () => {
-    await expect(payInvoice({ file_id: 'f1', confirm: true })).rejects.toThrow(/not a HoneyBook vendor portal/i);
+    const harness = await createTestHarness((server) => registerInvoiceTools(server));
+    try {
+      const { result } = await callConfirmed(harness, 'pay_invoice', { file_id: 'f1' });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toMatch(/not a HoneyBook vendor portal/i);
+    } finally {
+      await harness.close();
+    }
   });
 
   it('sign_contract', async () => {
     (await clientModule.getActiveClient()).request = vi
       .fn()
       .mockResolvedValue({ _id: 'f1', file_title: 'F', file_type: 'agreement' });
-    await expect(signContract({ file_id: 'f1', confirm: true })).rejects.toThrow(/not a HoneyBook vendor portal/i);
+    const harness = await createTestHarness((server) => registerContractTools(server));
+    try {
+      const { result } = await callConfirmed(harness, 'sign_contract', { file_id: 'f1' });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toMatch(/not a HoneyBook vendor portal/i);
+    } finally {
+      await harness.close();
+    }
   });
 });

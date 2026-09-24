@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as clientModule from '../src/client.js';
+import { createTestHarness, type TestHarness } from '@chrischall/mcp-utils/test';
 import {
   listMessages,
   getMessage,
-  sendMessage,
   markMessagesSeen,
   bodyToHtml,
+  registerMessageTools,
 } from '../src/tools/messages.js';
+import { bodyOf, callConfirmed, restoreConfirmEnv, textOf } from './confirm-helpers.js';
 import { htmlToText, scrubVendorSecrets, summarizeActivity } from '../src/feed.js';
 import { pendingTaskPolling } from '../src/pending-tasks.js';
 import { makeFeed, WORKSPACE_ID, VENDOR_ID, CLIENT_ID, ME_ID } from './fixtures/feed.js';
@@ -240,26 +242,49 @@ describe('messages tools', () => {
     });
   });
 
-  describe('sendMessage', () => {
-    it('previews without sending when confirm is missing', async () => {
+  describe('send_message', () => {
+    let harness: TestHarness;
+    restoreConfirmEnv();
+
+    beforeEach(async () => {
+      harness = await createTestHarness((server) => registerMessageTools(server));
+    });
+    afterEach(async () => {
+      await harness.close();
+    });
+
+    const posts = () => fakeClient.request.mock.calls.filter((c) => c[0] === 'POST');
+
+    it('phase 1 previews recipients, subject and body without sending', async () => {
       fakeClient.request.mockResolvedValueOnce(makeFeed());
-      const result = await sendMessage({ workspace_id: WORKSPACE_ID, subject: 'Question', body: 'Hi Ivy' });
-      const text = result.content[0].text as string;
-      expect(text).toContain('Question');
-      expect(text).toContain('Ivy Honeycutt');
-      expect(text).toMatch(/confirm.*true/);
+      const out = bodyOf(
+        await harness.callTool('send_message', { workspace_id: WORKSPACE_ID, subject: 'Question', body: 'Hi Ivy' })
+      );
+      expect(out.status).toBe('confirmation-required');
+      expect(out.dispatched).toBe(false);
+      expect(out.confirmToken).toEqual(expect.any(String));
+      expect(out.preview).toMatchObject({
+        workspace_id: WORKSPACE_ID,
+        subject: 'Question',
+        reply_to: null,
+        body: 'Hi Ivy',
+      });
+      expect(out.preview.to).toEqual(expect.arrayContaining(['Ivy Honeycutt <ivy@example.com>']));
       expect(fakeClient.request).toHaveBeenCalledTimes(1);
       expect(fakeClient.request.mock.calls[0][0]).toBe('GET');
     });
 
     it('requires a subject on a new (non-reply) message', async () => {
       fakeClient.request.mockResolvedValueOnce(makeFeed());
-      await expect(sendMessage({ workspace_id: WORKSPACE_ID, body: 'Hi', confirm: true })).rejects.toThrow(/subject/i);
+      const res = await harness.callTool('send_message', { workspace_id: WORKSPACE_ID, body: 'Hi' });
+      expect(res.isError).toBe(true);
+      expect(textOf(res)).toMatch(/subject/i);
     });
 
-    it('creates a send_workspace_message pending task and polls it to Finished', async () => {
+    it('phase 2 creates a send_workspace_message pending task exactly once and polls it to Finished', async () => {
       fakeClient.request
-        .mockResolvedValueOnce(makeFeed()) // GET feed
+        .mockResolvedValueOnce(makeFeed()) // phase 1: GET feed
+        .mockResolvedValueOnce(makeFeed()) // phase 2: GET feed (fresh read)
         .mockResolvedValueOnce({ task_id: 'task1' }) // POST client_pending_task
         .mockResolvedValueOnce([{ _id: 'task1', pending_task_state_cd: 1 }]) // Started
         .mockResolvedValueOnce([
@@ -269,13 +294,17 @@ describe('messages tools', () => {
             pending_task_result: { workspaces: { result: { failed: false, send_results: [{ success: true }] } } },
           },
         ]);
-      const out = parse(
-        await sendMessage({ workspace_id: WORKSPACE_ID, subject: 'Question', body: 'Hi Ivy,\nQuick one.', confirm: true })
-      );
+      const { result } = await callConfirmed(harness, 'send_message', {
+        workspace_id: WORKSPACE_ID,
+        subject: 'Question',
+        body: 'Hi Ivy,\nQuick one.',
+      });
+      const out = bodyOf(result);
       expect(out.status).toBe('sent');
       expect(out.task_id).toBe('task1');
 
-      const post = fakeClient.request.mock.calls[1];
+      expect(posts()).toHaveLength(1);
+      const post = fakeClient.request.mock.calls[2];
       expect(post[0]).toBe('POST');
       expect(post[1]).toBe('/api/v2/client_pending_task');
       expect(post[2]).toEqual({
@@ -290,8 +319,79 @@ describe('messages tools', () => {
           flow_attachments: [],
         },
       });
-      expect(fakeClient.request.mock.calls[2]).toEqual(['GET', '/api/v2/client_pending_tasks?task_ids[]=task1']);
-      expect(fakeClient.request).toHaveBeenCalledTimes(4);
+      expect(fakeClient.request.mock.calls[3]).toEqual(['GET', '/api/v2/client_pending_tasks?task_ids[]=task1']);
+      expect(fakeClient.request).toHaveBeenCalledTimes(5);
+    });
+
+    it('refuses a token when the body changed between the phases (DRAFT_CHANGED) and sends nothing', async () => {
+      fakeClient.request.mockResolvedValue(makeFeed());
+      const phase1 = bodyOf(
+        await harness.callTool('send_message', { workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi' })
+      );
+      const res = await harness.callTool('send_message', {
+        workspace_id: WORKSPACE_ID,
+        subject: 'Q',
+        body: 'Hi — and also wire me the deposit',
+        confirmToken: phase1.confirmToken,
+      });
+      expect(res.isError).toBe(true);
+      expect(bodyOf(res).error).toBe('DRAFT_CHANGED');
+      expect(posts()).toHaveLength(0);
+    });
+
+    it('refuses a token when the recipients changed between the phases (DRAFT_CHANGED)', async () => {
+      fakeClient.request.mockResolvedValueOnce(makeFeed());
+      const phase1 = bodyOf(
+        await harness.callTool('send_message', { workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi' })
+      );
+      const grown = makeFeed() as any;
+      grown.feed.feed_users.newcomer = { full_name: 'New Person', email: 'new@example.com' };
+      fakeClient.request.mockResolvedValueOnce(grown);
+      const res = await harness.callTool('send_message', {
+        workspace_id: WORKSPACE_ID,
+        subject: 'Q',
+        body: 'Hi',
+        confirmToken: phase1.confirmToken,
+      });
+      expect(bodyOf(res).error).toBe('DRAFT_CHANGED');
+      expect(posts()).toHaveLength(0);
+    });
+
+    it('MCP_CONFIRM_MODE=refuse refuses and sends nothing', async () => {
+      process.env.MCP_CONFIRM_MODE = 'refuse';
+      fakeClient.request.mockResolvedValue(makeFeed());
+      const res = await harness.callTool('send_message', { workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi' });
+      expect(bodyOf(res)).toMatchObject({ reason: 'confirmation-unsupported', dispatched: false });
+      expect(posts()).toHaveLength(0);
+    });
+
+    it('sends on an accepted elicitation and not on a declined one', async () => {
+      fakeClient.request.mockImplementation(async (method: string, path: string) => {
+        if (method === 'POST') return { task_id: 'task_e' };
+        if (path.startsWith('/api/v2/client_pending_tasks')) {
+          return [{ _id: 'task_e', pending_task_state_cd: 2, pending_task_result: {} }];
+        }
+        return makeFeed();
+      });
+      const declined = await createTestHarness((server) => registerMessageTools(server), {
+        elicitation: async () => ({ action: 'decline' }),
+      });
+      try {
+        await declined.callTool('send_message', { workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi' });
+        expect(posts()).toHaveLength(0);
+      } finally {
+        await declined.close();
+      }
+      const accepted = await createTestHarness((server) => registerMessageTools(server), {
+        elicitation: async () => ({ action: 'accept', content: { confirmed: true } }),
+      });
+      try {
+        const res = await accepted.callTool('send_message', { workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi' });
+        expect(bodyOf(res).status).toBe('sent');
+        expect(posts()).toHaveLength(1);
+      } finally {
+        await accepted.close();
+      }
     });
 
     it('on a poll timeout returns a pending result with the task id instead of an error (fleet-audit#136)', async () => {
@@ -299,19 +399,23 @@ describe('messages tools', () => {
       try {
         fakeClient.request
           .mockResolvedValueOnce(makeFeed())
+          .mockResolvedValueOnce(makeFeed())
           .mockResolvedValueOnce({ task_id: 'task_slow' })
           .mockResolvedValue([{ _id: 'task_slow', pending_task_state_cd: 1 }]);
-        const res = await sendMessage({ workspace_id: WORKSPACE_ID, subject: 'Q', body: 'Hi', confirm: true });
-        expect((res as { isError?: boolean }).isError).toBeFalsy();
-        const out = parse(res);
+        const { result: res } = await callConfirmed(harness, 'send_message', {
+          workspace_id: WORKSPACE_ID,
+          subject: 'Q',
+          body: 'Hi',
+        });
+        expect(res.isError).toBeFalsy();
+        const out = bodyOf(res);
         expect(out.status).toBe('pending');
         expect(out.task_id).toBe('task_slow');
         expect(out.warning).toMatch(/may still be delivered/i);
         expect(out.warning).toMatch(/list_messages/);
         expect(out.warning).toMatch(/before resending/i);
         // No second task was created.
-        const posts = fakeClient.request.mock.calls.filter((c) => c[0] === 'POST');
-        expect(posts).toHaveLength(1);
+        expect(posts()).toHaveLength(1);
       } finally {
         pendingTaskPolling.maxPolls = 60;
       }
@@ -320,37 +424,48 @@ describe('messages tools', () => {
     it('replies to an existing message: inherits its subject and sets feed_to_reply_id', async () => {
       fakeClient.request
         .mockResolvedValueOnce(makeFeed())
+        .mockResolvedValueOnce(makeFeed())
         .mockResolvedValueOnce({ task_id: 'task2' })
         .mockResolvedValueOnce([{ _id: 'task2', pending_task_state_cd: 2, pending_task_result: {} }]);
-      const out = parse(
-        await sendMessage({ workspace_id: WORKSPACE_ID, body: 'Thanks!', reply_to_message_id: 'item_email_checklist', confirm: true })
-      );
-      expect(out.status).toBe('sent');
-      const body = fakeClient.request.mock.calls[1][2] as any;
+      const { preview, result } = await callConfirmed(harness, 'send_message', {
+        workspace_id: WORKSPACE_ID,
+        body: 'Thanks!',
+        reply_to_message_id: 'item_email_checklist',
+      });
+      expect(preview.preview.subject).toBe('1 - 2 months Checklist');
+      expect(preview.preview.reply_to).toBe('item_email_checklist');
+      expect(bodyOf(result).status).toBe('sent');
+      const body = fakeClient.request.mock.calls[2][2] as any;
       expect(body.task_data.subject).toBe('1 - 2 months Checklist');
       expect(body.task_data.feed_to_reply_id).toBe('item_email_checklist');
     });
 
     it('rejects a reply to an id that is not in the feed', async () => {
       fakeClient.request.mockResolvedValueOnce(makeFeed());
-      await expect(
-        sendMessage({ workspace_id: WORKSPACE_ID, body: 'x', reply_to_message_id: 'ghost', confirm: true })
-      ).rejects.toThrow(/ghost/);
+      const res = await harness.callTool('send_message', {
+        workspace_id: WORKSPACE_ID,
+        body: 'x',
+        reply_to_message_id: 'ghost',
+      });
+      expect(res.isError).toBe(true);
+      expect(textOf(res)).toMatch(/ghost/);
       expect(fakeClient.request).toHaveBeenCalledTimes(1);
     });
 
     it('surfaces an aborted task with the server error message', async () => {
       fakeClient.request
         .mockResolvedValueOnce(makeFeed())
+        .mockResolvedValueOnce(makeFeed())
         .mockResolvedValueOnce({ task_id: 'task3' })
         .mockResolvedValueOnce([{ _id: 'task3', pending_task_state_cd: 3, pending_task_error_message: 'Recipient bounced' }]);
-      await expect(
-        sendMessage({ workspace_id: WORKSPACE_ID, subject: 's', body: 'x', confirm: true })
-      ).rejects.toThrow(/Recipient bounced/);
+      const { result } = await callConfirmed(harness, 'send_message', { workspace_id: WORKSPACE_ID, subject: 's', body: 'x' });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toMatch(/Recipient bounced/);
     });
 
     it('surfaces per-recipient failures reported inside a Finished result', async () => {
       fakeClient.request
+        .mockResolvedValueOnce(makeFeed())
         .mockResolvedValueOnce(makeFeed())
         .mockResolvedValueOnce({ task_id: 'task4' })
         .mockResolvedValueOnce([
@@ -362,9 +477,9 @@ describe('messages tools', () => {
             },
           },
         ]);
-      await expect(
-        sendMessage({ workspace_id: WORKSPACE_ID, subject: 's', body: 'x', confirm: true })
-      ).rejects.toThrow(/invalid email/);
+      const { result } = await callConfirmed(harness, 'send_message', { workspace_id: WORKSPACE_ID, subject: 's', body: 'x' });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toMatch(/invalid email/);
     });
   });
 
