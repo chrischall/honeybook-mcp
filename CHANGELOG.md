@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/chrischall/honeybook-mcp/compare/v1.2.0...v1.2.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 17.4.2 to 18.0.2 in the production-majors group ([#240](https://github.com/chrischall/honeybook-mcp/issues/240)) ([9934992](https://github.com/chrischall/honeybook-mcp/commit/9934992130483b1b5c9ef257fceb4651e80ff06b))
+* **payment-methods:** return only card-on-file fields from list_payment_methods ([#242](https://github.com/chrischall/honeybook-mcp/issues/242)) ([7399df7](https://github.com/chrischall/honeybook-mcp/commit/7399df7975a971401ed13b6a1fbce9560e3b74be))
+
 ## [1.2.0](https://github.com/chrischall/honeybook-mcp/compare/v1.1.4...v1.2.0) (2026-09-24)
 
 
