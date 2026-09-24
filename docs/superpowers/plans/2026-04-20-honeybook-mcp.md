@@ -1,5 +1,7 @@
 # honeybook-mcp Implementation Plan
 
+> **Historical plan.** The `confirm: true` guard it describes for `sign_contract` / `pay_invoice` has since been replaced by the confirm-token pattern (an elicitation prompt, or a preview + `confirmToken` on a client without one) — see README "Confirmations". The code below is kept as written at the time.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build an MCP server that lets Claude read HoneyBook client-portal contracts and invoices (and, where reachable, sign/pay them) across multiple connected vendors.

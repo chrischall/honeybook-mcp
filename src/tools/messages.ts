@@ -1,6 +1,12 @@
-import { McpServer } from '@modelcontextprotocol/server';
+import type { InputRequiredResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { minifiedResult, rawTextResult, schemaConfirm, schemaOrigin } from '@chrischall/mcp-utils';
+import {
+  confirmationFromEnv,
+  confirmTokenParam,
+  minifiedResult,
+  requireConfirmationWithFallback,
+  schemaOrigin,
+} from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import {
   fetchWorkspaceFeed,
@@ -128,14 +134,17 @@ interface SendResult {
   workspaces?: { result?: { failed?: boolean; send_results?: Array<Record<string, unknown>> } };
 }
 
-export async function sendMessage(args: {
-  workspace_id: string;
-  body: string;
-  subject?: string;
-  reply_to_message_id?: string;
-  origin?: string;
-  confirm?: boolean;
-}): Promise<ToolResult> {
+export async function sendMessage(
+  args: {
+    workspace_id: string;
+    body: string;
+    subject?: string;
+    reply_to_message_id?: string;
+    origin?: string;
+    confirmToken?: string;
+  },
+  ctx: ServerContext
+): Promise<ToolResult | InputRequiredResult> {
   const client = await getActiveClient(args.origin);
   const meId = client.scope.userId;
   const feed = await fetchWorkspaceFeed(client, args.workspace_id);
@@ -160,17 +169,7 @@ export async function sendMessage(args: {
   if (!args.body.trim()) throw new Error('The message body is empty.');
 
   const recipients = Object.values(feed.users).filter((u) => u._id !== meId);
-  const recipientLine = recipients.map((u) => `${u.name}${u.email ? ` <${u.email}>` : ''}`).join(', ');
-
-  if (!args.confirm) {
-    return rawTextResult(
-      `About to send a message in workspace ${args.workspace_id} via the HoneyBook portal.\n` +
-        `To: ${recipientLine || '(everyone in the workspace)'}\n` +
-        `Subject: ${subject}${replyTo ? ` (reply to "${String(replyTo._id)}")` : ''}\n\n` +
-        `${args.body}\n\n` +
-        `Re-run send_message with { confirm: true } to send it.`
-    );
-  }
+  const to = recipients.map((u) => `${u.name}${u.email ? ` <${u.email}>` : ''}`);
 
   const taskData: Record<string, unknown> = {
     ws_id: args.workspace_id,
@@ -182,6 +181,34 @@ export async function sendMessage(args: {
     flow_attachments: [],
   };
   if (replyTo) taskData.feed_to_reply_id = replyTo._id;
+
+  const preview = {
+    workspace_id: args.workspace_id,
+    via: 'HoneyBook portal',
+    to: to.length ? to : ['(everyone in the workspace)'],
+    subject,
+    reply_to: replyTo ? replyTo._id : null,
+    body: args.body,
+  };
+  const gate = await requireConfirmationWithFallback(
+    ctx,
+    confirmationFromEnv({
+      action: 'message.send',
+      message: 'Review and confirm sending this message:',
+      details: preview,
+      tool: 'send_message',
+      account: client.scope.portalOrigin,
+      confirmToken: args.confirmToken,
+      subject: () => ({
+        target: args.workspace_id,
+        // What goes out, and who HoneyBook emails it to: a membership change
+        // between the two calls changes the recipients, so it must be re-approved.
+        payload: { task: taskData, recipients: recipients.map((u) => u._id) },
+        preview,
+      }),
+    })
+  );
+  if (gate) return gate;
 
   let outcome;
   try {
@@ -283,7 +310,8 @@ export function registerMessageTools(server: McpServer): void {
       description:
         'Send a message to the vendor (and the other members of the workspace) through the HoneyBook portal, ' +
         'exactly as the Activity tab composer does. HoneyBook emails it to every recipient. ' +
-        'Pass reply_to_message_id to reply in-thread (the subject is inherited). Requires confirm:true. ' +
+        'Pass reply_to_message_id to reply in-thread (the subject is inherited). ' +
+        'Asks the user to confirm first: a confirmation prompt where the client supports one; otherwise the first call returns a preview and a confirmToken, and only a repeat call with that token proceeds (see MCP_CONFIRM_MODE). ' +
         'If HoneyBook has not finished sending within about a minute the result has status "pending" and a ' +
         'task_id: the message may still be delivered, so check list_messages before resending.',
       inputSchema: z.object({
@@ -297,9 +325,7 @@ export function registerMessageTools(server: McpServer): void {
           .optional()
           .describe('A message _id from list_messages to reply to.'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
-        confirm: schemaConfirm.describe(
-          'Must be true to actually send. Without it the tool returns a preview of what would go out.'
-        ),
+        confirmToken: confirmTokenParam,
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     },

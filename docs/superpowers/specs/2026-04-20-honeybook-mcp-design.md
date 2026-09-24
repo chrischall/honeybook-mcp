@@ -140,7 +140,7 @@ Tools that touch per-vendor state take a required `vendor` argument (slug from `
 
 ### Confirmation semantics for destructive tools
 
-`sign_contract` and `pay_invoice` require an explicit boolean argument `confirm: true` in the input schema. If `confirm` is missing or false, the tool returns a structured preview (what would be signed/paid) without hitting the write endpoint. This is a belt-and-suspenders layer on top of the `destructiveHint` annotation Claude already uses for user confirmation UX.
+*(Superseded: the original `confirm: true` argument has been replaced by the confirm-token pattern.)* `sign_contract`, `pay_invoice` and `send_message` ask the user to confirm before acting: an MCP elicitation prompt where the client supports one; otherwise the first call returns a structured preview (what would be signed/paid/sent) plus a `confirmToken` without acting, and only a repeat call with that token proceeds (`MCP_CONFIRM_MODE`, see README "Confirmations"). This is a belt-and-suspenders layer on top of the `destructiveHint` annotation.
 
 ### Fallback when a write endpoint can't be reproduced cleanly
 
@@ -174,7 +174,7 @@ Four-place version sync (package.json / package-lock.json / src/index.ts / manif
 - Tokens stored in `.env` (or plaintext manifest env) only; never logged, never echoed in error messages.
 - Puppeteer profile stored under `~/.honeybook-mcp/chrome-profile`, chmod 700.
 - `hb-api-fingerprint` is a FingerprintJS signal intended to detect non-browser automation. Our use is a direct reuse of a real captured fingerprint, not a forgery, so this is on par with how the `zola-mcp` approach reuses iOS-app session tokens. If HoneyBook rotates fingerprint validity, users re-run `npm run auth`.
-- Write tools (`sign_contract`, `pay_invoice`) carry `destructiveHint: true` AND require explicit `confirm: true` argument.
+- Write tools (`sign_contract`, `pay_invoice`) carry `destructiveHint: true` AND ask the user to confirm (elicitation prompt, or preview + `confirmToken`).
 
 ## Risks & open questions
 

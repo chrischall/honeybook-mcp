@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { ServerContext } from '@modelcontextprotocol/server';
 import * as clientModule from '../src/client.js';
 import { apiPath, HoneyBookClient } from '../src/client.js';
 import { markMessagesSeen, listMessages } from '../src/tools/messages.js';
@@ -18,6 +19,9 @@ import { listMeetings } from '../src/tools/meetings.js';
 // api.honeybook.com endpoint under the user's token.
 const EVIL = 'x/../../users/me/something?';
 const EVIL_ENC = encodeURIComponent(EVIL);
+// The file read (and its id encoding) happens before the confirmation gate, so
+// these cases never reach anything that would read the request context.
+const NO_CTX = {} as ServerContext;
 
 describe('apiPath', () => {
   it('encodes every interpolated segment', () => {
@@ -77,8 +81,8 @@ describe('tools encode ids into their request paths', () => {
     ['list_tasks', () => listTasks({ workspace_id: EVIL }), `/api/v2/tasks/workspaces/${EVIL_ENC}?`],
     ['get_workspace', () => getWorkspace({ workspace_id: EVIL }), `/api/v2/workspaces/${EVIL_ENC}`],
     ['get_workspace_file', () => getWorkspaceFile({ file_id: EVIL }), `/api/v2/workspace_files/${EVIL_ENC}`],
-    ['sign_contract', () => signContract({ file_id: EVIL }), `/api/v2/workspace_files/${EVIL_ENC}`],
-    ['pay_invoice', () => payInvoice({ file_id: EVIL }), `/api/v2/workspace_files/${EVIL_ENC}`],
+    ['sign_contract', () => signContract({ file_id: EVIL }, NO_CTX), `/api/v2/workspace_files/${EVIL_ENC}`],
+    ['pay_invoice', () => payInvoice({ file_id: EVIL }, NO_CTX), `/api/v2/workspace_files/${EVIL_ENC}`],
     ['get_project', () => getProject({ project_id: EVIL }), `/api/v2/events/${EVIL_ENC}/details`],
   ];
 

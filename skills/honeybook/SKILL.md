@@ -17,13 +17,13 @@ MCP server for HoneyBook's client portal — contracts, invoices, questionnaires
 - `get_workspace_file(file_id, section?)` — Full detail for one file. Takes `section`, **not** `view` — see below
 - `get_workspace` — Workspace detail + status flags
 - `list_payment_methods` — Saved payment methods
-- `sign_contract` — Deep link to sign in portal (requires `confirm:true`)
-- `pay_invoice` — Deep link to pay in portal (requires `confirm:true`)
+- `sign_contract` — Deep link to sign in portal (asks the user to confirm first)
+- `pay_invoice` — Deep link to pay in portal (asks the user to confirm first)
 - `list_projects` — Your projects (HoneyBook "events") with a vendor, each with the `workspace_id` the tools below take
 - `get_project(project_id, view?)` — Project details: date, time, location, guests, custom fields, people (name/email/phone/role)
 - `list_messages` — Messages in a workspace (`kind=activity` for the activity log, `kind=all` for both): compact cards, newest first; never marks anything seen
 - `get_message` — One message in full (`format=text` default, or `html`) with attachments and delivery status
-- `send_message` — Send a new message (`subject` + `body`) or reply (`reply_to_message_id`, subject inherited) through the portal; requires `confirm:true`
+- `send_message` — Send a new message (`subject` + `body`) or reply (`reply_to_message_id`, subject inherited) through the portal; asks the user to confirm first
 - `mark_messages_seen` — Mark feed items seen, the way opening the Activity tab does
 - `list_meetings` — Meetings the vendor scheduled (consultations, Zoom calls): time, join link, password; rescheduled meetings show their latest time
 - `list_tasks` — Tasks assigned to you with today/this-week/overdue counts and task groups
@@ -96,10 +96,10 @@ shape legible.
 - **"Fill in / read the vendor's questionnaire"** → user pastes the `/flow/<id>?hash=…` link → `use_flow_link` → `get_flow`
 - **"What contracts haven't I signed?"** → `list_workspace_files` with `file_type=agreement`, filter by `is_file_accepted=false`
 - **"Summarize my HB status with Silk Veil"** → `get_workspace` (status flags) + `list_workspace_files`
-- **"Send me a link to sign the photographer's contract"** → `list_workspace_files` → `sign_contract` with `confirm:true`
+- **"Send me a link to sign the photographer's contract"** → `list_workspace_files` → `sign_contract` (confirm when prompted)
 - **"Which invoices are overdue?"** → `list_workspace_files` with `file_type=invoice`, sort by due date
 - **"What did the planner send me?" / "Read me the latest checklist"** → `list_projects` → `list_messages` → `get_message`
-- **"Reply to Ivy and ask about the rehearsal"** → `list_messages` (find the message) → `send_message` with `reply_to_message_id` and no `confirm` (preview) → re-run with `confirm:true`
+- **"Reply to Ivy and ask about the rehearsal"** → `list_messages` (find the message) → `send_message` with `reply_to_message_id` → show the user the preview → once they approve, re-run with the same arguments plus the returned `confirmToken` (on a client that shows a confirmation prompt, the prompt replaces these two steps)
 - **"When is my next Zoom with the planner?"** → `list_meetings`; the join link and password are in the row
 - **"What have I paid and what's left?"** → `list_payments` (`totals.paid` / `totals.unpaid`); to pay one, `pay_invoice`
 - **"Do I have anything to do?"** → `list_tasks` (`counts.overdue`, `counts.today`)
@@ -112,5 +112,5 @@ shape legible.
 - The flow storage key contains the flow id, so the fetchproxy extension asks to re-approve the scope once per new questionnaire
 - Write tools (`sign_contract`, `pay_invoice`) return deep links in v2
 - Session expires → re-run `use_magic_link` with a fresh URL from the vendor's email
-- `send_message` goes out as a real HoneyBook email to everyone in the workspace (the vendor and any co-clients). Always show the preview (no `confirm`) before sending
+- `send_message` goes out as a real HoneyBook email to everyone in the workspace (the vendor and any co-clients). Always show the user the preview and get their explicit approval before passing the `confirmToken` back — never reuse or invent a token
 - `list_messages` / `get_message` read the same feed the Activity tab renders and do not mark items seen; `unseen_count` counts messages from other people you have not opened

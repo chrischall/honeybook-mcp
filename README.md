@@ -76,7 +76,7 @@ Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_deskt
 }
 ```
 
-No environment variables are required.
+No environment variables are required. The optional ones below tune how writes are confirmed — see [Confirmations](#confirmations).
 
 ## Sessions
 
@@ -134,13 +134,13 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 | `get_workspace_file`   | Full detail for one file                                  | Auto       |
 | `get_workspace`        | Workspace detail + status flags                           | Auto       |
 | `list_payment_methods` | Saved payment methods                                     | Auto       |
-| `sign_contract`        | Deep link to sign in portal (requires `confirm:true`)     | Confirm    |
-| `pay_invoice`          | Deep link to pay in portal (requires `confirm:true`)      | Confirm    |
+| `sign_contract`        | Deep link to sign in portal (after you confirm)           | Confirm    |
+| `pay_invoice`          | Deep link to pay in portal (after you confirm)            | Confirm    |
 | `list_projects`        | Your projects with a vendor + their workspace ids         | Auto       |
 | `get_project`          | Project details: date, location, people, custom fields    | Auto       |
 | `list_messages`        | Messages (or the activity log) in a workspace, newest first | Auto     |
 | `get_message`          | One message in full: body, attachments, delivery status   | Auto       |
-| `send_message`         | Send or reply through the portal (requires `confirm:true`) | Confirm   |
+| `send_message`         | Send or reply through the portal (after you confirm)      | Confirm    |
 | `mark_messages_seen`   | Mark feed items seen (reads never do this on their own)   | Auto       |
 | `list_meetings`        | Scheduled meetings with join links, latest time wins      | Auto       |
 | `list_tasks`           | Tasks the vendor assigned you, with counts                | Auto       |
@@ -151,7 +151,17 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 `send_message` is the one tool that acts on your behalf: it creates the same
 `send_workspace_message` job the portal's Activity composer creates and waits
 for HoneyBook to finish it, so the vendor receives a normal HoneyBook email.
-Without `confirm:true` it only previews the recipients, subject and body.
+Until you confirm it only previews the recipients, subject and body — see [Confirmations](#confirmations).
+
+## Confirmations
+
+`sign_contract`, `pay_invoice` and `send_message` ask you to confirm before they act. A client that can show an MCP confirmation prompt (Claude Code) shows one. On a client that cannot (claude.ai, Claude Desktop), the first call does nothing and returns a preview plus a `confirmToken`; only a repeat call with the same arguments and that token proceeds. A token works once, and is refused if anything it covers changed between the two calls (the file's title, the message body, the workspace's recipients).
+
+| variable | default | |
+|---|---|---|
+| `MCP_CONFIRM_MODE` | `ask-user` | What a write does on a client that cannot show a confirmation prompt (claude.ai, Claude Desktop). `ask-user`: two steps — the first call does nothing and returns a preview plus a token, and the model must get your approval in chat before calling again with it. `auto`: the same two steps, but the model may use the token after reviewing the preview itself. `refuse`: writes are refused on such clients. A client that can show prompts (Claude Code) always gets the real prompt. An unrecognised value is treated as `refuse`. |
+| `MCP_CONFIRM_TTL_SECONDS` | `600` | How long a token stays valid. |
+| `MCP_CONFIRM_SECRET` | random per process | Signing key; set it only if tokens must survive a server restart. |
 
 ## Troubleshooting
 
@@ -188,7 +198,7 @@ Nothing else changes: existing sessions in `~/.honeybook-mcp/sessions.json` keep
 
 - Sessions are captured locally — auth tokens never leave your machine
 - `~/.honeybook-mcp/sessions.json` is written with mode 0600; directory with mode 0700
-- Write tools (`sign_contract`, `pay_invoice`) require `confirm:true` and return portal deep links rather than signing/paying headlessly
+- Write tools (`sign_contract`, `pay_invoice`, `send_message`) ask you to confirm first (see [Confirmations](#confirmations)); `sign_contract` and `pay_invoice` return portal deep links rather than signing/paying headlessly
 
 ## Development
 
