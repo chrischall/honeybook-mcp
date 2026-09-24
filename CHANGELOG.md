@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/chrischall/honeybook-mcp/compare/v1.1.4...v1.2.0) (2026-09-24)
+
+
+### Features
+
+* confirm writes with a preview token instead of confirm: true ([6901340](https://github.com/chrischall/honeybook-mcp/commit/69013408e3b294c8849966a2844457b25587c7af))
+
 ## [1.1.4](https://github.com/chrischall/honeybook-mcp/compare/v1.1.3...v1.1.4) (2026-09-23)
 
 
