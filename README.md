@@ -133,7 +133,7 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 | `list_workspace_files` | Files from one vendor; filter by type                     | Auto       |
 | `get_workspace_file`   | Full detail for one file                                  | Auto       |
 | `get_workspace`        | Workspace detail + status flags                           | Auto       |
-| `list_payment_methods` | Saved payment methods                                     | Auto       |
+| `list_payment_methods` | Saved payment methods (brand, last 4, expiry)             | Auto       |
 | `sign_contract`        | Deep link to sign in portal (after you confirm)           | Confirm    |
 | `pay_invoice`          | Deep link to pay in portal (after you confirm)            | Confirm    |
 | `list_projects`        | Your projects with a vendor + their workspace ids         | Auto       |
