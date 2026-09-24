@@ -54,7 +54,9 @@ src/
     workspace_files.ts   list_workspace_files, get_workspace_file (+ section
                          filtering + heavy-field pruning to keep responses small)
     workspaces.ts        get_workspace
-    payment_methods.ts   list_payment_methods
+    payment_methods.ts   list_payment_methods (compact = id/type/brand/last4/
+                         expiry/default; billing name+address and Stripe refs
+                         only under view:'raw')
     contracts.ts         sign_contract (deep-link fallback + confirm-token gate)
     invoices.ts          pay_invoice (deep-link fallback + confirm-token gate)
     projects.ts          list_projects (/client/events), get_project
@@ -297,8 +299,8 @@ publishes to npm with provenance, and pushes to the MCP Registry.
 - **Heavy-field pruning**: `workspace_files.ts#pruneWorkspaceFile` strips
   vendor-side fields like `vendor_emails` (observed ~1.3 MB on a single real
   proposal) by default. Pass `section: 'raw'` to keep them.
-- **Two response-shape parameters, on purpose.** `get_project` and `get_flow`
-  take the fleet's `view` (`compact` | `raw` — no `full`, because `raw` already
+- **Two response-shape parameters, on purpose.** `get_project`, `get_flow` and
+  `list_payment_methods` take the fleet's `view` (`compact` | `raw` — no `full`, because `raw` already
   IS every field we received). `get_workspace_file` keeps `section`
   (`summary|pricing|agreement|payments|all|raw`) because it asks a strictly
   larger question: which PART of a proposal-class record to expand — line
