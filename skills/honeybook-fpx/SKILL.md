@@ -47,11 +47,13 @@ fpx pair -p honeybook            # prints a pair code → approve in ContextMint
 
 Requirements: the **ContextMint Bridge** browser extension installed
 ([releases](https://github.com/nullnet-app/contextmint-bridge/releases):
-Chrome loads the chrome zip unpacked; Safari ships it inside the ContextMint
-app), its Chrome **Site access** allowing both `honeybook.com` and
+Chrome loads the chrome zip unpacked; Safari isn't available yet, so use
+Chrome for now), its Chrome **Site access** allowing both `honeybook.com` and
 `hbportal.co`, and a vendor magic-link URL already open (signed in) in that
 browser. Pairing persists — after the first approval every later `fpx` call
 reuses it.
+
+ContextMint Bridge is the fetchproxy extension renamed, same maintainer (see [fetchproxy#extension](https://github.com/chrischall/fetchproxy#extension)); source at [nullnet-app/contextmint-bridge](https://github.com/nullnet-app/contextmint-bridge) — build it yourself or verify a release zip with `shasum -a 256 -c contextmint-bridge-chrome-<version>.zip.sha256`.
 
 ## Capture a vendor session (once per vendor, and again when it expires)
 

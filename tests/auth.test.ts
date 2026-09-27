@@ -398,10 +398,30 @@ describe('captureSessionViaFetchproxy', () => {
       }).catch((e) => e);
       // We own this prefix:
       expect((err as Error).message).toMatch(
-        /HoneyBook auth: fetchproxy bridge is down/
+        /HoneyBook auth: ContextMint Bridge is down/
       );
-      // Library owns its hint copy — just confirm it's present, don't lock on exact text:
+      // Library owns its hint copy — confirm it's present:
       expect((err as Error).message).toContain(downErr.hint);
+      expect((err as Error).message).toMatch(
+        /ContextMint Bridge's service worker is not responding/
+      );
+      expect((err as Error).message).not.toMatch(/fetchproxy (bridge|extension)/);
+    });
+
+    // mcp-utils 2.8: a request for a capability the MCP never declared is an
+    // MCP bug, not the user's browser or pairing — say so, and don't tell the
+    // user to open the link and retry.
+    it('blames the MCP, not the browser, when a capability is denied', async () => {
+      bootstrapMock.mockRejectedValue(new Error('capability local_storage not granted'));
+
+      const err = (await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      }).catch((e) => e)) as Error;
+
+      expect(err.message).toMatch(/^HoneyBook auth: /);
+      expect(err.message).toMatch(/This is a bug in the MCP/);
+      expect(err.message).toMatch(/capability local_storage not granted/);
+      expect(err.message).not.toMatch(/then retry/);
     });
   });
 

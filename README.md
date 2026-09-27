@@ -28,7 +28,7 @@ Ask Claude things like:
 - [Claude Desktop](https://claude.ai/download) or [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Node.js](https://nodejs.org) 22 or later
 - Magic-link emails from the wedding vendors that use HoneyBook
-- [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases) browser extension — in Chrome, download the chrome zip from the releases page and load it unpacked (`chrome://extensions` → Developer mode → Load unpacked); in Safari it ships inside the ContextMint app. Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
+- [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases) browser extension — in Chrome, download the chrome zip from the releases page and load it unpacked (`chrome://extensions` → Developer mode → Load unpacked). Safari isn't available yet (it will ship inside the ContextMint app, which has no public download), so use Chrome for now. Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
 
 ## Acknowledgement of Terms
 
@@ -84,7 +84,8 @@ HoneyBook has no public client-portal API. This MCP reuses the same auth state y
 
 **One-time setup:**
 
-1. Install ContextMint Bridge from its [releases page](https://github.com/nullnet-app/contextmint-bridge/releases): in Chrome, load the chrome zip unpacked; in Safari, it ships inside the ContextMint app.
+1. Install ContextMint Bridge from its [releases page](https://github.com/nullnet-app/contextmint-bridge/releases): in Chrome, load the chrome zip unpacked. Safari isn't available yet (it will ship inside the ContextMint app, which has no public download) — use Chrome for now.
+   ContextMint Bridge is the fetchproxy browser extension under its new name, from the same maintainer — fetchproxy's own README ([fetchproxy#extension](https://github.com/chrischall/fetchproxy#extension)) points to it. Its source is public at [nullnet-app/contextmint-bridge](https://github.com/nullnet-app/contextmint-bridge): build it yourself, or check a release zip against the `.sha256` file published beside it (`shasum -a 256 -c contextmint-bridge-chrome-<version>.zip.sha256`).
 2. Click each vendor's magic link in your normal browser. That signs you into their `*.hbportal.co` portal.
 
 **Per-vendor activation:**

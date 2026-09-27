@@ -98,13 +98,18 @@ export async function captureFlowCredentialViaFetchproxy(
     const bridgeError = bridgeErrorInfo(e);
     if (bridgeError.type === 'bridge_down') {
       throw new Error(
-        `HoneyBook flow auth: fetchproxy bridge is down (extension service worker unreachable after retry). ${bridgeError.hint ?? ''}`.trimEnd()
+        `HoneyBook flow auth: ContextMint Bridge is down (its service worker was unreachable after retry). ${bridgeError.hint ?? ''}`.trimEnd()
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
     // The paired browser lacks a capability we declared; the message carries the remedy.
-    if (isBrowserCapabilityGap(e)) {
+    if (bridgeError.type === 'capability_unavailable' || isBrowserCapabilityGap(e)) {
       throw new Error(`HoneyBook flow auth: ${msg}`);
+    }
+    // We asked for a capability we never declared — our bug, not the user's
+    // browser or pairing, so retrying the link would not help.
+    if (bridgeError.type === 'capability_denied') {
+      throw new Error(`HoneyBook flow auth: ${bridgeError.hint} (${bridgeError.message})`);
     }
     // Match on the class NAME rather than `instanceof` so a duplicated
     // @fetchproxy/server copy in the dependency tree cannot defeat the check —
