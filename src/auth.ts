@@ -92,7 +92,7 @@ export interface CaptureOpts {
  * browser tab via `@fetchproxy/bootstrap`. Persists the result through
  * `sessionStore` and returns it.
  *
- * Preconditions: the user has the ContextMint Bridge Chrome / Safari
+ * Preconditions: the user has the ContextMint Bridge Chrome
  * extension installed and is signed into the vendor's HoneyBook portal
  * (typically by clicking the magic link in their vendor email). If
  * either is missing, this throws with an actionable error message.
@@ -193,13 +193,18 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
     const bridgeError = bridgeErrorInfo(e);
     if (bridgeError.type === 'bridge_down') {
       throw new Error(
-        `HoneyBook auth: fetchproxy bridge is down (extension service worker unreachable after retry). ${bridgeError.hint ?? ''}`.trimEnd()
+        `HoneyBook auth: ContextMint Bridge is down (its service worker was unreachable after retry). ${bridgeError.hint ?? ''}`.trimEnd()
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
     // The paired browser lacks a capability we declared; the message carries the remedy.
-    if (isBrowserCapabilityGap(e)) {
+    if (bridgeError.type === 'capability_unavailable' || isBrowserCapabilityGap(e)) {
       throw new Error(`HoneyBook auth: ${msg}`);
+    }
+    // We asked for a capability we never declared — our bug, not the user's
+    // browser or pairing, so retrying the link would not help.
+    if (bridgeError.type === 'capability_denied') {
+      throw new Error(`HoneyBook auth: ${bridgeError.hint} (${bridgeError.message})`);
     }
     // The extension gates on the scope approved at pair time, so widening the
     // declaration — as the HONEYBOOK_REACT_CURR_USER migration did — is refused

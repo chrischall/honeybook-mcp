@@ -202,6 +202,32 @@ describe('captureFlowCredentialViaFetchproxy', () => {
     expect(e.message).not.toMatch(/then retry/);
   });
 
+  it('blames the MCP, not the browser, when a capability is denied', async () => {
+    bootstrapMock.mockRejectedValue(new Error('capability local_storage not granted'));
+    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
+      (x: unknown) => x as Error
+    );
+    expect(e.message).toMatch(/^HoneyBook flow auth: /);
+    expect(e.message).toMatch(/This is a bug in the MCP/);
+    expect(e.message).not.toMatch(/then retry/);
+  });
+
+  it('names ContextMint Bridge when the bridge is down', async () => {
+    const { FetchproxyBridgeDownError } = await import('@chrischall/mcp-utils/fetchproxy');
+    const downErr = new FetchproxyBridgeDownError({
+      originalError: 'ws closed before pong',
+      retryAttempted: true,
+      op: 'fetch',
+    });
+    bootstrapMock.mockRejectedValue(downErr);
+    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
+      (x: unknown) => x as Error
+    );
+    expect(e.message).toMatch(/^HoneyBook flow auth: ContextMint Bridge is down/);
+    expect(e.message).toMatch(/ContextMint Bridge's service worker is not responding/);
+    expect(e.message).not.toMatch(/fetchproxy (bridge|extension)/);
+  });
+
   it('refuses when fetchproxy capture is disabled', async () => {
     process.env.HONEYBOOK_DISABLE_FETCHPROXY = '1';
     await expect(
