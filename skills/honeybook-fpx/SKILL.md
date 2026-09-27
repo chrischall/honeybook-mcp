@@ -42,18 +42,21 @@ fpx profile add honeybook --domain honeybook.com --domain hbportal.co
 fpx profile declare honeybook \
   --local-storage HONEYBOOK_REACT_CURR_USER \
   --local-storage jStorage
-fpx pair -p honeybook            # prints a pair code → approve in Transporter
+fpx pair -p honeybook            # prints a pair code → approve in ContextMint Bridge
 ```
 
-Requirements: the **Transporter** browser extension installed, its Chrome
-**Site access** allowing both `honeybook.com` and `hbportal.co`, and a vendor
-magic-link URL already open (signed in) in that browser. Pairing persists —
-after the first approval every later `fpx` call reuses it.
+Requirements: the **ContextMint Bridge** browser extension installed
+([releases](https://github.com/nullnet-app/contextmint-bridge/releases):
+Chrome loads the chrome zip unpacked; Safari ships it inside the ContextMint
+app), its Chrome **Site access** allowing both `honeybook.com` and
+`hbportal.co`, and a vendor magic-link URL already open (signed in) in that
+browser. Pairing persists — after the first approval every later `fpx` call
+reuses it.
 
 ## Capture a vendor session (once per vendor, and again when it expires)
 
 1. Click the vendor's HoneyBook magic-link email in the browser with
-   Transporter installed. This signs you into `<vendor>.hbportal.co`.
+   ContextMint Bridge installed. This signs you into `<vendor>.hbportal.co`.
 2. **While that tab is open**, run:
 
 ```sh

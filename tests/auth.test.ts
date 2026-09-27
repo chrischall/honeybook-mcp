@@ -335,6 +335,47 @@ describe('captureSessionViaFetchproxy', () => {
       expect(err.message).not.toMatch(/open the vendor magic-link URL/);
     });
 
+    // fetchproxy 3.3: a browser that lacks the API a capability needs (Safari
+    // without a given WebExtension API) is typed separately from a scope bug.
+    // It is the browser's limitation, not the MCP's or the pairing's — so the
+    // library's "use a browser that provides it" remedy must survive, and our
+    // generic "open the link and retry" suffix must not be appended.
+    it('blames the browser, not the MCP, when a capability is unavailable', async () => {
+      const { FetchproxyCapabilityUnavailableError } = await import('@fetchproxy/server');
+      const capErr = new FetchproxyCapabilityUnavailableError(
+        new Error('capability_unavailable'),
+        { capability: 'local_storage', platform: 'safari' }
+      );
+      bootstrapMock.mockRejectedValue(capErr);
+
+      const err = (await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      }).catch((e) => e)) as Error;
+
+      expect(err.message).toMatch(/HoneyBook auth/);
+      expect(err.message).toContain(capErr.hint);
+      expect(err.message).toMatch(/this browser \(safari\)/);
+      expect(err.message).not.toMatch(/then retry/);
+    });
+
+    it('blames the browser when the hello is refused for unsupported capabilities', async () => {
+      const { FetchproxyHelloRejectedError } = await import('@fetchproxy/server');
+      const helloErr = new FetchproxyHelloRejectedError({
+        mcpId: 'honeybook-mcp',
+        reason: 'unsupported-capability: local_storage (not available in this browser)',
+        platform: 'safari',
+      });
+      bootstrapMock.mockRejectedValue(helloErr);
+
+      const err = (await captureSessionViaFetchproxy({
+        portalOrigin: 'https://x.hbportal.co',
+      }).catch((e) => e)) as Error;
+
+      expect(err.message).toMatch(/HoneyBook auth/);
+      expect(err.message).toMatch(/cannot serve/);
+      expect(err.message).not.toMatch(/then retry/);
+    });
+
     it('handles non-Error rejections from bootstrap()', async () => {
       bootstrapMock.mockRejectedValue('plain string failure');
 

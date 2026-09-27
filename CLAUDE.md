@@ -75,8 +75,9 @@ Each tool module exports a `register*Tools(server)` function called from `src/in
 ## Auth flow
 
 No env vars required for HoneyBook itself. Sessions are captured at runtime
-via the [fetchproxy browser extension](https://github.com/chrischall/fetchproxy)
-(installed once per browser, Chrome Web Store / Safari .dmg). The MCP exercises
+via the [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases)
+browser extension (installed once per browser; Chrome: load the release's chrome
+zip unpacked; Safari: ships inside the ContextMint app). The MCP exercises
 a single capability: `read_local_storage`.
 
 1. User clicks a vendor's HoneyBook magic-link in their real Chrome (extension
@@ -255,7 +256,7 @@ publishes to npm with provenance, and pushes to the MCP Registry.
 - **Changing `declare` in `auth.ts` is a BREAKING change for existing users.**
   The extension approves a scope at pair time, so any new/renamed storage key
   is refused (`keys not in declared set`) until the user revokes this MCP in
-  the Transporter popup and re-approves. 0.4.5 did exactly that — see
+  the ContextMint Bridge popup and re-approves. 0.4.5 did exactly that — see
   "Upgrading from 0.4.4 or earlier" in README.md. Ship a scope change with an
   upgrade note, and test it by revoking and re-pairing, not just by running a
   capture on an already-approved machine.
@@ -288,7 +289,7 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   binary, no lazy install, and no `vendor/` directory to manage.
 - **`use_magic_link` does NOT navigate to the URL.** The arg is used only to
   derive the portalOrigin. The user must already have the link open in their
-  signed-in Chrome (with the fetchproxy extension) before calling the tool.
+  signed-in Chrome (with the ContextMint Bridge extension) before calling the tool.
 - **API version auto-refresh**: on `HBWrongAPIVersionError`, `client.request`
   re-reads the version from the error body (or `/api/gon`) and retries once.
 - **Rate limiting**: 429 responses trigger a single 2-second retry before
