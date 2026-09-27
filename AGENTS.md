@@ -75,7 +75,8 @@ Each tool module exports a `register*Tools(server)` function called from `src/in
 No env vars required for HoneyBook itself. Sessions are captured at runtime
 via the [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases)
 browser extension (installed once per browser; Chrome: load the release's chrome
-zip unpacked; Safari: ships inside the ContextMint app). The MCP exercises
+zip unpacked. Safari isn't available yet — it will ship inside the ContextMint
+app, which has no public download — so use Chrome for now). The MCP exercises
 a single capability: `read_local_storage`.
 
 1. User clicks a vendor's HoneyBook magic-link in their real Chrome (extension
