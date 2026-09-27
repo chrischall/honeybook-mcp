@@ -186,6 +186,22 @@ describe('captureFlowCredentialViaFetchproxy', () => {
     expect(e.message).not.toMatch(/then retry/);
   });
 
+  it('blames the browser when the hello is refused for unsupported capabilities', async () => {
+    const { FetchproxyHelloRejectedError } = await import('@fetchproxy/server');
+    const helloErr = new FetchproxyHelloRejectedError({
+      mcpId: 'honeybook-mcp',
+      reason: 'unsupported-capability: local_storage (not available in this browser)',
+      platform: 'safari',
+    });
+    bootstrapMock.mockRejectedValue(helloErr);
+    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
+      (x: unknown) => x as Error
+    );
+    expect(e.message).toMatch(/HoneyBook flow auth/);
+    expect(e.message).toMatch(/cannot serve/);
+    expect(e.message).not.toMatch(/then retry/);
+  });
+
   it('refuses when fetchproxy capture is disabled', async () => {
     process.env.HONEYBOOK_DISABLE_FETCHPROXY = '1';
     await expect(
