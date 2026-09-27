@@ -109,7 +109,7 @@ shape legible.
 - Each vendor = separate session keyed by portal origin (e.g. `https://acme.hbportal.co`)
 - Sessions cached in `~/.honeybook-mcp/sessions.json` (mode 0600)
 - **Two credential kinds, not interchangeable.** A portal session reads workspaces/files/invoices; a flow credential is HoneyBook's "weak auth", scoped to ONE questionnaire, cached separately in `~/.honeybook-mcp/flows.json`. A portal tool refuses a flow credential by name rather than failing upstream
-- The flow storage key contains the flow id, so the fetchproxy extension asks to re-approve the scope once per new questionnaire
+- The flow storage key contains the flow id, so the ContextMint Bridge extension asks to re-approve the scope once per new questionnaire
 - Write tools (`sign_contract`, `pay_invoice`) return deep links in v2
 - Session expires → re-run `use_magic_link` with a fresh URL from the vendor's email
 - `send_message` goes out as a real HoneyBook email to everyone in the workspace (the vendor and any co-clients). Always show the user the preview and get their explicit approval before passing the `confirmToken` back — never reuse or invent a token

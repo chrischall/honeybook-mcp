@@ -11,7 +11,7 @@ import type { CapturedFlowCredential, ToolResult } from '../types.js';
  *
  * The link is used only to derive the flow id and the auth hash; nothing here
  * navigates to it. As with `use_magic_link`, the user must already have opened
- * it in the browser holding the fetchproxy extension.
+ * it in the browser holding the ContextMint Bridge extension.
  */
 export async function useFlowLink(args: { flow_link_url: string }): Promise<ToolResult> {
   const credential = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: args.flow_link_url });
@@ -140,7 +140,7 @@ export function registerFlowTools(server: McpServer): void {
     'use_flow_link',
     {
       description:
-        "Capture a HoneyBook QUESTIONNAIRE (flow) credential via the fetchproxy browser extension. Use this for a link shaped https://<vendor>.hbportal.co/flow/<flowId>?hash=… — for a client-portal link (/app/link/resolve/…) use `use_magic_link` instead. Prerequisites: install the fetchproxy extension, open the questionnaire link in that browser and let the page render, then run this tool. It snapshots localStorage[\"HONEYBOOK_REACT_WEAK_AUTH_<flowId>\"] into ~/.honeybook-mcp/flows.json. A flow credential is HoneyBook's 'weak auth': it is scoped to that ONE questionnaire and cannot read portal workspaces, files, invoices or payment methods. Because the storage key contains the flow id, the extension asks you to re-approve the scope once per new questionnaire.",
+        "Capture a HoneyBook QUESTIONNAIRE (flow) credential via the ContextMint Bridge browser extension. Use this for a link shaped https://<vendor>.hbportal.co/flow/<flowId>?hash=… — for a client-portal link (/app/link/resolve/…) use `use_magic_link` instead. Prerequisites: install the ContextMint Bridge extension, open the questionnaire link in that browser and let the page render, then run this tool. It snapshots localStorage[\"HONEYBOOK_REACT_WEAK_AUTH_<flowId>\"] into ~/.honeybook-mcp/flows.json. A flow credential is HoneyBook's 'weak auth': it is scoped to that ONE questionnaire and cannot read portal workspaces, files, invoices or payment methods. Because the storage key contains the flow id, the extension asks you to re-approve the scope once per new questionnaire.",
       inputSchema: z.object({
         flow_link_url: z
           .string()

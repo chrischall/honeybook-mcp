@@ -12,13 +12,14 @@
 // first time it happens: the declared scope contains the flow id, so it is a
 // NEW key for every new flow, and the extension gates on the scope approved at
 // pair time. The first capture of each flow therefore needs a re-approval in
-// the Transporter popup. That is the extension doing its job — consent is per
+// the ContextMint Bridge popup. That is the extension doing its job — consent is per
 // key, and this key is per questionnaire — so the refusal is surfaced with
 // that explanation rather than the generic "open the link in Chrome" copy.
 
 import { bootstrap } from '@fetchproxy/bootstrap';
 import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
 import { parseBoolEnv } from '@chrischall/mcp-utils';
+import { isBrowserCapabilityGap } from './bridge-errors.js';
 import pkg from '../package.json' with { type: 'json' };
 import { flowStorageKey, flowStore, parseFlowLink } from './flows.js';
 import { vendorPortalSubdomain } from './sessions.js';
@@ -38,7 +39,7 @@ function fetchproxyDisabled(): boolean {
  * Capture a flow credential from the user's signed-in questionnaire tab and
  * persist it to `~/.honeybook-mcp/flows.json`, keyed by flow id.
  *
- * Preconditions: the fetchproxy extension is installed and the questionnaire
+ * Preconditions: the ContextMint Bridge extension is installed and the questionnaire
  * link has been opened in that browser (the page writes the weak-auth record
  * on load). The link itself is never navigated to from here.
  */
@@ -101,6 +102,10 @@ export async function captureFlowCredentialViaFetchproxy(
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
+    // The paired browser lacks a capability we declared; the message carries the remedy.
+    if (isBrowserCapabilityGap(e)) {
+      throw new Error(`HoneyBook flow auth: ${msg}`);
+    }
     // Match on the class NAME rather than `instanceof` so a duplicated
     // @fetchproxy/server copy in the dependency tree cannot defeat the check —
     // same reasoning as `auth.ts`.
@@ -115,7 +120,7 @@ export async function captureFlowCredentialViaFetchproxy(
       //
       // Ordering is the whole point and is easy to get wrong. `msg` is the
       // upstream FetchproxyScopeError, and it ends with its OWN remedy —
-      // "Revoke this MCP in the Transporter extension popup, then re-run".
+      // "Revoke this MCP in the ContextMint Bridge extension popup, then re-run".
       // Interpolating it first (as this did when the Grant advice was added)
       // puts "Revoke" ahead of "Grant" no matter what we append, so a reader
       // still does the expensive thing. It therefore goes at the END, behind an
@@ -125,7 +130,7 @@ export async function captureFlowCredentialViaFetchproxy(
         'HoneyBook flow auth: the extension is refusing a scope this questionnaire needs ' +
           `("${storageKey}"). The declared scope names ONE key per flow, so each new ` +
           'questionnaire is approved once — and it is one click, not a re-pair: open the ' +
-          'Transporter popup, where honeybook-mcp should be offering to "expand its access" ' +
+          'ContextMint Bridge popup, where honeybook-mcp should be offering to "expand its access" ' +
           'with this key, and press Grant. Then re-run this tool. That keeps the existing ' +
           'pairing.\n\n' +
           'Revoking and re-pairing also works — it is what the underlying error suggests — but ' +
@@ -137,13 +142,13 @@ export async function captureFlowCredentialViaFetchproxy(
       throw new Error(
         'HoneyBook flow auth: fetchproxy capture timed out. The extension never returned ' +
           `"${storageKey}", which usually means the questionnaire is not open and loaded in ` +
-          'that browser. Open the /flow/ link in Chrome (with the fetchproxy extension ' +
+          'that browser. Open the /flow/ link in Chrome (with the ContextMint Bridge extension ' +
           'installed), let the questionnaire render, then re-run use_flow_link.'
       );
     }
     throw new Error(
       `HoneyBook flow auth: fetchproxy capture failed: ${msg} — ` +
-        'open the questionnaire link in Chrome (with the fetchproxy extension installed), ' +
+        'open the questionnaire link in Chrome (with the ContextMint Bridge extension installed), ' +
         'then retry.'
     );
   }

@@ -143,15 +143,16 @@ describe('captureFlowCredentialViaFetchproxy', () => {
   // one-click path FIRST or people do the slow one — which is exactly what
   // happened in a real session.
   it('offers Grant before revoke when the extension refuses the scope', async () => {
-    // The REAL upstream text, verbatim from a live capture against Transporter
-    // 2.3.0. It ends with its own "Revoke this MCP …" remedy, and that is the
+    // The REAL upstream text, verbatim from @fetchproxy/server 3.4's
+    // FetchproxyScopeError (ContextMint Bridge wording). It ends with its own "Revoke this MCP …" remedy, and that is the
     // whole difficulty: a mock without the word passes the ordering assertion
     // while production still reads "Revoke" first.
     const err = Object.assign(
       new Error(
         'localStorage keys not in declared set: X — the declared scope changed since you ' +
-          'paired, so the extension is refusing the request. Revoke this MCP in the Transporter ' +
-          'extension popup, then re-run — you will be asked to approve the new scope.'
+          'paired, so the extension is refusing the request. Revoke this MCP in the ContextMint ' +
+          'Bridge extension popup, then re-run — you will be asked to approve the new scope. ' +
+          'This is not a version problem and does not need an update.'
       ),
       { name: 'FetchproxyScopeError' }
     );
@@ -168,6 +169,21 @@ describe('captureFlowCredentialViaFetchproxy', () => {
     const revokeAt = e.message.search(/revok/i);
     expect(revokeAt).toBeGreaterThan(-1);
     expect(grantAt).toBeLessThan(revokeAt);
+  });
+
+  it('blames the browser, not the MCP, when a capability is unavailable', async () => {
+    const { FetchproxyCapabilityUnavailableError } = await import('@fetchproxy/server');
+    const capErr = new FetchproxyCapabilityUnavailableError(
+      new Error('capability_unavailable'),
+      { capability: 'local_storage', platform: 'safari' }
+    );
+    bootstrapMock.mockRejectedValue(capErr);
+    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
+      (x: unknown) => x as Error
+    );
+    expect(e.message).toMatch(/HoneyBook flow auth/);
+    expect(e.message).toContain(capErr.hint);
+    expect(e.message).not.toMatch(/then retry/);
   });
 
   it('refuses when fetchproxy capture is disabled', async () => {

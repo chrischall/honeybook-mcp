@@ -28,13 +28,13 @@ Ask Claude things like:
 - [Claude Desktop](https://claude.ai/download) or [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Node.js](https://nodejs.org) 22 or later
 - Magic-link emails from the wedding vendors that use HoneyBook
-- [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy) — installed in Chrome (Web Store) or Safari (.dmg). Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
+- [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases) browser extension — in Chrome, download the chrome zip from the releases page and load it unpacked (`chrome://extensions` → Developer mode → Load unpacked); in Safari it ships inside the ContextMint app. Used by `use_magic_link` to snapshot the session out of your signed-in vendor portal tab.
 
 ## Acknowledgement of Terms
 
 By using this MCP server, you acknowledge and agree to the following:
 
-**1. This server accesses your own HoneyBook workspace.** Every request is dispatched through your own signed-in browser session via the fetchproxy extension. It does not — and cannot — access anyone else's workspace.
+**1. This server accesses your own HoneyBook workspace.** Every request is dispatched through your own signed-in browser session via the ContextMint Bridge extension. It does not — and cannot — access anyone else's workspace.
 
 **2. [HoneyBook's Terms of Service](https://www.honeybook.com/legal/terms-of-service) govern your use of this server**, just as they govern your direct use of honeybook.com. The clauses most relevant here:
 
@@ -80,17 +80,17 @@ No environment variables are required. The optional ones below tune how writes a
 
 ## Sessions
 
-HoneyBook has no public client-portal API. This MCP reuses the same auth state your browser has after clicking a vendor's magic link, via the [fetchproxy 0.3.0 browser extension](https://github.com/chrischall/fetchproxy).
+HoneyBook has no public client-portal API. This MCP reuses the same auth state your browser has after clicking a vendor's magic link, via the [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases) browser extension.
 
 **One-time setup:**
 
-1. Install the fetchproxy 0.3.0 extension in Chrome (Web Store) or Safari (.dmg).
+1. Install ContextMint Bridge from its [releases page](https://github.com/nullnet-app/contextmint-bridge/releases): in Chrome, load the chrome zip unpacked; in Safari, it ships inside the ContextMint app.
 2. Click each vendor's magic link in your normal browser. That signs you into their `*.hbportal.co` portal.
 
 **Per-vendor activation:**
 
 1. Make sure the vendor's portal tab is open (the magic link from their email).
-2. In Claude, call `use_magic_link` with the magic-link URL — the tool asks the fetchproxy extension to snapshot the auth fields out of the page's `localStorage["HONEYBOOK_REACT_CURR_USER"]`, then closes the bridge. The tab only has to be open and signed in; nothing is read off a live request. No headless browser is spawned.
+2. In Claude, call `use_magic_link` with the magic-link URL — the tool asks the ContextMint Bridge extension to snapshot the auth fields out of the page's `localStorage["HONEYBOOK_REACT_CURR_USER"]`, then closes the bridge. The tab only has to be open and signed in; nothing is read off a live request. No headless browser is spawned.
 3. All other tools use the most-recently-activated session by default. Pass `origin` explicitly when multiple vendors are active.
 
 Sessions are stored in memory and persisted to `~/.honeybook-mcp/sessions.json` (mode 0600) so they survive MCP restarts. Re-run `use_magic_link` when a session expires.
@@ -172,9 +172,10 @@ Until you confirm it only previews the recipients, subject and body — see [Con
 - **"no auth hash for flow …"** — the link you passed had lost its `?hash=` parameter (the page rewrites the URL after it loads). Re-copy the original link out of the vendor email.
 - **"HoneyBook error 400 … NOT an auth failure"** on `get_flow` — a required input was missing, not your credential. Usually a pinned `HONEYBOOK_API_VERSION` that has gone stale: unset it so the live value is read from `/api/gon`. Re-running `use_flow_link` will not help.
 - **"no context id for flow …"** — HoneyBook's public `/minimal` route did not return the vendor company id the questionnaire read needs. Also not a credential problem.
-- **"fetchproxy capture failed"** — install the [fetchproxy 0.3.0 extension](https://github.com/chrischall/fetchproxy), then open the vendor's magic link in that browser.
+- **"fetchproxy capture failed"** — install [ContextMint Bridge](https://github.com/nullnet-app/contextmint-bridge/releases), then open the vendor's magic link in that browser.
 - **"fetchproxy capture timed out"** — the extension found no signed-in portal tab to read. Open the vendor's magic link, confirm the portal page has loaded, then retry.
-- **"no confirmed browser session"** — the extension is connected but has not approved this MCP. Open the Transporter popup and approve the pair code it shows, then retry.
+- **"no confirmed browser session"** — the extension is connected but has not approved this MCP. Open the ContextMint Bridge popup and approve the pair code it shows, then retry.
+- **"this browser … cannot serve the … capability"** — the browser you paired lacks an API the capture needs. Nothing is wrong with the MCP or your pairing, and retrying or re-approving will not help: run it from a browser that provides the API (for example Chrome).
 - **"localStorage keys not in declared set"** — the MCP now reads a storage key your existing pairing doesn't cover. See [Upgrading from 0.4.4 or earlier](#upgrading-from-044-or-earlier). Retrying will not help, and this is not a version problem.
 
 ## Upgrading from 0.4.4 or earlier
@@ -187,7 +188,7 @@ localStorage keys not in declared set: HONEYBOOK_REACT_CURR_USER
 
 To fix it, once:
 
-1. Open the **Transporter** extension popup.
+1. Open the **ContextMint Bridge** extension popup.
 2. **Revoke** `honeybook-mcp`.
 3. Re-run `use_magic_link` — a fresh pair code appears.
 4. Approve it in the popup. You are approving the new scope.

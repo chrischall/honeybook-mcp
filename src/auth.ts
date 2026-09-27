@@ -19,7 +19,7 @@
 //
 //   2. fetchproxy bootstrap (this module).
 //      The user has signed into their vendor portal via a magic link in
-//      their real Chrome (the fetchproxy 0.3.0 extension is installed).
+//      their real Chrome (the ContextMint Bridge extension is installed).
 //      We call `@fetchproxy/bootstrap` once to read the auth fields out
 //      of localStorage["HONEYBOOK_REACT_CURR_USER"], then close the
 //      bridge and operate from Node thereafter.
@@ -67,6 +67,7 @@
 import { bootstrap } from '@fetchproxy/bootstrap';
 import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
 import { parseBoolEnv } from '@chrischall/mcp-utils';
+import { isBrowserCapabilityGap } from './bridge-errors.js';
 import pkg from '../package.json' with { type: 'json' };
 import { sessionStore, normalizeOrigin, vendorPortalSubdomain } from './sessions.js';
 import type { CapturedSession } from './types.js';
@@ -91,7 +92,7 @@ export interface CaptureOpts {
  * browser tab via `@fetchproxy/bootstrap`. Persists the result through
  * `sessionStore` and returns it.
  *
- * Preconditions: the user has the fetchproxy 0.3.0 Chrome / Safari
+ * Preconditions: the user has the ContextMint Bridge Chrome / Safari
  * extension installed and is signed into the vendor's HoneyBook portal
  * (typically by clicking the magic link in their vendor email). If
  * either is missing, this throws with an actionable error message.
@@ -196,6 +197,10 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
+    // The paired browser lacks a capability we declared; the message carries the remedy.
+    if (isBrowserCapabilityGap(e)) {
+      throw new Error(`HoneyBook auth: ${msg}`);
+    }
     // The extension gates on the scope approved at pair time, so widening the
     // declaration — as the HONEYBOOK_REACT_CURR_USER migration did — is refused
     // until the user re-approves. Every user paired before that upgrade hits
@@ -218,13 +223,13 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
       throw new Error(
         'HoneyBook auth: fetchproxy capture timed out. The extension never returned the vendor ' +
           "portal's stored session, which usually means no tab is open and signed in on that portal. " +
-          'Open the vendor magic-link URL in Chrome (with the fetchproxy extension installed), confirm ' +
+          'Open the vendor magic-link URL in Chrome (with the ContextMint Bridge extension installed), confirm ' +
           'the portal page has loaded, then re-run use_magic_link.'
       );
     }
     throw new Error(
       `HoneyBook auth: fetchproxy capture failed: ${msg} — ` +
-        'open the vendor magic-link URL in Chrome (with the fetchproxy 0.3.0 extension installed), ' +
+        'open the vendor magic-link URL in Chrome (with the ContextMint Bridge extension installed), ' +
         'then retry.'
     );
   }
