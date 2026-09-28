@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.2](https://github.com/chrischall/honeybook-mcp/compare/v1.2.1...v1.2.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 4 updates ([#244](https://github.com/chrischall/honeybook-mcp/issues/244)) ([de62060](https://github.com/chrischall/honeybook-mcp/commit/de62060b40a6b9a96ee0e3e13fd5e2ec3e42c87b))
+* **deps:** move to [@fetchproxy](https://github.com/fetchproxy) 3.4 for ContextMint Bridge errors, capability subsets and managed pins ([#246](https://github.com/chrischall/honeybook-mcp/issues/246)) ([66d5207](https://github.com/chrischall/honeybook-mcp/commit/66d5207b62adf2b5ffa99dd137e8dba228d6dcde))
+* **deps:** move to @chrischall/mcp-utils 2.8 and [@fetchproxy](https://github.com/fetchproxy) 3.4.1 for clearer browser-bridge errors ([#249](https://github.com/chrischall/honeybook-mcp/issues/249)) ([deed9bc](https://github.com/chrischall/honeybook-mcp/commit/deed9bc3d9ea8b1ce82b0fcfd07a1df8fb8bf395))
+
+
+### Documentation
+
+* **agents:** say Safari isn't available yet in CLAUDE.md and AGENTS.md ([#251](https://github.com/chrischall/honeybook-mcp/issues/251)) ([95902d7](https://github.com/chrischall/honeybook-mcp/commit/95902d75931b1b470b9e87e20194fc2c7279653f))
+
 ## [1.2.1](https://github.com/chrischall/honeybook-mcp/compare/v1.2.0...v1.2.1) (2026-09-24)
 
 
