@@ -1,7 +1,14 @@
 import type { CapturedSession } from './types.js';
 import { sessionStore } from './sessions.js';
 import { flowStore } from './flows.js';
-import { readEnvVar, formatApiError, withAmbientCancellation, currentCallSignal } from '@chrischall/mcp-utils';
+import {
+  readEnvVar,
+  formatApiError,
+  withAmbientCancellation,
+  currentCallSignal,
+  detectEdgeBlock,
+  EdgeBlockedError,
+} from '@chrischall/mcp-utils';
 
 export const API_BASE = 'https://api.honeybook.com';
 
@@ -67,7 +74,9 @@ export async function fetchApiVersion(): Promise<number> {
   if (override) return Number(override);
   const text = await withHbTimeout('GET /api/gon', async (signal) => {
     const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`, { signal });
-    return res.text();
+    const body = await res.text();
+    throwIfEdgeBlocked(res.status, body, res.headers, 'GET', '/api/gon');
+    return body;
   });
   const m = /"api_version":\s*(\d+)/.exec(text);
   if (!m) throw new Error(`Could not parse api_version from /api/gon response: ${text.slice(0, 200)}`);
@@ -155,6 +164,25 @@ export function isHoneyBookApiError(err: unknown): err is HoneyBookApiError {
 }
 
 /**
+ * Throw {@link EdgeBlockedError} when an unsuccessful response is a CDN/WAF
+ * refusal page rather than HoneyBook's own answer. Such a request never reached
+ * HoneyBook, so the session was never judged: it must not read as an expired
+ * session (which sends the user to re-capture a working one) or as HoneyBook
+ * rate-limiting, and it must not be retried as if it were.
+ */
+function throwIfEdgeBlocked(
+  status: number,
+  body: string,
+  headers: Headers,
+  method: string,
+  path: string
+): void {
+  if (status < 400) return;
+  const edge = detectEdgeBlock({ status, body, headers });
+  if (edge) throw new EdgeBlockedError(status, edge.vendor, { service: 'HoneyBook', method, path });
+}
+
+/**
  * What {@link hbApiRequest} needs from a credential in order to make a call.
  *
  * api.honeybook.com answers to two credential kinds — a portal session and a
@@ -212,10 +240,14 @@ export async function hbApiRequest<T>(
       signal,
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    if (response.status === 401 || response.status === 429) {
-      return { status: response.status, ok: false, text: '' };
-    }
-    return { status: response.status, ok: response.ok, text: await response.text() };
+    const text = await response.text();
+    // Read the body on EVERY status — a 401 and a 429 included. A CDN/WAF in
+    // front of api.honeybook.com answers with its own refusal page, and the
+    // page is the only thing that tells it apart from HoneyBook rejecting the
+    // session or rate-limiting us (chrischall/mcp-host#1015). Dropping it made
+    // a block read as "auth expired, re-run use_magic_link".
+    throwIfEdgeBlocked(response.status, text, response.headers, method, path);
+    return { status: response.status, ok: response.ok, text };
   });
 
   if (status === 401) throw caller.authExpiredError();

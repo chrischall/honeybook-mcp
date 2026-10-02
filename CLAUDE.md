@@ -20,7 +20,8 @@ npm run dev          # node --env-file=.env dist/index.js (requires built dist)
 src/
   index.ts               MCP server entry — registers tool modules, stdio transport
   client.ts              HoneyBookClient — per-session auth headers, fetch wrapper,
-                         401 + 404/HBUnauthorizedError, 429, HBWrongAPIVersion
+                         401 + 404/HBUnauthorizedError, 429, HBWrongAPIVersion,
+                         CDN/WAF block page → EdgeBlockedError
                          handling; getActiveClient() resolves
                          a session from sessionStore and caches a client per origin
   auth.ts                captureSessionViaFetchproxy() — one-shot @fetchproxy/bootstrap
