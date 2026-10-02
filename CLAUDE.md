@@ -242,7 +242,7 @@ tags unless the user explicitly asks.
 Commits land on `main` via PR. release-please
 (`.github/workflows/release-please.yml`) opens or updates a
 `chore(main): release X.Y.Z` PR whenever Conventional-Commit messages (`feat:`,
-`fix:`, etc.) accumulate. Merging the release PR (arm `ready-to-merge`) creates
+`fix:`, etc.) accumulate. Merging the release PR creates
 the tag and a GitHub Release; the `publish` job then packs `.mcpb` + `.skill`,
 publishes to npm with provenance, and pushes to the MCP Registry.
 
