@@ -284,7 +284,9 @@ describe('HoneyBookClient.request', () => {
     vi.useFakeTimers();
     try {
       const fetchSpy = vi.spyOn(globalThis, 'fetch');
-      fetchSpy.mockResolvedValue(new Response('', { status: 429 }));
+      // A fresh Response per attempt, as real fetch gives: the client now reads
+      // every body (to tell an edge-block page from a real 429).
+      fetchSpy.mockImplementation(async () => new Response('', { status: 429 }));
       const client = new HoneyBookClient(MOCK_SESSION, 2578);
       const caught = client.request('GET', '/api/v2/users/uid_24').catch((e) => e);
       await vi.advanceTimersByTimeAsync(2000);
