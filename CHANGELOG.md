@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.3](https://github.com/chrischall/honeybook-mcp/compare/v1.2.2...v1.2.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **client:** report CDN/WAF block pages as edge_blocked, not an expired session ([#257](https://github.com/chrischall/honeybook-mcp/issues/257)) ([2cccb9e](https://github.com/chrischall/honeybook-mcp/commit/2cccb9ee3c048213e656adb897fd452ce1d852a2))
+* **deps:** bump @chrischall/mcp-utils to 2.12.0 ([#256](https://github.com/chrischall/honeybook-mcp/issues/256)) ([de874bd](https://github.com/chrischall/honeybook-mcp/commit/de874bdc2f4ccea73899a995c8fe3b136b0bc048))
+* **deps:** bump @chrischall/mcp-utils to 2.13.0 ([#259](https://github.com/chrischall/honeybook-mcp/issues/259)) ([fea250a](https://github.com/chrischall/honeybook-mcp/commit/fea250ad3473f83762fa55505e34a3c30a3c1154))
+* keep credentials and report edge_blocked on CDN/WAF blocks (mcp-utils 2.10.0) ([#254](https://github.com/chrischall/honeybook-mcp/issues/254)) ([b456aaa](https://github.com/chrischall/honeybook-mcp/commit/b456aaa03ff538ffd690f79d98b93d499798ad56))
+* keep write approvals valid across a hosted restart (mcp-utils 2.11.0) ([#255](https://github.com/chrischall/honeybook-mcp/issues/255)) ([a5f957b](https://github.com/chrischall/honeybook-mcp/commit/a5f957befa14f9ce0b2f805822bd4a1e2bbcde9f))
+* report CDN/WAF blocks as edge_blocked, not a rejected credential (mcp-utils 2.9.0) ([#252](https://github.com/chrischall/honeybook-mcp/issues/252)) ([0f2a94e](https://github.com/chrischall/honeybook-mcp/commit/0f2a94e4e67ff632555f8dcf720666335c091320))
+
+
+### Documentation
+
+* stop telling agents to arm the release PR ([#258](https://github.com/chrischall/honeybook-mcp/issues/258)) ([7d7783a](https://github.com/chrischall/honeybook-mcp/commit/7d7783abf74bf5850de45dc5452137abc3e673df))
+
 ## [1.2.2](https://github.com/chrischall/honeybook-mcp/compare/v1.2.1...v1.2.2) (2026-09-27)
 
 
