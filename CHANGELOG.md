@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.5](https://github.com/chrischall/honeybook-mcp/compare/v1.2.4...v1.2.5) (2026-10-07)
+
+
+### Bug Fixes
+
+* **deps:** bump source-map-js from 1.2.1 to 1.2.2 in the security group across 1 directory ([#267](https://github.com/chrischall/honeybook-mcp/issues/267)) ([1b214ba](https://github.com/chrischall/honeybook-mcp/commit/1b214ba1610a7472f585130aed3d66620369e6de))
+* **deps:** pick up MCP_CONFIRM_ELICITATION=off opt-out and fetchproxy relay frame fixes ([#265](https://github.com/chrischall/honeybook-mcp/issues/265)) ([14c5b7c](https://github.com/chrischall/honeybook-mcp/commit/14c5b7c4d6680deddf2b058e3ebc324ab48eb396))
+
+
+### Documentation
+
+* document MCP_CONFIRM_ELICITATION ([#268](https://github.com/chrischall/honeybook-mcp/issues/268)) ([c3b5152](https://github.com/chrischall/honeybook-mcp/commit/c3b515262d61ba317146b57abcbc64aca310ea71))
+
 ## [1.2.4](https://github.com/chrischall/honeybook-mcp/compare/v1.2.3...v1.2.4) (2026-10-05)
 
 
