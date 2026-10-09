@@ -122,6 +122,22 @@ describe('HoneyBookClient.request', () => {
     expect(init!.body).toBe(JSON.stringify({ signature: 'yes' }));
   });
 
+  it('scrubs vendor host-link secrets from every response, whatever tool asked (fleet-audit#505)', async () => {
+    const payload = {
+      _id: 'ws1',
+      calendar_items: [
+        { title: 'Call', video_meeting_link: 'https://zoom.us/j/1', video_meeting_host_link: 'https://zoom.us/s/1?zak=SECRET' },
+      ],
+      company: { name: 'Acme', nested: { host_link: 'h', zak: 'z', video_meeting_host_url: 'u', keep: 1 } },
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    const res = await client.request<any>('GET', '/api/v2/workspaces/ws1');
+    expect(JSON.stringify(res)).not.toMatch(/SECRET|host_link|host_url|zak/);
+    expect(res.calendar_items[0].video_meeting_link).toBe('https://zoom.us/j/1');
+    expect(res.company.nested).toEqual({ keep: 1 });
+  });
+
   it('reports a 200 whose body is not JSON with the method, path and status (fleet-audit#503)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('<html>Down for maintenance</html>', { status: 200 })

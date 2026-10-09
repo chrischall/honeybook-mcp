@@ -37,6 +37,9 @@ src/
                          hbApiRequest; getActiveFlowClient(); plus
                          fetchFlowMinimal() + flowContextId(), the public
                          /minimal hop that yields the ctxc a flow read needs
+  vendor-secrets.ts      VENDOR_SECRET_KEYS + scrubVendorSecrets (vendor Zoom
+                         host link / zak) — applied to every parsed response
+                         in hbApiRequest, and again by the feed summarizers
   feed.ts                Workspace feed (GET /workspaces/<id>/feed): fetch,
                          message vs activity classification, compact
                          summarizers, calendar-item compaction (host link

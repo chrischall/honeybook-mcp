@@ -1,6 +1,7 @@
 import type { CapturedSession } from './types.js';
 import { sessionStore } from './sessions.js';
 import { flowStore } from './flows.js';
+import { scrubVendorSecrets } from './vendor-secrets.js';
 import {
   readEnvVar,
   formatApiError,
@@ -329,8 +330,9 @@ export async function hbApiRequest<T>(
   }
 
   if (!text) return null as T;
+  let parsed: unknown;
   try {
-    return JSON.parse(text) as T;
+    parsed = JSON.parse(text);
   } catch {
     // A 200 that is not JSON (a maintenance page, a proxy's HTML) — say where
     // it came from instead of surfacing a bare SyntaxError.
@@ -339,6 +341,9 @@ export async function hbApiRequest<T>(
       { status, method, path, body: text }
     );
   }
+  // One choke point for the vendor's host-link secrets: every tool's payload,
+  // raw views included, comes through here (fleet-audit#505).
+  return scrubVendorSecrets(parsed) as T;
 }
 
 export class HoneyBookClient implements HbApiCaller {
