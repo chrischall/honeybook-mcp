@@ -20,7 +20,7 @@ import { bootstrap } from '@fetchproxy/bootstrap';
 import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
 import { parseBoolEnv } from '@chrischall/mcp-utils';
 import { isBrowserCapabilityGap } from './bridge-errors.js';
-import pkg from '../package.json' with { type: 'json' };
+import { SERVER_NAME, VERSION } from './version.js';
 import { flowStorageKey, flowStore, parseFlowLink } from './flows.js';
 import { vendorPortalSubdomain } from './sessions.js';
 import type { CapturedFlowCredential } from './types.js';
@@ -64,8 +64,8 @@ export async function captureFlowCredentialViaFetchproxy(
   let session;
   try {
     session = await bootstrap({
-      serverName: pkg.name,
-      version: pkg.version,
+      serverName: SERVER_NAME,
+      version: VERSION,
       domains: ['honeybook.com', 'hbportal.co'],
       storageDomain: 'hbportal.co',
       storageSubdomain: vendorSubdomain,

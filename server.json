@@ -15,7 +15,44 @@
       "transport": {
         "type": "stdio"
       },
-      "environmentVariables": []
+      "environmentVariables": [
+        {
+          "name": "HONEYBOOK_API_VERSION",
+          "description": "Pin the hb-api-client-version header (a positive integer, e.g. 2601) instead of auto-fetching it from /api/gon. Leave unset normally — a pinned value can go stale and HoneyBook then answers 400.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "HONEYBOOK_DISABLE_FETCHPROXY",
+          "description": "Set to 1/true to refuse to call the fetchproxy bootstrap (CI / headless). use_magic_link and use_flow_link then fail instead of capturing a credential. Defaults to false.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "HONEYBOOK_SESSIONS_DIR",
+          "description": "Base directory holding sessions.json and flows.json (the captured portal sessions and questionnaire credentials). Defaults to ~/.honeybook-mcp.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_WS_PORT",
+          "description": "Localhost port of the fetchproxy concentrator the ContextMint Bridge extension connects to (default 37149). Every MCP on one machine shares it, so move it for all of them or not at all.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_WS_HOST",
+          "description": "Bind interface for the fetchproxy concentrator, a literal IP only (default 127.0.0.1). Keep on loopback; it exists for hosted deployments that run each MCP in its own network namespace.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_IDENTITY_DIR",
+          "description": "Absolute path where the fetchproxy long-term identity keypair is stored (default ~/.fetchproxy/identity/).",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
     }
   ]
 }

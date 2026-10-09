@@ -5,6 +5,7 @@ import { runMcp, loadDotenvSafely } from '@chrischall/mcp-utils';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 await loadDotenvSafely({ path: join(__dirname, '..', '.env'), override: false });
 
+import { SERVER_NAME, VERSION } from './version.js';
 import { registerSessionTools } from './tools/sessions.js';
 import { registerFlowTools } from './tools/flows.js';
 import { registerHealthcheckTools } from './tools/healthcheck.js';
@@ -22,8 +23,8 @@ import { registerAttachmentTools } from './tools/attachments.js';
 import { registerPaymentTools } from './tools/payments.js';
 
 await runMcp({
-  name: 'honeybook-mcp',
-  version: '1.2.5', // x-release-please-version
+  name: SERVER_NAME,
+  version: VERSION,
   tools: [
     registerSessionTools,
     registerFlowTools,

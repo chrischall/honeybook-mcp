@@ -408,7 +408,8 @@ export function registerMessageTools(server: McpServer): void {
         message_ids: z.array(z.string()).min(1).describe('Feed item _ids from list_messages.'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      // Destructive by the inverse test: no tool here marks an item unseen again.
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     markMessagesSeen
   );

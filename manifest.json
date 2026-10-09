@@ -30,7 +30,53 @@
       "command": "node",
       "args": [
         "${__dirname}/dist/bundle.js"
-      ]
+      ],
+      "env": {
+        "HONEYBOOK_API_VERSION": "${user_config.honeybook_api_version}",
+        "HONEYBOOK_DISABLE_FETCHPROXY": "${user_config.honeybook_disable_fetchproxy}",
+        "HONEYBOOK_SESSIONS_DIR": "${user_config.honeybook_sessions_dir}",
+        "FETCHPROXY_WS_PORT": "${user_config.fetchproxy_ws_port}",
+        "FETCHPROXY_WS_HOST": "${user_config.fetchproxy_ws_host}",
+        "FETCHPROXY_IDENTITY_DIR": "${user_config.fetchproxy_identity_dir}"
+      }
+    }
+  },
+  "user_config": {
+    "honeybook_api_version": {
+      "type": "string",
+      "title": "HoneyBook API version (advanced)",
+      "description": "Pin the hb-api-client-version header (a positive integer, e.g. 2601) instead of auto-fetching it from /api/gon. Leave unset normally — a pinned value can go stale and HoneyBook then answers 400.",
+      "required": false
+    },
+    "honeybook_disable_fetchproxy": {
+      "type": "string",
+      "title": "Disable browser bridge (advanced)",
+      "description": "Set to 1/true to refuse to call the fetchproxy bootstrap (CI / headless). use_magic_link and use_flow_link then fail instead of capturing a credential. Defaults to false.",
+      "required": false
+    },
+    "honeybook_sessions_dir": {
+      "type": "string",
+      "title": "Credential store directory (advanced)",
+      "description": "Base directory holding sessions.json and flows.json (the captured portal sessions and questionnaire credentials). Defaults to ~/.honeybook-mcp.",
+      "required": false
+    },
+    "fetchproxy_ws_port": {
+      "type": "string",
+      "title": "fetchproxy port (advanced)",
+      "description": "Localhost port of the fetchproxy concentrator the ContextMint Bridge extension connects to (default 37149). Every MCP on one machine shares it, so move it for all of them or not at all.",
+      "required": false
+    },
+    "fetchproxy_ws_host": {
+      "type": "string",
+      "title": "fetchproxy bind address (advanced)",
+      "description": "Bind interface for the fetchproxy concentrator, a literal IP only (default 127.0.0.1). Keep on loopback; it exists for hosted deployments that run each MCP in its own network namespace.",
+      "required": false
+    },
+    "fetchproxy_identity_dir": {
+      "type": "string",
+      "title": "fetchproxy identity directory (advanced)",
+      "description": "Absolute path where the fetchproxy long-term identity keypair is stored (default ~/.fetchproxy/identity/).",
+      "required": false
     }
   },
   "tools": [
