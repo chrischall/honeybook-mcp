@@ -73,6 +73,12 @@ describe('sign_contract', () => {
     expect(textOf(result)).toContain(DEEP_LINK);
   });
 
+  it('does not point the user at a docs file that does not ship (fleet-audit#853)', async () => {
+    fakeClient.request.mockResolvedValue(CONTRACT);
+    const { result } = await callConfirmed(harness, 'sign_contract', { file_id: 'file123' });
+    expect(textOf(result)).not.toMatch(/docs\/risks\.md/);
+  });
+
   it('refuses a replayed token with TOKEN_REUSED', async () => {
     fakeClient.request.mockResolvedValue(CONTRACT);
     const { preview } = await callConfirmed(harness, 'sign_contract', { file_id: 'file123' });

@@ -69,8 +69,7 @@ export async function signContract(
   const url = `${client.scope.portalOrigin}/app/workspace_file/${encodeURIComponent(String(file._id))}/agreement`;
   return rawTextResult(
     `HoneyBook's signing flow requires a browser signature that this MCP cannot replay headlessly yet.\n\n` +
-      `Open this link to sign the contract in your HoneyBook portal:\n\n${url}\n\n` +
-      `(If you'd like the MCP to sign directly in a future version, sign one contract while running a network capture — see docs/risks.md.)`
+      `Open this link to sign the contract in your HoneyBook portal:\n\n${url}`
   );
 }
 
