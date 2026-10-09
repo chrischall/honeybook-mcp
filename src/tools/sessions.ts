@@ -93,7 +93,7 @@ export function registerSessionTools(server: McpServer): void {
             "Full magic-link URL from the vendor's HoneyBook email, e.g. https://<vendor>.hbportal.co/app/workspace_file/<id>/...  Used only to derive the portal origin; you must already have this URL open in a Chrome tab with the ContextMint Bridge extension installed."
           ),
       }),
-      annotations: { readOnlyHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     useMagicLink
   );
@@ -103,7 +103,7 @@ export function registerSessionTools(server: McpServer): void {
     {
       description:
         'List the HoneyBook credentials currently active in this MCP, split by kind: `portalSessions` (captured via use_magic_link — read workspaces, files, invoices, payment methods) and `flowCredentials` (captured via use_flow_link — weak auth scoped to ONE questionnaire). The two are not interchangeable. No API call.',
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: false },
     },
     listActiveSessions
   );

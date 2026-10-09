@@ -1,6 +1,7 @@
 import type { CapturedSession } from './types.js';
 import { sessionStore } from './sessions.js';
 import { flowStore } from './flows.js';
+import { scrubVendorSecrets } from './vendor-secrets.js';
 import {
   readEnvVar,
   formatApiError,
@@ -36,6 +37,33 @@ export function hbRequestSignal(): AbortSignal {
 }
 
 /**
+ * HoneyBook did not answer within {@link httpTimeouts.requestMs}. Typed so a
+ * WRITE caller can tell "no answer — it may or may not have landed" apart from
+ * "HoneyBook refused it", which a resend is safe after (fleet-audit#1023).
+ */
+export class HoneyBookTimeoutError extends Error {
+  /** Structural marker, so the predicate survives a duplicated module copy. */
+  readonly honeyBookTimeout = true;
+  /** What was being requested, e.g. "POST /api/v2/client_pending_task". */
+  readonly what: string;
+
+  constructor(what: string, timeoutMs: number) {
+    super(`HoneyBook did not respond within ${timeoutMs / 1000}s (${what}).`);
+    this.name = 'HoneyBookTimeoutError';
+    this.what = what;
+  }
+}
+
+export function isHoneyBookTimeoutError(err: unknown): err is HoneyBookTimeoutError {
+  return (
+    err instanceof HoneyBookTimeoutError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { honeyBookTimeout?: unknown }).honeyBookTimeout === true)
+  );
+}
+
+/**
  * Run one fetch (and its body read) under {@link hbRequestSignal}, turning the
  * timeout's bare `TimeoutError` into a message that says what happened. A
  * caller's own cancellation propagates with its own reason.
@@ -46,7 +74,7 @@ export async function withHbTimeout<T>(what: string, fn: (signal: AbortSignal) =
     return await fn(signal);
   } catch (err) {
     if ((err as { name?: string } | null)?.name === 'TimeoutError' && !currentCallSignal()?.aborted) {
-      throw new Error(`HoneyBook did not respond within ${httpTimeouts.requestMs / 1000}s (${what}).`);
+      throw new HoneyBookTimeoutError(what, httpTimeouts.requestMs);
     }
     throw err;
   }
@@ -71,11 +99,25 @@ export function cancellableDelay(ms: number): Promise<void> {
 
 export async function fetchApiVersion(): Promise<number> {
   const override = readEnvVar('HONEYBOOK_API_VERSION');
-  if (override) return Number(override);
+  if (override) {
+    // Sent verbatim as `hb-api-client-version`; a typo must not go out as "NaN".
+    if (!/^\d+$/.test(override.trim())) {
+      throw new Error(
+        `HONEYBOOK_API_VERSION must be a positive integer (e.g. 2578), got ${JSON.stringify(override)}.`
+      );
+    }
+    return Number(override.trim());
+  }
   const text = await withHbTimeout('GET /api/gon', async (signal) => {
     const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`, { signal });
     const body = await res.text();
     throwIfEdgeBlocked(res.status, body, res.headers, 'GET', '/api/gon');
+    if (!res.ok) {
+      throw new HoneyBookApiError(
+        formatApiError(res.status, 'GET', '/api/gon', body, { service: 'HoneyBook' }),
+        { status: res.status, method: 'GET', path: '/api/gon', body }
+      );
+    }
     return body;
   });
   const m = /"api_version":\s*(\d+)/.exec(text);
@@ -287,7 +329,21 @@ export async function hbApiRequest<T>(
     );
   }
 
-  return (text ? JSON.parse(text) : null) as T;
+  if (!text) return null as T;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // A 200 that is not JSON (a maintenance page, a proxy's HTML) — say where
+    // it came from instead of surfacing a bare SyntaxError.
+    throw new HoneyBookApiError(
+      `HoneyBook returned a response that is not JSON (${method} ${path}, status ${status}): ${text.slice(0, 200)}`,
+      { status, method, path, body: text }
+    );
+  }
+  // One choke point for the vendor's host-link secrets: every tool's payload,
+  // raw views included, comes through here (fleet-audit#505).
+  return scrubVendorSecrets(parsed) as T;
 }
 
 export class HoneyBookClient implements HbApiCaller {

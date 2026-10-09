@@ -240,6 +240,33 @@ describe('messages tools', () => {
       expect(bodyToHtml('Line one<br>Line two')).toBe('Line one<br>Line two');
       expect(bodyToHtml('See <a href="https://x">this</a>')).toBe('See <a href="https://x">this</a>');
     });
+
+    // fleet-audit#506: an allowlisted tag anywhere used to wave the whole body
+    // through verbatim, so a tracking pixel, script or phishing link rode along.
+    it('escapes tags outside the allowlist instead of sending them', () => {
+      expect(bodyToHtml('<b>x</b><img src=https://tracker/p.gif><script>alert(1)</script>')).toBe(
+        '<b>x</b>&lt;img src=https://tracker/p.gif&gt;&lt;script&gt;alert(1)&lt;/script&gt;'
+      );
+      expect(bodyToHtml('<p>Hi <Ivy></p>')).toBe('<p>Hi &lt;Ivy&gt;</p>');
+      expect(bodyToHtml('<p>a</p><!-- x --><iframe src="https://e"></iframe>')).toBe(
+        '<p>a</p>&lt;!-- x --&gt;&lt;iframe src="https://e"&gt;&lt;/iframe&gt;'
+      );
+    });
+    it('strips event handlers, styles and non-http(s)/mailto links from allowlisted tags', () => {
+      expect(bodyToHtml('<p onclick="steal()" style="display:none">Hi</p>')).toBe('<p>Hi</p>');
+      expect(bodyToHtml('<a href="javascript:alert(1)">x</a>')).toBe('<a>x</a>');
+      expect(bodyToHtml('<a href="jav&#x61;script:alert(1)">x</a>')).toBe('<a>x</a>');
+      expect(bodyToHtml('<a href="https://x" onmouseover="y">this</a>')).toBe('<a href="https://x">this</a>');
+      expect(bodyToHtml("<a href='mailto:a@b.co'>mail</a>")).toBe('<a href="mailto:a@b.co">mail</a>');
+      expect(bodyToHtml('<a href=\'https://x/?q="y"\'>q</a>')).toBe('<a href="https://x/?q=&quot;y&quot;">q</a>');
+      expect(bodyToHtml('<br/>done')).toBe('<br>done');
+    });
+    it('treats a body whose only tag is an image as plain text', () => {
+      expect(bodyToHtml('<img src=https://tracker/p.gif>')).toBe('&lt;img src=https://tracker/p.gif&gt;');
+    });
+    it('escapes a stray "<" that does not open a tag', () => {
+      expect(bodyToHtml('<b>x</b> <script src=https://e')).toBe('<b>x</b> &lt;script src=https://e');
+    });
   });
 
   describe('send_message', () => {
@@ -419,6 +446,28 @@ describe('messages tools', () => {
       } finally {
         pendingTaskPolling.maxPolls = 60;
       }
+    });
+
+    it('on a timeout of the create POST returns an "unknown" result instead of an error that invites a resend (fleet-audit#1023)', async () => {
+      fakeClient.request
+        .mockResolvedValueOnce(makeFeed())
+        .mockResolvedValueOnce(makeFeed())
+        .mockRejectedValueOnce(
+          new clientModule.HoneyBookTimeoutError('POST /api/v2/client_pending_task', 30_000)
+        );
+      const { result: res } = await callConfirmed(harness, 'send_message', {
+        workspace_id: WORKSPACE_ID,
+        subject: 'Q',
+        body: 'Hi',
+      });
+      expect(res.isError).toBeFalsy();
+      const out = bodyOf(res);
+      expect(out.status).toBe('unknown');
+      expect(out.task_id).toBeNull();
+      expect(out.warning).toMatch(/may have been queued/i);
+      expect(out.warning).toMatch(/list_messages/);
+      expect(out.warning).toMatch(/before resending/i);
+      expect(posts()).toHaveLength(1);
     });
 
     it('replies to an existing message: inherits its subject and sets feed_to_reply_id', async () => {

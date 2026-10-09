@@ -18,7 +18,11 @@ import {
   type RawItem,
   type WorkspaceFeed,
 } from '../feed.js';
-import { runClientPendingTask, isPendingTaskTimeoutError } from '../pending-tasks.js';
+import {
+  runClientPendingTask,
+  isPendingTaskTimeoutError,
+  isPendingTaskCreateTimeoutError,
+} from '../pending-tasks.js';
 import type { ToolResult } from '../types.js';
 
 export const FEED_KINDS = ['messages', 'activity', 'all'] as const;
@@ -114,15 +118,55 @@ export async function getMessage(args: {
 
 /**
  * The composer sends HTML. Plain text is escaped and line breaks become
- * `<br>`; a body that already uses a real HTML tag is trusted as authored
- * HTML. The tag list is an allowlist on purpose: "<Ivy>" in a sentence is
- * prose, not markup.
+ * `<br>`; a body that uses a real HTML tag is treated as authored HTML. The
+ * tag list is an allowlist on purpose: "<Ivy>" in a sentence is prose, not
+ * markup.
+ *
+ * Authored HTML is SANITIZED to that allowlist, not passed through
+ * (fleet-audit#506): HoneyBook emails it under the user's name, and a body the
+ * model assembled from vendor-written text could otherwise carry a tracking
+ * pixel, a script or a disguised link. Any other tag is escaped so it shows as
+ * text; allowlisted tags lose every attribute except an http(s)/mailto `href`
+ * on `<a>`. `<img>` is deliberately not allowlisted — a remote image in an
+ * email is a read receipt.
  */
+const ALLOWED_TAGS = new Set([
+  'p', 'br', 'div', 'a', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'span',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'tr', 'td', 'th', 'blockquote', 'pre', 'code', 'hr',
+]);
 const HTML_TAG =
-  /<\/?(p|br|div|a|b|i|u|strong|em|ul|ol|li|span|h[1-6]|table|tr|td|th|img|blockquote|pre|code|hr)\b[^>]*>/i;
+  /<\/?(p|br|div|a|b|i|u|strong|em|ul|ol|li|span|h[1-6]|table|tr|td|th|blockquote|pre|code|hr)\b[^>]*>/i;
+const ANY_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b([^<>]*)>/g;
+const HREF_ATTR = /(?:^|\s)href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i;
+const SAFE_HREF = /^(?:https?:\/\/|mailto:)/i;
+
+const escapeAngles = (s: string): string => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function sanitizeTag(closing: string, name: string, attrs: string): string | undefined {
+  const tag = name.toLowerCase();
+  if (!ALLOWED_TAGS.has(tag)) return undefined;
+  if (closing) return `</${tag}>`;
+  if (tag === 'a') {
+    const m = HREF_ATTR.exec(attrs);
+    const href = (m?.[1] ?? m?.[2] ?? m?.[3] ?? '').trim();
+    if (SAFE_HREF.test(href)) return `<a href="${href.replace(/"/g, '&quot;')}">`;
+  }
+  return `<${tag}>`;
+}
+
+export function sanitizeHtml(html: string): string {
+  let out = '';
+  let last = 0;
+  for (const m of html.matchAll(ANY_TAG)) {
+    out += escapeAngles(html.slice(last, m.index));
+    out += sanitizeTag(m[1] ?? '', m[2] ?? '', m[3] ?? '') ?? escapeAngles(m[0]);
+    last = m.index + m[0].length;
+  }
+  return out + escapeAngles(html.slice(last));
+}
 
 export function bodyToHtml(body: string): string {
-  if (HTML_TAG.test(body)) return body;
+  if (HTML_TAG.test(body)) return sanitizeHtml(body);
   return body
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -217,6 +261,22 @@ export async function sendMessage(
     // The task is still running server-side and may yet email every recipient.
     // Reporting that as an error invites a resend, which creates a SECOND task
     // (fleet-audit#136) — so it comes back as a non-error "pending" result.
+    if (isPendingTaskCreateTimeoutError(err)) {
+      // The create POST itself timed out (fleet-audit#1023): HoneyBook may have
+      // queued the task without our seeing its id. Same reasoning — not an error.
+      return minifiedResult({
+        status: 'unknown',
+        task_id: null,
+        workspace_id: args.workspace_id,
+        subject,
+        to: recipients.map((u) => u.name),
+        reply_to: replyTo ? replyTo._id : null,
+        warning:
+          'HoneyBook did not answer the send request in time, so it is unknown whether it was accepted. The ' +
+          'message may have been queued and may still be delivered. Check list_messages for this workspace ' +
+          'before resending — do NOT re-run send_message until you have confirmed it did not go out.',
+      });
+    }
     if (!isPendingTaskTimeoutError(err)) throw err;
     return minifiedResult({
       status: 'pending',
@@ -282,7 +342,7 @@ export function registerMessageTools(server: McpServer): void {
         limit: z.number().int().positive().max(500).optional().describe('Max items to return (default 50).'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     listMessages
   );
@@ -299,7 +359,7 @@ export function registerMessageTools(server: McpServer): void {
         format: z.enum(['text', 'html']).optional().describe('Body format. Default "text".'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     getMessage
   );
@@ -313,12 +373,13 @@ export function registerMessageTools(server: McpServer): void {
         'Pass reply_to_message_id to reply in-thread (the subject is inherited). ' +
         'Asks the user to confirm first: a confirmation prompt where the client supports one; otherwise the first call returns a preview and a confirmToken, and only a repeat call with that token proceeds (see MCP_CONFIRM_MODE). ' +
         'If HoneyBook has not finished sending within about a minute the result has status "pending" and a ' +
-        'task_id: the message may still be delivered, so check list_messages before resending.',
+        'task_id; if it did not answer the send request at all the status is "unknown". Either way the message ' +
+        'may still be delivered, so check list_messages before resending.',
       inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         body: z
           .string()
-          .describe('Message text. Plain text is sent as-is (line breaks preserved); HTML is passed through.'),
+          .describe('Message text. Plain text is sent as-is (line breaks preserved). Simple HTML formatting (p, br, b, i, a href, lists, tables) is kept; other tags are shown as text and attributes other than an http(s)/mailto link are dropped.'),
         subject: z.string().optional().describe('Required for a new message; optional on a reply.'),
         reply_to_message_id: z
           .string()
@@ -327,7 +388,7 @@ export function registerMessageTools(server: McpServer): void {
         origin: schemaOrigin.describe(ORIGIN_DESC),
         confirmToken: confirmTokenParam,
       }),
-      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
     sendMessage
   );
@@ -343,7 +404,7 @@ export function registerMessageTools(server: McpServer): void {
         message_ids: z.array(z.string()).min(1).describe('Feed item _ids from list_messages.'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     markMessagesSeen
   );

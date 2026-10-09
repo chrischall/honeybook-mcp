@@ -5,6 +5,7 @@ import {
   fetchApiVersion,
   getActiveClient,
   httpTimeouts,
+  isHoneyBookTimeoutError,
   resetClientsForTest,
 } from '../src/client.js';
 import { fetchFlowMinimal } from '../src/flow-client.js';
@@ -54,6 +55,14 @@ describe('HoneyBook request timeouts and cancellation', () => {
     hangingFetch();
     const client = new HoneyBookClient(SESSION, 1);
     await expect(client.request('GET', '/api/v2/users/u')).rejects.toThrow(/did not respond within/i);
+  });
+
+  it('the timeout error is typed, so a write caller can tell "no answer" from "refused" (fleet-audit#1023)', async () => {
+    hangingFetch();
+    const client = new HoneyBookClient(SESSION, 1);
+    const err = await client.request('POST', '/api/v2/client_pending_task', {}).catch((e: unknown) => e);
+    expect(isHoneyBookTimeoutError(err)).toBe(true);
+    expect((err as Error).message).toMatch(/did not respond within/i);
   });
 
   it("an API request is aborted when the tool call's caller cancels", async () => {

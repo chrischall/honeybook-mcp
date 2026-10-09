@@ -149,7 +149,7 @@ export function registerFlowTools(server: McpServer): void {
             'Questionnaire link, e.g. https://<vendor>.hbportal.co/flow/<flowId>?hash=…&userId=… Only the /flow/<flowId> segment is required: the credential is read out of the open page\'s localStorage, so the rewritten step URL (/flow/<flowId>/1-Questions) works too. The URL\'s ?hash= is used only as a fallback when the page stored none, so prefer the original email link if the capture reports no hash.'
           ),
       }),
-      annotations: { readOnlyHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     useFlowLink
   );
@@ -170,7 +170,7 @@ export function registerFlowTools(server: McpServer): void {
           note: 'compact returns the questionnaire unless it exceeds a byte ceiling, in which case it answers with its size and top-level keys instead; "raw" returns the full payload however large (may exceed MCP size limits).',
         }),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     getFlow
   );

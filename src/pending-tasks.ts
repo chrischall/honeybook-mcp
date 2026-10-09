@@ -1,5 +1,5 @@
 import { throwIfCancelled } from '@chrischall/mcp-utils';
-import { cancellableDelay, type HbMethod } from './client.js';
+import { cancellableDelay, isHoneyBookTimeoutError, type HbMethod } from './client.js';
 
 /**
  * HoneyBook's "client pending task" protocol.
@@ -87,16 +87,55 @@ export function isPendingTaskTimeoutError(err: unknown): err is PendingTaskTimeo
   );
 }
 
+/**
+ * The create POST itself got no answer in time. HoneyBook may already have
+ * accepted it and queued the task — for `send_workspace_message` the email may
+ * go out — but no task id came back, so there is nothing to poll. Like
+ * {@link PendingTaskTimeoutError}, a caller must not present this as a plain
+ * failure that invites a resend: a resend is a new request with a new
+ * duplicate-prevention uuid, so HoneyBook would run it a second time.
+ */
+export class PendingTaskCreateTimeoutError extends Error {
+  /** Structural marker, so the predicate survives a duplicated module copy. */
+  readonly pendingTaskCreateTimeout = true;
+  readonly taskType: string;
+
+  constructor(taskType: string, cause: unknown) {
+    super(
+      `HoneyBook did not answer the request to start the "${taskType}" task in time. ` +
+        'The task may have been queued anyway and may still complete.',
+      { cause }
+    );
+    this.name = 'PendingTaskCreateTimeoutError';
+    this.taskType = taskType;
+  }
+}
+
+export function isPendingTaskCreateTimeoutError(err: unknown): err is PendingTaskCreateTimeoutError {
+  return (
+    err instanceof PendingTaskCreateTimeoutError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { pendingTaskCreateTimeout?: unknown }).pendingTaskCreateTimeout === true)
+  );
+}
+
 export async function runClientPendingTask<T = unknown>(
   client: PendingTaskCaller,
   taskType: string,
   taskData: Record<string, unknown>
 ): Promise<PendingTaskOutcome<T>> {
-  const created = await client.request<{ task_id?: string } | null>(
-    'POST',
-    '/api/v2/client_pending_task',
-    { task_type: taskType, task_data: taskData }
-  );
+  let created: { task_id?: string } | null;
+  try {
+    created = await client.request<{ task_id?: string } | null>(
+      'POST',
+      '/api/v2/client_pending_task',
+      { task_type: taskType, task_data: taskData }
+    );
+  } catch (err) {
+    if (isHoneyBookTimeoutError(err)) throw new PendingTaskCreateTimeoutError(taskType, err);
+    throw err;
+  }
   const taskId = created?.task_id;
   if (!taskId) {
     throw new Error(

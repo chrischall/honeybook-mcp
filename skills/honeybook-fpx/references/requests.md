@@ -37,9 +37,10 @@ hb_get "/api/v2/users/$USER_ID/workspace_files" > /tmp/hb-files.json
 
 Response envelope (`HBListEnvelope<T>`, `src/types.ts`):
 `{ data: [...], cur_page, last_page, last_id?, total_count? }`.
-**Pagination is not wired up** in the MCP either — if `last_page` is
-`false`, more results exist on later pages that neither the MCP nor this
-skill fetches.
+If `last_page` is `false`, more results exist on later pages. The MCP
+requests `?page=2`, `?page=3`, … (the parameter `/api/v2/client/events`
+takes) until `last_page` is true, and reports `complete: false` if a page
+brings nothing new; do the same here if you need every file.
 
 ```sh
 # Filter to a file_type client-side (agreement | invoice | brochure | proposal)

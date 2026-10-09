@@ -1,4 +1,5 @@
 import { apiPath, type HoneyBookClient } from './client.js';
+import { VENDOR_SECRET_KEYS, scrubVendorSecrets } from './vendor-secrets.js';
 
 /**
  * The workspace feed — `GET /api/v2/workspaces/<id>/feed` — is the one
@@ -222,33 +223,10 @@ export function compactCalendarItem(c: RawItem): RawItem {
   };
 }
 
-/**
- * Fields that are the VENDOR's credentials, never a client's business. The
- * known carrier is `calendar_item.video_meeting_host_link` (a Zoom host link
- * with a `zak` token); `compactCalendarItem` never copies it, and this
- * denylist covers every other path a payload can take through the
- * summarizer, so the property does not depend on which item type carried it.
- */
-export const VENDOR_SECRET_KEYS = new Set([
-  'video_meeting_host_link',
-  'video_meeting_host_url',
-  'host_link',
-  'zak',
-]);
-
-/** Deep-copy `v` with every {@link VENDOR_SECRET_KEYS} key removed. */
-export function scrubVendorSecrets<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(scrubVendorSecrets) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: RawItem = {};
-    for (const [k, val] of Object.entries(v as RawItem)) {
-      if (VENDOR_SECRET_KEYS.has(k)) continue;
-      out[k] = scrubVendorSecrets(val);
-    }
-    return out as T;
-  }
-  return v;
-}
+// The vendor-secret denylist lives in its own module so the transport
+// (client.ts) can apply it to EVERY response (fleet-audit#505); re-exported
+// here, where the summarizers use it.
+export { VENDOR_SECRET_KEYS, scrubVendorSecrets } from './vendor-secrets.js';
 
 /** Compact card for a non-message item (activity, recap, anything else). */
 export function summarizeActivity(item: RawItem): RawItem {

@@ -4,7 +4,9 @@ import {
   pendingTaskPolling,
   PENDING_TASK_STATE,
   isPendingTaskTimeoutError,
+  isPendingTaskCreateTimeoutError,
 } from '../src/pending-tasks.js';
+import { HoneyBookTimeoutError } from '../src/client.js';
 
 describe('runClientPendingTask', () => {
   const request = vi.fn();
@@ -59,6 +61,23 @@ describe('runClientPendingTask', () => {
     expect((err as { taskId: string }).taskId).toBe('t4');
     expect((err as { lastState: number }).lastState).toBe(1);
     expect(request).toHaveBeenCalledTimes(1 + 5);
+  });
+
+  it('a timeout on the create POST is reported as "may have been queued", not a plain failure (fleet-audit#1023)', async () => {
+    request.mockRejectedValueOnce(new HoneyBookTimeoutError('POST /api/v2/client_pending_task', 30_000));
+    const err = await runClientPendingTask(client, 'send_workspace_message', {}).catch((e: unknown) => e);
+    expect(isPendingTaskCreateTimeoutError(err)).toBe(true);
+    expect((err as { taskType: string }).taskType).toBe('send_workspace_message');
+    expect((err as Error).message).toMatch(/may have been queued/i);
+    // Never polled, never re-created.
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('any other create-POST failure propagates unchanged', async () => {
+    request.mockRejectedValueOnce(new Error('HoneyBook error 500'));
+    const err = await runClientPendingTask(client, 'x', {}).catch((e: unknown) => e);
+    expect(isPendingTaskCreateTimeoutError(err)).toBe(false);
+    expect((err as Error).message).toBe('HoneyBook error 500');
   });
 
   it('rejects when creation does not return a task_id', async () => {
