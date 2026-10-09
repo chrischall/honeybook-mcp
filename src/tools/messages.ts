@@ -234,6 +234,9 @@ export async function sendMessage(
     reply_to: replyTo ? replyTo._id : null,
     body: args.body,
   };
+  // Bound into both confirmation rails (mcp-utils 3): everything the caller
+  // asked for except the token itself.
+  const { confirmToken, ...toolArgs } = args;
   const gate = await requireConfirmationWithFallback(
     ctx,
     confirmationFromEnv({
@@ -242,7 +245,8 @@ export async function sendMessage(
       details: preview,
       tool: 'send_message',
       account: client.scope.portalOrigin,
-      confirmToken: args.confirmToken,
+      args: toolArgs,
+      confirmToken,
       subject: () => ({
         target: args.workspace_id,
         // What goes out, and who HoneyBook emails it to: a membership change

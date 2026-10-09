@@ -46,6 +46,9 @@ export async function signContract(
     file_title: file.file_title,
     status: file.status_name || 'not signed',
   };
+  // Bound into both confirmation rails (mcp-utils 3): everything the caller
+  // asked for except the token itself.
+  const { confirmToken, ...toolArgs } = args;
   const gate = await requireConfirmationWithFallback(
     ctx,
     confirmationFromEnv({
@@ -54,7 +57,8 @@ export async function signContract(
       details: preview,
       tool: 'sign_contract',
       account: client.scope.portalOrigin,
-      confirmToken: args.confirmToken,
+      args: toolArgs,
+      confirmToken,
       subject: () => ({
         target: String(file._id),
         payload: { file_id: file._id, file_title: file.file_title },
