@@ -118,15 +118,55 @@ export async function getMessage(args: {
 
 /**
  * The composer sends HTML. Plain text is escaped and line breaks become
- * `<br>`; a body that already uses a real HTML tag is trusted as authored
- * HTML. The tag list is an allowlist on purpose: "<Ivy>" in a sentence is
- * prose, not markup.
+ * `<br>`; a body that uses a real HTML tag is treated as authored HTML. The
+ * tag list is an allowlist on purpose: "<Ivy>" in a sentence is prose, not
+ * markup.
+ *
+ * Authored HTML is SANITIZED to that allowlist, not passed through
+ * (fleet-audit#506): HoneyBook emails it under the user's name, and a body the
+ * model assembled from vendor-written text could otherwise carry a tracking
+ * pixel, a script or a disguised link. Any other tag is escaped so it shows as
+ * text; allowlisted tags lose every attribute except an http(s)/mailto `href`
+ * on `<a>`. `<img>` is deliberately not allowlisted — a remote image in an
+ * email is a read receipt.
  */
+const ALLOWED_TAGS = new Set([
+  'p', 'br', 'div', 'a', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'span',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'tr', 'td', 'th', 'blockquote', 'pre', 'code', 'hr',
+]);
 const HTML_TAG =
-  /<\/?(p|br|div|a|b|i|u|strong|em|ul|ol|li|span|h[1-6]|table|tr|td|th|img|blockquote|pre|code|hr)\b[^>]*>/i;
+  /<\/?(p|br|div|a|b|i|u|strong|em|ul|ol|li|span|h[1-6]|table|tr|td|th|blockquote|pre|code|hr)\b[^>]*>/i;
+const ANY_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b([^<>]*)>/g;
+const HREF_ATTR = /(?:^|\s)href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i;
+const SAFE_HREF = /^(?:https?:\/\/|mailto:)/i;
+
+const escapeAngles = (s: string): string => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function sanitizeTag(closing: string, name: string, attrs: string): string | undefined {
+  const tag = name.toLowerCase();
+  if (!ALLOWED_TAGS.has(tag)) return undefined;
+  if (closing) return `</${tag}>`;
+  if (tag === 'a') {
+    const m = HREF_ATTR.exec(attrs);
+    const href = (m?.[1] ?? m?.[2] ?? m?.[3] ?? '').trim();
+    if (SAFE_HREF.test(href)) return `<a href="${href.replace(/"/g, '&quot;')}">`;
+  }
+  return `<${tag}>`;
+}
+
+export function sanitizeHtml(html: string): string {
+  let out = '';
+  let last = 0;
+  for (const m of html.matchAll(ANY_TAG)) {
+    out += escapeAngles(html.slice(last, m.index));
+    out += sanitizeTag(m[1] ?? '', m[2] ?? '', m[3] ?? '') ?? escapeAngles(m[0]);
+    last = m.index + m[0].length;
+  }
+  return out + escapeAngles(html.slice(last));
+}
 
 export function bodyToHtml(body: string): string {
-  if (HTML_TAG.test(body)) return body;
+  if (HTML_TAG.test(body)) return sanitizeHtml(body);
   return body
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -339,7 +379,7 @@ export function registerMessageTools(server: McpServer): void {
         workspace_id: z.string().describe(WORKSPACE_DESC),
         body: z
           .string()
-          .describe('Message text. Plain text is sent as-is (line breaks preserved); HTML is passed through.'),
+          .describe('Message text. Plain text is sent as-is (line breaks preserved). Simple HTML formatting (p, br, b, i, a href, lists, tables) is kept; other tags are shown as text and attributes other than an http(s)/mailto link are dropped.'),
         subject: z.string().optional().describe('Required for a new message; optional on a reply.'),
         reply_to_message_id: z
           .string()
