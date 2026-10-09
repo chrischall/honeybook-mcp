@@ -18,7 +18,11 @@ import {
   type RawItem,
   type WorkspaceFeed,
 } from '../feed.js';
-import { runClientPendingTask, isPendingTaskTimeoutError } from '../pending-tasks.js';
+import {
+  runClientPendingTask,
+  isPendingTaskTimeoutError,
+  isPendingTaskCreateTimeoutError,
+} from '../pending-tasks.js';
 import type { ToolResult } from '../types.js';
 
 export const FEED_KINDS = ['messages', 'activity', 'all'] as const;
@@ -217,6 +221,22 @@ export async function sendMessage(
     // The task is still running server-side and may yet email every recipient.
     // Reporting that as an error invites a resend, which creates a SECOND task
     // (fleet-audit#136) — so it comes back as a non-error "pending" result.
+    if (isPendingTaskCreateTimeoutError(err)) {
+      // The create POST itself timed out (fleet-audit#1023): HoneyBook may have
+      // queued the task without our seeing its id. Same reasoning — not an error.
+      return minifiedResult({
+        status: 'unknown',
+        task_id: null,
+        workspace_id: args.workspace_id,
+        subject,
+        to: recipients.map((u) => u.name),
+        reply_to: replyTo ? replyTo._id : null,
+        warning:
+          'HoneyBook did not answer the send request in time, so it is unknown whether it was accepted. The ' +
+          'message may have been queued and may still be delivered. Check list_messages for this workspace ' +
+          'before resending — do NOT re-run send_message until you have confirmed it did not go out.',
+      });
+    }
     if (!isPendingTaskTimeoutError(err)) throw err;
     return minifiedResult({
       status: 'pending',
@@ -313,7 +333,8 @@ export function registerMessageTools(server: McpServer): void {
         'Pass reply_to_message_id to reply in-thread (the subject is inherited). ' +
         'Asks the user to confirm first: a confirmation prompt where the client supports one; otherwise the first call returns a preview and a confirmToken, and only a repeat call with that token proceeds (see MCP_CONFIRM_MODE). ' +
         'If HoneyBook has not finished sending within about a minute the result has status "pending" and a ' +
-        'task_id: the message may still be delivered, so check list_messages before resending.',
+        'task_id; if it did not answer the send request at all the status is "unknown". Either way the message ' +
+        'may still be delivered, so check list_messages before resending.',
       inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         body: z

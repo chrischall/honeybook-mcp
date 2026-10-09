@@ -421,6 +421,28 @@ describe('messages tools', () => {
       }
     });
 
+    it('on a timeout of the create POST returns an "unknown" result instead of an error that invites a resend (fleet-audit#1023)', async () => {
+      fakeClient.request
+        .mockResolvedValueOnce(makeFeed())
+        .mockResolvedValueOnce(makeFeed())
+        .mockRejectedValueOnce(
+          new clientModule.HoneyBookTimeoutError('POST /api/v2/client_pending_task', 30_000)
+        );
+      const { result: res } = await callConfirmed(harness, 'send_message', {
+        workspace_id: WORKSPACE_ID,
+        subject: 'Q',
+        body: 'Hi',
+      });
+      expect(res.isError).toBeFalsy();
+      const out = bodyOf(res);
+      expect(out.status).toBe('unknown');
+      expect(out.task_id).toBeNull();
+      expect(out.warning).toMatch(/may have been queued/i);
+      expect(out.warning).toMatch(/list_messages/);
+      expect(out.warning).toMatch(/before resending/i);
+      expect(posts()).toHaveLength(1);
+    });
+
     it('replies to an existing message: inherits its subject and sets feed_to_reply_id', async () => {
       fakeClient.request
         .mockResolvedValueOnce(makeFeed())

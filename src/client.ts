@@ -36,6 +36,33 @@ export function hbRequestSignal(): AbortSignal {
 }
 
 /**
+ * HoneyBook did not answer within {@link httpTimeouts.requestMs}. Typed so a
+ * WRITE caller can tell "no answer — it may or may not have landed" apart from
+ * "HoneyBook refused it", which a resend is safe after (fleet-audit#1023).
+ */
+export class HoneyBookTimeoutError extends Error {
+  /** Structural marker, so the predicate survives a duplicated module copy. */
+  readonly honeyBookTimeout = true;
+  /** What was being requested, e.g. "POST /api/v2/client_pending_task". */
+  readonly what: string;
+
+  constructor(what: string, timeoutMs: number) {
+    super(`HoneyBook did not respond within ${timeoutMs / 1000}s (${what}).`);
+    this.name = 'HoneyBookTimeoutError';
+    this.what = what;
+  }
+}
+
+export function isHoneyBookTimeoutError(err: unknown): err is HoneyBookTimeoutError {
+  return (
+    err instanceof HoneyBookTimeoutError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { honeyBookTimeout?: unknown }).honeyBookTimeout === true)
+  );
+}
+
+/**
  * Run one fetch (and its body read) under {@link hbRequestSignal}, turning the
  * timeout's bare `TimeoutError` into a message that says what happened. A
  * caller's own cancellation propagates with its own reason.
@@ -46,7 +73,7 @@ export async function withHbTimeout<T>(what: string, fn: (signal: AbortSignal) =
     return await fn(signal);
   } catch (err) {
     if ((err as { name?: string } | null)?.name === 'TimeoutError' && !currentCallSignal()?.aborted) {
-      throw new Error(`HoneyBook did not respond within ${httpTimeouts.requestMs / 1000}s (${what}).`);
+      throw new HoneyBookTimeoutError(what, httpTimeouts.requestMs);
     }
     throw err;
   }
