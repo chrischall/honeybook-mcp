@@ -101,7 +101,7 @@ export async function fetchApiVersion(): Promise<number> {
   const override = readEnvVar('HONEYBOOK_API_VERSION');
   if (override) {
     // Sent verbatim as `hb-api-client-version`; a typo must not go out as "NaN".
-    if (!/^\d+$/.test(override.trim())) {
+    if (!/^0*[1-9]\d*$/.test(override.trim())) {
       throw new Error(
         `HONEYBOOK_API_VERSION must be a positive integer (e.g. 2578), got ${JSON.stringify(override)}.`
       );

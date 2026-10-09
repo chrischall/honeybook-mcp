@@ -50,7 +50,7 @@ describe('fetchApiVersion', () => {
   });
 
   it('rejects a non-integer HONEYBOOK_API_VERSION instead of sending NaN (fleet-audit#503)', async () => {
-    for (const bad of ['abc', '12.5', '-3', '0x10']) {
+    for (const bad of ['abc', '12.5', '-3', '0x10', '0', '000']) {
       process.env.HONEYBOOK_API_VERSION = bad;
       const spy = vi.spyOn(globalThis, 'fetch');
       await expect(fetchApiVersion()).rejects.toThrow(/HONEYBOOK_API_VERSION/);
