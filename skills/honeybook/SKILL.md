@@ -99,7 +99,7 @@ shape legible.
 - **"Send me a link to sign the photographer's contract"** → `list_workspace_files` → `sign_contract` (confirm when prompted)
 - **"Which invoices are overdue?"** → `list_workspace_files` with `file_type=invoice`, sort by due date
 - **"What did the planner send me?" / "Read me the latest checklist"** → `list_projects` → `list_messages` → `get_message`
-- **"Reply to Ivy and ask about the rehearsal"** → `list_messages` (find the message) → `send_message` with `reply_to_message_id` → show the user the preview → once they approve, re-run with the same arguments plus the returned `confirmToken` (on a client that shows a confirmation prompt, the prompt replaces these two steps)
+- **"Reply to Ivy and ask about the rehearsal"** → `list_messages` (find the message) → `send_message` with `reply_to_message_id` → show the user the preview → once they approve, re-run with the same arguments plus the returned `confirmToken` (on a client that shows a confirmation prompt, the prompt replaces these two steps, unless the server sets `MCP_CONFIRM_ELICITATION=off`)
 - **"When is my next Zoom with the planner?"** → `list_meetings`; the join link and password are in the row
 - **"What have I paid and what's left?"** → `list_payments` (`totals.paid` / `totals.unpaid`); to pay one, `pay_invoice`
 - **"Do I have anything to do?"** → `list_tasks` (`counts.overdue`, `counts.today`)
