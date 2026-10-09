@@ -5,6 +5,7 @@ import {
   getActiveClient,
   resetClientsForTest,
   currentModuleApiVersion,
+  isHoneyBookApiError,
 } from '../src/client.js';
 import * as sessionsModule from '../src/sessions.js';
 import { sessionStore } from '../src/sessions.js';
@@ -46,6 +47,24 @@ describe('fetchApiVersion', () => {
       new Response('nope', { status: 200 })
     );
     await expect(fetchApiVersion()).rejects.toThrow(/api_version/);
+  });
+
+  it('rejects a non-integer HONEYBOOK_API_VERSION instead of sending NaN (fleet-audit#503)', async () => {
+    for (const bad of ['abc', '12.5', '-3', '0x10']) {
+      process.env.HONEYBOOK_API_VERSION = bad;
+      const spy = vi.spyOn(globalThis, 'fetch');
+      await expect(fetchApiVersion()).rejects.toThrow(/HONEYBOOK_API_VERSION/);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    }
+  });
+
+  it('reports an unsuccessful /api/gon response by status, not as an unparseable body (fleet-audit#503)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Internal error', { status: 500 }));
+    const err = await fetchApiVersion().catch((e: unknown) => e);
+    expect(isHoneyBookApiError(err)).toBe(true);
+    expect((err as { status: number }).status).toBe(500);
+    expect((err as Error).message).not.toMatch(/Could not parse/);
   });
 });
 
@@ -101,6 +120,19 @@ describe('HoneyBookClient.request', () => {
     const h = init!.headers as Record<string, string>;
     expect(h['content-type']).toBe('application/json');
     expect(init!.body).toBe(JSON.stringify({ signature: 'yes' }));
+  });
+
+  it('reports a 200 whose body is not JSON with the method, path and status (fleet-audit#503)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('<html>Down for maintenance</html>', { status: 200 })
+    );
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    const err = await client.request('GET', '/api/v2/foo').catch((e: unknown) => e);
+    expect(isHoneyBookApiError(err)).toBe(true);
+    expect((err as Error).name).not.toBe('SyntaxError');
+    expect((err as Error).message).toMatch(/GET \/api\/v2\/foo/);
+    expect((err as Error).message).toMatch(/not JSON/i);
+    expect((err as { status: number }).status).toBe(200);
   });
 
   it('throws on non-2xx with status and truncated body', async () => {

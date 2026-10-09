@@ -71,11 +71,25 @@ export function cancellableDelay(ms: number): Promise<void> {
 
 export async function fetchApiVersion(): Promise<number> {
   const override = readEnvVar('HONEYBOOK_API_VERSION');
-  if (override) return Number(override);
+  if (override) {
+    // Sent verbatim as `hb-api-client-version`; a typo must not go out as "NaN".
+    if (!/^\d+$/.test(override.trim())) {
+      throw new Error(
+        `HONEYBOOK_API_VERSION must be a positive integer (e.g. 2578), got ${JSON.stringify(override)}.`
+      );
+    }
+    return Number(override.trim());
+  }
   const text = await withHbTimeout('GET /api/gon', async (signal) => {
     const res = await fetch(`${API_BASE}/api/gon?callback=parseGon`, { signal });
     const body = await res.text();
     throwIfEdgeBlocked(res.status, body, res.headers, 'GET', '/api/gon');
+    if (!res.ok) {
+      throw new HoneyBookApiError(
+        formatApiError(res.status, 'GET', '/api/gon', body, { service: 'HoneyBook' }),
+        { status: res.status, method: 'GET', path: '/api/gon', body }
+      );
+    }
     return body;
   });
   const m = /"api_version":\s*(\d+)/.exec(text);
@@ -287,7 +301,17 @@ export async function hbApiRequest<T>(
     );
   }
 
-  return (text ? JSON.parse(text) : null) as T;
+  if (!text) return null as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // A 200 that is not JSON (a maintenance page, a proxy's HTML) — say where
+    // it came from instead of surfacing a bare SyntaxError.
+    throw new HoneyBookApiError(
+      `HoneyBook returned a response that is not JSON (${method} ${path}, status ${status}): ${text.slice(0, 200)}`,
+      { status, method, path, body: text }
+    );
+  }
 }
 
 export class HoneyBookClient implements HbApiCaller {
