@@ -58,7 +58,7 @@ export function registerMeetingTools(server: McpServer): void {
           'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
         ),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     listMeetings
   );

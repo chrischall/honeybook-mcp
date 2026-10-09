@@ -342,7 +342,7 @@ export function registerMessageTools(server: McpServer): void {
         limit: z.number().int().positive().max(500).optional().describe('Max items to return (default 50).'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     listMessages
   );
@@ -359,7 +359,7 @@ export function registerMessageTools(server: McpServer): void {
         format: z.enum(['text', 'html']).optional().describe('Body format. Default "text".'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     getMessage
   );
@@ -388,7 +388,7 @@ export function registerMessageTools(server: McpServer): void {
         origin: schemaOrigin.describe(ORIGIN_DESC),
         confirmToken: confirmTokenParam,
       }),
-      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
     sendMessage
   );
@@ -404,7 +404,7 @@ export function registerMessageTools(server: McpServer): void {
         message_ids: z.array(z.string()).min(1).describe('Feed item _ids from list_messages.'),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     markMessagesSeen
   );

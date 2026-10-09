@@ -79,8 +79,8 @@ export function registerContractTools(server: McpServer): void {
     'sign_contract',
     {
       description:
-        'Sign a contract you received from a vendor. In v1 this returns a deep link to the HoneyBook portal instead of signing headlessly. ' +
-        'Asks the user to confirm first: a confirmation prompt where the client supports one; otherwise the first call returns a preview and a confirmToken, and only a repeat call with that token proceeds (see MCP_CONFIRM_MODE).',
+        'Sign a contract you received from a vendor. In v1 this returns a deep link to the HoneyBook portal instead of signing headlessly — it signs nothing itself; the user signs in their browser. ' +
+        'It still asks the user to confirm before handing over the link: a confirmation prompt where the client supports one; otherwise the first call returns a preview and a confirmToken, and only a repeat call with that token proceeds (see MCP_CONFIRM_MODE).',
       inputSchema: z.object({
         file_id: z
           .string()
@@ -90,7 +90,7 @@ export function registerContractTools(server: McpServer): void {
         ),
         confirmToken: confirmTokenParam,
       }),
-      annotations: { destructiveHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     signContract
   );

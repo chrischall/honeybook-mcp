@@ -318,7 +318,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           .optional()
           .describe('Filter to one file type. Omit to return all.'),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     listWorkspaceFiles
   );
@@ -339,7 +339,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
             'Which view to return. Default "summary" (~5-15 kB). Others return focused sections of the raw response.'
           ),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     getWorkspaceFile
   );
