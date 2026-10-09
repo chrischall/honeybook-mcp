@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { minifiedResult, rawTextResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { HBListEnvelope, ToolResult } from '../types.js';
 import { FILE_TYPES } from '../types.js';
@@ -214,23 +214,57 @@ function extractPayments(file: RawFile): Record<string, unknown> {
   };
 }
 
+/**
+ * Upper bound on pages followed in one list_workspace_files call. A client's
+ * file list is a handful of documents per vendor; this only stops a runaway.
+ */
+export const MAX_WORKSPACE_FILE_PAGES = 20;
+
+/**
+ * Every page of the user's workspace files (fleet-audit#502). Page 1 alone
+ * hid later files entirely — and `file_type` filtering ran on page 1 only, so
+ * an invoice on page 2 read as "no invoices". Pages are requested with
+ * `?page=N`, the parameter the same API's /client/events list takes; if a page
+ * brings nothing new (the parameter ignored) or the cap is hit, the result
+ * says `complete: false` rather than passing a partial list off as whole.
+ */
 export async function listWorkspaceFiles(args: {
   origin?: string;
   file_type?: string;
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
-  const res = await client.request<HBListEnvelope<Record<string, unknown>>>(
-    'GET',
-    apiPath`/api/v2/users/${client.scope.userId}/workspace_files`
-  );
-  const filtered = args.file_type
-    ? res.data.filter((f) => f.file_type === args.file_type)
-    : res.data;
-  const prefix =
-    res.last_page === false
-      ? '// NOTE: more results exist on later pages; pagination is not yet wired up.\n'
-      : '';
-  return rawTextResult(prefix + JSON.stringify(filtered, null, 2));
+  const base = apiPath`/api/v2/users/${client.scope.userId}/workspace_files`;
+  const files: Array<Record<string, unknown>> = [];
+  const seen = new Set<unknown>();
+  let complete = false;
+  for (let page = 1; page <= MAX_WORKSPACE_FILE_PAGES; page++) {
+    const res = await client.request<HBListEnvelope<Record<string, unknown>>>(
+      'GET',
+      page === 1 ? base : `${base}?page=${page}`
+    );
+    const fresh = (res.data ?? []).filter((f) => !seen.has(f._id));
+    for (const f of fresh) {
+      seen.add(f._id);
+      files.push(f);
+    }
+    if (res.last_page !== false) {
+      complete = true;
+      break;
+    }
+    if (fresh.length === 0) break;
+  }
+  const filtered = args.file_type ? files.filter((f) => f.file_type === args.file_type) : files;
+  return minifiedResult({
+    files: filtered,
+    complete,
+    ...(complete
+      ? {}
+      : {
+          note:
+            'This list is incomplete: HoneyBook reports more files than could be fetched. ' +
+            'Files (including ones matching file_type) may be missing.',
+        }),
+  });
 }
 
 export async function getWorkspaceFile(args: {
@@ -273,7 +307,8 @@ export function registerWorkspaceFileTools(server: McpServer): void {
     'list_workspace_files',
     {
       description:
-        'List all files a vendor has shared with you (contracts, invoices, brochures, proposals). Optionally filter by file_type.',
+        'List all files a vendor has shared with you (contracts, invoices, brochures, proposals). Optionally filter by file_type. ' +
+        'Follows every page; returns { files, complete } — complete:false means some files could not be fetched.',
       inputSchema: z.object({
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co) to target. Optional — defaults to the most recently activated session.'

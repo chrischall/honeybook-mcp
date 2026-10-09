@@ -127,8 +127,9 @@ describe('workspace_files tools', () => {
     const result = await listWorkspaceFiles({});
     expect(fakeClient.request).toHaveBeenCalledWith('GET', '/api/v2/users/uid_24/workspace_files');
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].file_type).toBe('brochure');
+    expect(parsed.complete).toBe(true);
+    expect(parsed.files).toHaveLength(1);
+    expect(parsed.files[0].file_type).toBe('brochure');
   });
 
   it('listWorkspaceFiles: filters by file_type', async () => {
@@ -142,8 +143,8 @@ describe('workspace_files tools', () => {
     });
     const result = await listWorkspaceFiles({ file_type: 'agreement' });
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0]._id).toBe('other_id');
+    expect(parsed.files).toHaveLength(1);
+    expect(parsed.files[0]._id).toBe('other_id');
   });
 
   it('listWorkspaceFiles: passes origin through to getActiveClient', async () => {
@@ -152,14 +153,48 @@ describe('workspace_files tools', () => {
     expect(clientModule.getActiveClient).toHaveBeenCalledWith('https://photog.hbportal.co');
   });
 
-  it('listWorkspaceFiles: prepends a pagination notice when last_page is false', async () => {
-    fakeClient.request.mockResolvedValueOnce({
-      data: [MOCK_FILE],
-      cur_page: 1,
-      last_page: false,
+  // fleet-audit#502: only page 1 was fetched, behind a "// NOTE" a model could
+  // skip, and file_type filtered page 1 only — invoices on page 2 were invisible.
+  it('listWorkspaceFiles: follows later pages until last_page and filters across all of them', async () => {
+    fakeClient.request
+      .mockResolvedValueOnce({ data: [{ ...MOCK_FILE, _id: 'a' }], cur_page: 1, last_page: false })
+      .mockResolvedValueOnce({
+        data: [{ ...MOCK_FILE, _id: 'b', file_type: 'invoice' }],
+        cur_page: 2,
+        last_page: true,
+      });
+    const result = await listWorkspaceFiles({ file_type: 'invoice' });
+    expect(fakeClient.request.mock.calls).toEqual([
+      ['GET', '/api/v2/users/uid_24/workspace_files'],
+      ['GET', '/api/v2/users/uid_24/workspace_files?page=2'],
+    ]);
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.files.map((f: { _id: string }) => f._id)).toEqual(['b']);
+    expect(result.content[0].text).not.toMatch(/NOTE/);
+  });
+
+  it('listWorkspaceFiles: stops and reports complete=false when a later page repeats (page param ignored)', async () => {
+    fakeClient.request.mockResolvedValue({ data: [{ ...MOCK_FILE, _id: 'a' }], cur_page: 1, last_page: false });
+    const result = await listWorkspaceFiles({});
+    expect(fakeClient.request).toHaveBeenCalledTimes(2);
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.complete).toBe(false);
+    expect(parsed.files).toHaveLength(1);
+    expect(parsed.note).toMatch(/incomplete/i);
+  });
+
+  it('listWorkspaceFiles: caps the number of pages and says the list is incomplete', async () => {
+    let n = 0;
+    fakeClient.request.mockImplementation(async () => {
+      n += 1;
+      return { data: [{ ...MOCK_FILE, _id: `f${n}` }], cur_page: n, last_page: false };
     });
     const result = await listWorkspaceFiles({});
-    expect(result.content[0].text).toMatch(/more results exist/);
+    expect(fakeClient.request).toHaveBeenCalledTimes(20);
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.complete).toBe(false);
+    expect(parsed.files).toHaveLength(20);
   });
 
   it('getWorkspaceFile: hits /workspace_files/{id}', async () => {
