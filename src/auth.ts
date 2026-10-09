@@ -68,7 +68,7 @@ import { bootstrap } from '@fetchproxy/bootstrap';
 import { bridgeErrorInfo } from '@chrischall/mcp-utils/fetchproxy';
 import { parseBoolEnv } from '@chrischall/mcp-utils';
 import { isBrowserCapabilityGap } from './bridge-errors.js';
-import pkg from '../package.json' with { type: 'json' };
+import { SERVER_NAME, VERSION } from './version.js';
 import { sessionStore, normalizeOrigin, vendorPortalSubdomain } from './sessions.js';
 import type { CapturedSession } from './types.js';
 
@@ -116,8 +116,8 @@ export async function captureSessionViaFetchproxy(opts: CaptureOpts): Promise<Ca
   let session;
   try {
     session = await bootstrap({
-      serverName: pkg.name,
-      version: pkg.version,
+      serverName: SERVER_NAME,
+      version: VERSION,
       // HoneyBook serves both the main app (honeybook.com) and per-vendor
       // portal subdomains (*.hbportal.co). The extension matches on suffix,
       // so listing both apexes covers any vendor.

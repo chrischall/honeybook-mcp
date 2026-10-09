@@ -68,6 +68,10 @@ describe('tool annotations', () => {
       if (a.readOnlyHint === false) {
         expect(typeof a.destructiveHint, `${name}.destructiveHint`).toBe('boolean');
         expect(typeof a.idempotentHint, `${name}.idempotentHint`).toBe('boolean');
+      } else {
+        // A read that also claimed destructive would be a contradiction a
+        // client could only resolve by guessing.
+        expect(a.destructiveHint, `${name}.destructiveHint on a read`).not.toBe(true);
       }
     }
   });
@@ -95,5 +99,18 @@ describe('tool annotations', () => {
     const all = await allAnnotations();
     expect(all.get('mark_messages_seen')?.openWorldHint).toBe(true);
     expect(all.get('send_message')).toMatchObject({ destructiveHint: true, openWorldHint: true });
+  });
+
+  // The inverse test: a write is additive only if a later call in this tool set
+  // restores the prior state. Nothing here marks a feed item UNseen, so the
+  // unseen state mark_messages_seen clears cannot be put back.
+  it('mark_messages_seen has no inverse tool, so it is destructive', async () => {
+    const all = await allAnnotations();
+    expect([...all.keys()].some((n) => /unseen|unread/.test(n))).toBe(false);
+    expect(all.get('mark_messages_seen')).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+    });
   });
 });
