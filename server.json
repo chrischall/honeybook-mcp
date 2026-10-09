@@ -6,12 +6,12 @@
     "url": "https://github.com/chrischall/honeybook-mcp",
     "source": "github"
   },
-  "version": "1.2.5",
+  "version": "1.2.6",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "honeybook-mcp",
-      "version": "1.2.5",
+      "version": "1.2.6",
       "transport": {
         "type": "stdio"
       },
