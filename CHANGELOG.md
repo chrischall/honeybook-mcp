@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.6](https://github.com/chrischall/honeybook-mcp/compare/v1.2.5...v1.2.6) (2026-10-09)
+
+
+### Bug Fixes
+
+* annotate tools truthfully and sync manifests with the served tools ([#275](https://github.com/chrischall/honeybook-mcp/issues/275)) ([94737dd](https://github.com/chrischall/honeybook-mcp/commit/94737dd43f2e3d827eaa7dd68ed547871439f6b3))
+* **client:** reject HONEYBOOK_API_VERSION=0 as not a positive integer ([#272](https://github.com/chrischall/honeybook-mcp/issues/272)) ([d752b02](https://github.com/chrischall/honeybook-mcp/commit/d752b02852182da5c5df1146922655ab74217db2))
+* **contracts:** drop stale docs/risks.md pointer and Puppeteer env var ([#273](https://github.com/chrischall/honeybook-mcp/issues/273)) ([ab89f6c](https://github.com/chrischall/honeybook-mcp/commit/ab89f6c82a4baa9b0f5aa2fbee0cf506b62398f7))
+* declare the plugin MCP config under the mcpServers key Claude Code reads ([#276](https://github.com/chrischall/honeybook-mcp/issues/276)) ([118c9ed](https://github.com/chrischall/honeybook-mcp/commit/118c9eda1e226f6d6d262637d5e62f9dc5c3363f))
+* **deps:** update @chrischall/mcp-utils to 3.0.0 ([#274](https://github.com/chrischall/honeybook-mcp/issues/274)) ([e0417d7](https://github.com/chrischall/honeybook-mcp/commit/e0417d7d4d485db35ab612a6473d5482b20cff29))
+* resolve low-severity audit findings ([#269](https://github.com/chrischall/honeybook-mcp/issues/269)) ([6bf4ab4](https://github.com/chrischall/honeybook-mcp/commit/6bf4ab4d1f8907c4456ed6d2d4b9c587990df4a8))
+
 ## [1.2.5](https://github.com/chrischall/honeybook-mcp/compare/v1.2.4...v1.2.5) (2026-10-07)
 
 

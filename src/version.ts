@@ -4,4 +4,4 @@
 // package.json drift. Importing these instead of package.json keeps the
 // whole manifest — npm scripts included — out of dist/bundle.js.
 export const SERVER_NAME = 'honeybook-mcp';
-export const VERSION = '1.2.5'; // x-release-please-version
+export const VERSION = '1.2.6'; // x-release-please-version
