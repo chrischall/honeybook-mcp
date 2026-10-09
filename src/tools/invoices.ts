@@ -40,6 +40,9 @@ export async function payInvoice(
     status: file.status_name || 'open',
     has_pending_payment: Boolean(file.has_pending_payment),
   };
+  // Bound into both confirmation rails (mcp-utils 3): everything the caller
+  // asked for except the token itself.
+  const { confirmToken, ...toolArgs } = args;
   const gate = await requireConfirmationWithFallback(
     ctx,
     confirmationFromEnv({
@@ -48,7 +51,8 @@ export async function payInvoice(
       details: preview,
       tool: 'pay_invoice',
       account: client.scope.portalOrigin,
-      confirmToken: args.confirmToken,
+      args: toolArgs,
+      confirmToken,
       subject: () => ({
         target: String(file._id),
         payload: { file_id: file._id, file_title: file.file_title, has_pending_payment: preview.has_pending_payment },

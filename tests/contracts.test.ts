@@ -91,6 +91,18 @@ describe('sign_contract', () => {
     expect(textOf(replay)).not.toContain(DEEP_LINK);
   });
 
+  it('refuses a token replayed with different tool arguments (mcp-utils 3 args binding)', async () => {
+    fakeClient.request.mockResolvedValue(CONTRACT);
+    const phase1 = bodyOf(await harness.callTool('sign_contract', { file_id: 'file123' }));
+    const swapped = await harness.callTool('sign_contract', {
+      file_id: 'file123',
+      origin: 'https://thesilkveileventsbyivy.hbportal.co',
+      confirmToken: phase1.confirmToken,
+    });
+    expect(swapped.isError).toBe(true);
+    expect(textOf(swapped)).not.toContain(DEEP_LINK);
+  });
+
   it('refuses to sign a non-agreement file', async () => {
     fakeClient.request.mockResolvedValue({ _id: 'file456', file_title: 'Brochure', file_type: 'brochure' });
     const result = await harness.callTool('sign_contract', { file_id: 'file456' });
