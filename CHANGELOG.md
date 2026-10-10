@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.7](https://github.com/chrischall/honeybook-mcp/compare/v1.2.6...v1.2.7) (2026-10-10)
+
+
+### Documentation
+
+* make AGENTS.md a symlink to CLAUDE.md ([#277](https://github.com/chrischall/honeybook-mcp/issues/277)) ([7f3ed5a](https://github.com/chrischall/honeybook-mcp/commit/7f3ed5a24dacc6e0ce0807f7bc787eb10cdb5a0f))
+
 ## [1.2.6](https://github.com/chrischall/honeybook-mcp/compare/v1.2.5...v1.2.6) (2026-10-09)
 
 
