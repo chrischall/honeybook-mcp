@@ -222,7 +222,7 @@ describe('fetchFlowMinimal', () => {
   // docblock two functions below is how the wrong model gets re-learned.
   it('does not call ctxc required — the API ignores it', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
-    const err = await fetchFlowMinimal('f1', { apiVersion: 2610 }).catch((e: unknown) => e as Error);
+    const err = (await fetchFlowMinimal('f1', { apiVersion: 2610 }).catch((e: unknown) => e)) as Error;
     expect(err.message).toMatch(/ctxc/); // still says what this route is FOR
     expect(err.message).not.toMatch(/required/i);
   });
@@ -272,9 +272,9 @@ describe('the required client version', () => {
     );
     // No ctxc in the path — it is optional now, and its absence makes the
     // assertion below about the EXPLANATION rather than the echoed URL.
-    const err = await new FlowClient(CREDENTIAL, 2610)
+    const err = (await new FlowClient(CREDENTIAL, 2610)
       .request('GET', '/api/v2/client/flow/x/active')
-      .catch((e: unknown) => e as Error);
+      .catch((e: unknown) => e)) as Error;
     expect(err.message).toMatch(/hb-api-client-version/);
     expect(err.message).toMatch(/2610/);
     // ctxc is ignored by the API, so naming it as a cause only misdirects.
@@ -286,9 +286,9 @@ describe('the required client version', () => {
 
   it('leaves a non-400 failure alone', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
-    const err = await new FlowClient(CREDENTIAL, 2610)
+    const err = (await new FlowClient(CREDENTIAL, 2610)
       .request('GET', '/x')
-      .catch((e: unknown) => e as Error);
+      .catch((e: unknown) => e)) as Error;
     expect(err.message).not.toMatch(/hb-api-client-version/);
   });
 });

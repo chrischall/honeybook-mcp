@@ -18,7 +18,7 @@ describe('listPaymentMethods', () => {
       },
     };
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
-      fakeClient as unknown as clientModule.HoneyBookClient
+      fakeClient as unknown as import('../src/client.js').HoneyBookClient
     );
   });
 
@@ -30,7 +30,7 @@ describe('listPaymentMethods', () => {
     ]);
     const result = await listPaymentMethods({});
     expect(fakeClient.request).toHaveBeenCalledWith('GET', '/api/v2/users/uid_24/payment_methods');
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].last4).toBe('4242');
   });
@@ -38,7 +38,7 @@ describe('listPaymentMethods', () => {
   it('returns an empty array when no payment methods are saved', async () => {
     fakeClient.request.mockResolvedValueOnce([]);
     const result = await listPaymentMethods({});
-    expect(JSON.parse(result.content[0].text)).toEqual([]);
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual([]);
   });
 
   // A saved card as HoneyBook returns it carries far more than "which card is
@@ -62,7 +62,7 @@ describe('listPaymentMethods', () => {
   it('projects each method to the card-on-file fields by default', async () => {
     fakeClient.request.mockResolvedValueOnce([rawCard]);
     const result = await listPaymentMethods({});
-    const text = result.content[0].text;
+    const text = (result.content[0] as { text: string }).text;
     expect(JSON.parse(text)).toEqual([
       {
         _id: 'pm1',
@@ -82,7 +82,7 @@ describe('listPaymentMethods', () => {
   it('omits projected fields the record does not carry', async () => {
     fakeClient.request.mockResolvedValueOnce([{ _id: 'pm2', type: 'bank_account', last4: '6789' }]);
     const result = await listPaymentMethods({});
-    expect(JSON.parse(result.content[0].text)).toEqual([
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual([
       { _id: 'pm2', type: 'bank_account', last4: '6789' },
     ]);
   });
@@ -90,12 +90,12 @@ describe('listPaymentMethods', () => {
   it('returns the untrimmed records only with view="raw"', async () => {
     fakeClient.request.mockResolvedValueOnce([rawCard]);
     const result = await listPaymentMethods({ view: 'raw' });
-    expect(result.content[0].text).toContain('cus_TEST');
+    expect((result.content[0] as { text: string }).text).toContain('cus_TEST');
   });
 
   it('falls back to the projected view for an unknown view value', async () => {
     fakeClient.request.mockResolvedValueOnce([rawCard]);
     const result = await listPaymentMethods({ view: 'bogus' });
-    expect(result.content[0].text).not.toContain('cus_TEST');
+    expect((result.content[0] as { text: string }).text).not.toContain('cus_TEST');
   });
 });

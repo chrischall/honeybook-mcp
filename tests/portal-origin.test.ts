@@ -105,7 +105,7 @@ describe('deep links refuse a stored session on a foreign host', () => {
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue({
       request: vi.fn().mockResolvedValue({ _id: 'f1', file_title: 'F', file_type: 'invoice' }),
       scope: { portalOrigin: 'https://evil.example', companyName: 'evil', userId: 'u' },
-    } as unknown as clientModule.HoneyBookClient);
+    } as unknown as import('../src/client.js').HoneyBookClient);
   });
   afterEach(() => vi.restoreAllMocks());
 

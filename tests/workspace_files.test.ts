@@ -112,7 +112,7 @@ describe('workspace_files tools', () => {
       },
     };
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
-      fakeClient as unknown as clientModule.HoneyBookClient
+      fakeClient as unknown as import('../src/client.js').HoneyBookClient
     );
   });
 
@@ -126,7 +126,7 @@ describe('workspace_files tools', () => {
     });
     const result = await listWorkspaceFiles({});
     expect(fakeClient.request).toHaveBeenCalledWith('GET', '/api/v2/users/uid_24/workspace_files');
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.complete).toBe(true);
     expect(parsed.files).toHaveLength(1);
     expect(parsed.files[0].file_type).toBe('brochure');
@@ -142,7 +142,7 @@ describe('workspace_files tools', () => {
       last_page: true,
     });
     const result = await listWorkspaceFiles({ file_type: 'agreement' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.files).toHaveLength(1);
     expect(parsed.files[0]._id).toBe('other_id');
   });
@@ -168,17 +168,17 @@ describe('workspace_files tools', () => {
       ['GET', '/api/v2/users/uid_24/workspace_files'],
       ['GET', '/api/v2/users/uid_24/workspace_files?page=2'],
     ]);
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.complete).toBe(true);
     expect(parsed.files.map((f: { _id: string }) => f._id)).toEqual(['b']);
-    expect(result.content[0].text).not.toMatch(/NOTE/);
+    expect((result.content[0] as { text: string }).text).not.toMatch(/NOTE/);
   });
 
   it('listWorkspaceFiles: stops and reports complete=false when a later page repeats (page param ignored)', async () => {
     fakeClient.request.mockResolvedValue({ data: [{ ...MOCK_FILE, _id: 'a' }], cur_page: 1, last_page: false });
     const result = await listWorkspaceFiles({});
     expect(fakeClient.request).toHaveBeenCalledTimes(2);
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.complete).toBe(false);
     expect(parsed.files).toHaveLength(1);
     expect(parsed.note).toMatch(/incomplete/i);
@@ -192,9 +192,46 @@ describe('workspace_files tools', () => {
     });
     const result = await listWorkspaceFiles({});
     expect(fakeClient.request).toHaveBeenCalledTimes(20);
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.complete).toBe(false);
     expect(parsed.files).toHaveLength(20);
+  });
+
+  // fleet-audit#1264: the list returned every raw file object — company and
+  // vendor_proposal included, ~1.3 MB on one real proposal — so two or three
+  // proposals could exceed the host's result-size limit.
+  it('listWorkspaceFiles: returns a light per-file summary by default', async () => {
+    fakeClient.request.mockResolvedValueOnce({ data: [MOCK_PROPOSAL], cur_page: null, last_page: true });
+    const result = await listWorkspaceFiles({});
+    const text = (result.content[0] as { text: string }).text;
+    const parsed = JSON.parse(text);
+    expect(parsed.files).toEqual([
+      {
+        _id: 'file_proposal',
+        file_title: 'Wedding Proposal',
+        file_type: 'proposal',
+        status_name: 'Proposal Sent',
+        sent_on: '2026-04-21T11:51:02.816Z',
+        created_at: '2026-04-21T10:00:00Z',
+        workspace_id: 'ws1',
+        workspace_name: 'Meredith + Chris',
+        has_pending_payment: false,
+        is_file_accepted: false,
+        is_canceled: undefined,
+      }].map((f) => JSON.parse(JSON.stringify(f))));
+    expect(text).not.toContain('vendor_emails');
+    expect(text).not.toContain('vendor_proposal');
+    expect(text.length).toBeLessThan(1000);
+  });
+
+  it('listWorkspaceFiles: view="all" returns the pruned full objects', async () => {
+    fakeClient.request.mockResolvedValueOnce({ data: [MOCK_PROPOSAL], cur_page: null, last_page: true });
+    const parsed = JSON.parse(
+      ((await listWorkspaceFiles({ view: 'all' })).content[0] as { text: string }).text
+    );
+    expect(parsed.files[0].vendor_proposal.total_price).toBe(1035);
+    expect(parsed.files[0].company.company_name).toBe('The Silk Veil Events by Ivy');
+    expect(parsed.files[0].company).not.toHaveProperty('vendor_emails');
   });
 
   it('getWorkspaceFile: hits /workspace_files/{id}', async () => {
@@ -209,7 +246,7 @@ describe('workspace_files tools', () => {
   it('getWorkspaceFile: default section is "summary" with compact shape', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
     const result = await getWorkspaceFile({ file_id: 'file_proposal' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.file_title).toBe('Wedding Proposal');
     expect(parsed.vendor.company_name).toBe('The Silk Veil Events by Ivy');
     expect(parsed.vendor.owner_name).toBe('Ivy Honeycutt');
@@ -232,13 +269,13 @@ describe('workspace_files tools', () => {
     // vendor_emails should be gone (summary skips the raw blob entirely)
     expect(JSON.stringify(parsed)).not.toContain('vendor_emails');
     // summary response stays tiny
-    expect(result.content[0].text.length).toBeLessThan(5000);
+    expect((result.content[0] as { text: string }).text.length).toBeLessThan(5000);
   });
 
   it('getWorkspaceFile: section="pricing" returns vendor_proposal', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
     const result = await getWorkspaceFile({ file_id: 'f1', section: 'pricing' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.vendor_proposal.sub_total).toBe(1150);
     expect(parsed.currency).toBe('USD');
     expect(parsed.agreement).toBeUndefined();
@@ -248,7 +285,7 @@ describe('workspace_files tools', () => {
   it('getWorkspaceFile: section="agreement" returns agreement only', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
     const result = await getWorkspaceFile({ file_id: 'f1', section: 'agreement' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.agreement.html_body).toBe('<p>Contract text</p>');
     expect(parsed.vendor_proposal).toBeUndefined();
     expect(parsed.payments_container).toBeUndefined();
@@ -257,7 +294,7 @@ describe('workspace_files tools', () => {
   it('getWorkspaceFile: section="payments" returns payments_container only', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
     const result = await getWorkspaceFile({ file_id: 'f1', section: 'payments' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.payments_container.payments).toHaveLength(3);
     expect(parsed.agreement).toBeUndefined();
     expect(parsed.vendor_proposal).toBeUndefined();
@@ -266,7 +303,7 @@ describe('workspace_files tools', () => {
   it('getWorkspaceFile: section="all" strips heavy company.* fields', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
     const result = await getWorkspaceFile({ file_id: 'f1', section: 'all' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.company.company_name).toBe('The Silk Veil Events by Ivy');
     expect(parsed.company.vendor_emails).toBeUndefined();
     expect(parsed.vendor_proposal).toBeDefined();
@@ -276,7 +313,7 @@ describe('workspace_files tools', () => {
   it('getWorkspaceFile: section="raw" keeps everything including vendor_emails', async () => {
     fakeClient.request.mockResolvedValueOnce(MOCK_PROPOSAL);
     const result = await getWorkspaceFile({ file_id: 'f1', section: 'raw' });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.company.vendor_emails).toBeDefined();
   });
 
