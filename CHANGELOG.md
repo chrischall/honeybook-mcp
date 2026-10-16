@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.7](https://github.com/chrischall/honeybook-mcp/compare/v1.2.6...v1.2.7) (2026-10-16)
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 2 updates ([#280](https://github.com/chrischall/honeybook-mcp/issues/280)) ([9e4875d](https://github.com/chrischall/honeybook-mcp/commit/9e4875dbfbe5518eef64de99cabb00c3e5ed6ad5))
+* **files:** list workspace files as light summary rows so the list fits in a tool result ([#281](https://github.com/chrischall/honeybook-mcp/issues/281)) ([e6cf141](https://github.com/chrischall/honeybook-mcp/commit/e6cf141b1ca37211bb88acbbaab58ae6a87ca135))
+
+
+### Documentation
+
+* make AGENTS.md a symlink to CLAUDE.md ([#277](https://github.com/chrischall/honeybook-mcp/issues/277)) ([7f3ed5a](https://github.com/chrischall/honeybook-mcp/commit/7f3ed5a24dacc6e0ce0807f7bc787eb10cdb5a0f))
+
 ## [1.2.6](https://github.com/chrischall/honeybook-mcp/compare/v1.2.5...v1.2.6) (2026-10-09)
 
 
