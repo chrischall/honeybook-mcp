@@ -343,7 +343,7 @@ describe('captureSessionViaFetchproxy', () => {
     it('blames the browser, not the MCP, when a capability is unavailable', async () => {
       const { FetchproxyCapabilityUnavailableError } = await import('@fetchproxy/server');
       const capErr = new FetchproxyCapabilityUnavailableError(
-        new Error('capability_unavailable'),
+        'capability_unavailable',
         { capability: 'local_storage', platform: 'safari' }
       );
       bootstrapMock.mockRejectedValue(capErr);

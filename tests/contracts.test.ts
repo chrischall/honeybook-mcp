@@ -32,7 +32,7 @@ describe('sign_contract', () => {
       },
     };
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
-      fakeClient as unknown as clientModule.HoneyBookClient
+      fakeClient as unknown as import('../src/client.js').HoneyBookClient
     );
     harness = await createTestHarness((server) => registerContractTools(server));
   });

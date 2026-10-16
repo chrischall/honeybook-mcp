@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as clientModule from '../src/client.js';
 import { listProjects, getProject, PROJECT_VIEWS } from '../src/tools/projects.js';
 
-function parse(result: { content: Array<{ text?: string }> }): any {
-  return JSON.parse(result.content[0].text as string);
+function parse(result: { content: unknown[] }): any {
+  return JSON.parse((result.content[0] as { text: string }).text);
 }
 
 const DETAILS = {
@@ -60,7 +60,7 @@ describe('project tools', () => {
       request: vi.fn(),
       scope: { portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co', companyName: 'Silk Veil', userId: 'uid_24' },
     };
-    vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(fakeClient as unknown as clientModule.HoneyBookClient);
+    vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(fakeClient as unknown as import('../src/client.js').HoneyBookClient);
   });
   afterEach(() => vi.restoreAllMocks());
 

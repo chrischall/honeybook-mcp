@@ -18,8 +18,8 @@ type FakeClient = {
   scope: { portalOrigin: string; companyName: string; userId: string };
 };
 
-function parse(result: { content: Array<{ text?: string }> }): any {
-  return JSON.parse(result.content[0].text as string);
+function parse(result: { content: unknown[] }): any {
+  return JSON.parse((result.content[0] as { text: string }).text);
 }
 
 describe('messages tools', () => {
@@ -35,7 +35,7 @@ describe('messages tools', () => {
       },
     };
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
-      fakeClient as unknown as clientModule.HoneyBookClient
+      fakeClient as unknown as import('../src/client.js').HoneyBookClient
     );
     pendingTaskPolling.intervalMs = 0;
   });

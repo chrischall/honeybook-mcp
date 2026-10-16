@@ -9,7 +9,7 @@ for signing and paying.
 ```bash
 npm run build        # tsc + esbuild bundle → dist/bundle.js
 npm run bundle       # esbuild only (no tsc check)
-npm test             # vitest run
+npm test             # typecheck (src, then src + tests via tsconfig.test.json) + vitest run
 npm run test:watch   # vitest in watch mode
 npm run dev          # node --env-file=.env dist/index.js (requires built dist)
 ```

@@ -220,6 +220,32 @@ function extractPayments(file: RawFile): Record<string, unknown> {
  */
 export const MAX_WORKSPACE_FILE_PAGES = 20;
 
+/** The rungs list_workspace_files offers — the names get_workspace_file uses. */
+export const WORKSPACE_FILE_LIST_VIEWS = ['summary', 'all'] as const;
+export type WorkspaceFileListView = (typeof WORKSPACE_FILE_LIST_VIEWS)[number];
+
+/**
+ * One row of the list: enough to pick a file and call get_workspace_file.
+ * The raw object carries `company` (vendor_emails alone measured ~1.3 MB on
+ * one proposal) and the whole `vendor_proposal`, so returning it per file let
+ * a handful of proposals exceed the host's result-size limit (fleet-audit#1264).
+ */
+export function listRow(file: RawFile): Record<string, unknown> {
+  return {
+    _id: file._id,
+    file_title: file.file_title,
+    file_type: file.file_type,
+    status_name: file.status_name,
+    sent_on: file.sent_on,
+    created_at: file.created_at,
+    workspace_id: getStr(getObj(file, 'workspace'), '_id'),
+    workspace_name: getStr(file, 'workspace_name'),
+    has_pending_payment: file.has_pending_payment,
+    is_file_accepted: file.is_file_accepted,
+    is_canceled: file.is_canceled,
+  };
+}
+
 /**
  * Every page of the user's workspace files (fleet-audit#502). Page 1 alone
  * hid later files entirely — and `file_type` filtering ran on page 1 only, so
@@ -231,6 +257,7 @@ export const MAX_WORKSPACE_FILE_PAGES = 20;
 export async function listWorkspaceFiles(args: {
   origin?: string;
   file_type?: string;
+  view?: WorkspaceFileListView;
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
   const base = apiPath`/api/v2/users/${client.scope.userId}/workspace_files`;
@@ -254,8 +281,9 @@ export async function listWorkspaceFiles(args: {
     if (fresh.length === 0) break;
   }
   const filtered = args.file_type ? files.filter((f) => f.file_type === args.file_type) : files;
+  const project = (args.view ?? 'summary') === 'all' ? pruneWorkspaceFile : listRow;
   return minifiedResult({
-    files: filtered,
+    files: filtered.map(project),
     complete,
     ...(complete
       ? {}
@@ -308,7 +336,9 @@ export function registerWorkspaceFileTools(server: McpServer): void {
     {
       description:
         'List all files a vendor has shared with you (contracts, invoices, brochures, proposals). Optionally filter by file_type. ' +
-        'Follows every page; returns { files, complete } — complete:false means some files could not be fetched.',
+        'Follows every page; returns { files, complete } — complete:false means some files could not be fetched. ' +
+        'Each file is a light summary row by default (id, title, type, status, sent date, workspace, payment/acceptance flags); ' +
+        'call get_workspace_file with its _id for pricing, contract or payments, or pass view="all" for every pruned file object (large).',
       inputSchema: z.object({
         origin: schemaOrigin.describe(
           'Portal origin (e.g. https://<vendor>.hbportal.co) to target. Optional — defaults to the most recently activated session.'
@@ -317,6 +347,12 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           .enum(FILE_TYPES)
           .optional()
           .describe('Filter to one file type. Omit to return all.'),
+        view: z
+          .enum(WORKSPACE_FILE_LIST_VIEWS)
+          .optional()
+          .describe(
+            'Default "summary": one light row per file. "all": each file object with the heavy vendor-side company fields pruned (can be hundreds of kB per proposal).'
+          ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

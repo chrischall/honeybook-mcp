@@ -67,7 +67,7 @@ describe('tools encode ids into their request paths', () => {
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue({
       request,
       scope: { portalOrigin: 'https://acme.hbportal.co', companyName: 'Acme', userId: 'me' },
-    } as unknown as clientModule.HoneyBookClient);
+    } as unknown as import('../src/client.js').HoneyBookClient);
   });
   afterEach(() => vi.restoreAllMocks());
 

@@ -25,3 +25,19 @@ describe('plugin manifest', () => {
     expect(existsSync(join(ROOT, plugin.mcpServers as string))).toBe(true);
   });
 });
+
+describe('.mcp.json launches the published package', () => {
+  it('runs npx -y <package>, never a dist/ path a git-source plugin install does not have', () => {
+    // A marketplace (git-source) plugin install does not build the repo, and
+    // dist/ is gitignored, so `node ${CLAUDE_PLUGIN_ROOT}/dist/...` failed to
+    // start (fleet-audit#1195).
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { name: string };
+    const mcp = JSON.parse(readFileSync(join(ROOT, '.mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, { command: string; args: string[] }>;
+    };
+    const server = mcp.mcpServers['honeybook'];
+    expect(server?.command).toBe('npx');
+    expect(server?.args).toEqual(['-y', pkg.name]);
+    expect(JSON.stringify(server)).not.toMatch(/dist\//);
+  });
+});

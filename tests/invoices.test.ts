@@ -31,7 +31,7 @@ describe('pay_invoice', () => {
       },
     };
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
-      fakeClient as unknown as clientModule.HoneyBookClient
+      fakeClient as unknown as import('../src/client.js').HoneyBookClient
     );
     harness = await createTestHarness((server) => registerInvoiceTools(server));
   });

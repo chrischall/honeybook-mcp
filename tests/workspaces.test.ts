@@ -18,7 +18,7 @@ describe('getWorkspace', () => {
       },
     };
     vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(
-      fakeClient as unknown as clientModule.HoneyBookClient
+      fakeClient as unknown as import('../src/client.js').HoneyBookClient
     );
   });
 
@@ -34,7 +34,7 @@ describe('getWorkspace', () => {
     });
     const result = await getWorkspace({ workspace_id: 'workspace_id' });
     expect(fakeClient.request).toHaveBeenCalledWith('GET', '/api/v2/workspaces/workspace_id');
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
     expect(parsed.workspace_status_cd).toBe('lead');
     expect(parsed.has_sent_files).toBe(true);
   });

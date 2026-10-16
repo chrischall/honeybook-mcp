@@ -7,8 +7,8 @@ import { listPayments } from '../src/tools/payments.js';
 import { listMeetings } from '../src/tools/meetings.js';
 import { makeFeed, WORKSPACE_ID } from './fixtures/feed.js';
 
-function parse(result: { content: Array<{ text?: string }> }): any {
-  return JSON.parse(result.content[0].text as string);
+function parse(result: { content: unknown[] }): any {
+  return JSON.parse((result.content[0] as { text: string }).text);
 }
 
 describe('workspace tab tools', () => {
@@ -19,7 +19,7 @@ describe('workspace tab tools', () => {
       request: vi.fn(),
       scope: { portalOrigin: 'https://thesilkveileventsbyivy.hbportal.co', companyName: 'Silk Veil', userId: 'uid_24' },
     };
-    vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(fakeClient as unknown as clientModule.HoneyBookClient);
+    vi.spyOn(clientModule, 'getActiveClient').mockResolvedValue(fakeClient as unknown as import('../src/client.js').HoneyBookClient);
   });
   afterEach(() => vi.restoreAllMocks());
 

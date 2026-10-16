@@ -157,9 +157,7 @@ describe('captureFlowCredentialViaFetchproxy', () => {
       { name: 'FetchproxyScopeError' }
     );
     bootstrapMock.mockRejectedValue(err);
-    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
-      (x: unknown) => x as Error
-    );
+    const e = (await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch((x: unknown) => x)) as Error;
     expect(e.message).toMatch(/Grant/);
     expect(e.message).toMatch(/expand its access/);
     // Grant must come before any mention of revoking. Matched on the stem so
@@ -174,13 +172,11 @@ describe('captureFlowCredentialViaFetchproxy', () => {
   it('blames the browser, not the MCP, when a capability is unavailable', async () => {
     const { FetchproxyCapabilityUnavailableError } = await import('@fetchproxy/server');
     const capErr = new FetchproxyCapabilityUnavailableError(
-      new Error('capability_unavailable'),
+      'capability_unavailable',
       { capability: 'local_storage', platform: 'safari' }
     );
     bootstrapMock.mockRejectedValue(capErr);
-    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
-      (x: unknown) => x as Error
-    );
+    const e = (await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch((x: unknown) => x)) as Error;
     expect(e.message).toMatch(/HoneyBook flow auth/);
     expect(e.message).toContain(capErr.hint);
     expect(e.message).not.toMatch(/then retry/);
@@ -194,9 +190,7 @@ describe('captureFlowCredentialViaFetchproxy', () => {
       platform: 'safari',
     });
     bootstrapMock.mockRejectedValue(helloErr);
-    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
-      (x: unknown) => x as Error
-    );
+    const e = (await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch((x: unknown) => x)) as Error;
     expect(e.message).toMatch(/HoneyBook flow auth/);
     expect(e.message).toMatch(/cannot serve/);
     expect(e.message).not.toMatch(/then retry/);
@@ -204,9 +198,7 @@ describe('captureFlowCredentialViaFetchproxy', () => {
 
   it('blames the MCP, not the browser, when a capability is denied', async () => {
     bootstrapMock.mockRejectedValue(new Error('capability local_storage not granted'));
-    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
-      (x: unknown) => x as Error
-    );
+    const e = (await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch((x: unknown) => x)) as Error;
     expect(e.message).toMatch(/^HoneyBook flow auth: /);
     expect(e.message).toMatch(/This is a bug in the MCP/);
     expect(e.message).not.toMatch(/then retry/);
@@ -220,9 +212,7 @@ describe('captureFlowCredentialViaFetchproxy', () => {
       op: 'fetch',
     });
     bootstrapMock.mockRejectedValue(downErr);
-    const e = await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch(
-      (x: unknown) => x as Error
-    );
+    const e = (await captureFlowCredentialViaFetchproxy({ flowLinkUrl: FLOW_LINK }).catch((x: unknown) => x)) as Error;
     expect(e.message).toMatch(/^HoneyBook flow auth: ContextMint Bridge is down/);
     expect(e.message).toMatch(/ContextMint Bridge's service worker is not responding/);
     expect(e.message).not.toMatch(/fetchproxy (bridge|extension)/);

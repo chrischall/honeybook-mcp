@@ -24,8 +24,8 @@ const PORTAL_SESSION: CapturedSession = {
   capturedAt: 1745000000000,
 };
 
-function parse<T>(result: { content: { text: string }[] }): T {
-  return JSON.parse(result.content[0]!.text) as T;
+function parse<T>(result: { content: unknown[] }): T {
+  return JSON.parse((result.content[0] as { text: string }).text) as T;
 }
 
 beforeEach(() => {
@@ -239,7 +239,7 @@ describe('list_active_sessions', () => {
 
   it('never leaks the credential value itself', async () => {
     flowStore.add(CREDENTIAL);
-    const text = (await listActiveSessions()).content[0]!.text;
+    const text = ((await listActiveSessions()).content[0] as { text: string }).text;
     expect(text).not.toContain('h_abc');
   });
 
