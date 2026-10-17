@@ -19,7 +19,8 @@ npm run dev          # node --env-file=.env dist/index.js (requires built dist)
 ```
 src/
   index.ts               MCP server entry — registers tool modules, stdio transport
-  client.ts              HoneyBookClient — per-session auth headers, fetch wrapper,
+  client.ts              HoneyBookClient — per-session auth headers, hbApiRequest
+                         (on mcp-utils createApiClient, fleet-audit#1380),
                          401 + 404/HBUnauthorizedError, 429, HBWrongAPIVersion,
                          CDN/WAF block page → EdgeBlockedError
                          handling; getActiveClient() resolves

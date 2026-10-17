@@ -84,6 +84,8 @@ describe('HoneyBookClient.request', () => {
     const [url, init] = fetchSpy.mock.calls[0];
     expect(url).toBe('https://api.honeybook.com/api/v2/users/uid_24');
     const h = init!.headers as Record<string, string>;
+    // What goes on the wire, whatever case the record's keys are in.
+    const wire = new Headers(init!.headers);
     expect(h['hb-api-auth-token']).toBe('tok_43');
     expect(h['hb-api-user-id']).toBe('uid_24');
     expect(h['hb-trusted-device']).toBe('td_64');
@@ -92,7 +94,7 @@ describe('HoneyBookClient.request', () => {
     // one; keep sending it rather than invalidating them on disk.
     expect(h['hb-api-fingerprint']).toBe('fp_32');
     expect(h['hb-admin-login']).toBe('false');
-    expect(h['accept']).toBe('application/json, text/plain, */*');
+    expect(wire.get('accept')).toBe('application/json, text/plain, */*');
     expect(h['hb-api-duplicate-calls-prevention-uuid']).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     );
@@ -117,8 +119,7 @@ describe('HoneyBookClient.request', () => {
     const client = new HoneyBookClient(MOCK_SESSION, 2578);
     await client.request('POST', '/api/v2/workspace_files/x/sign', { signature: 'yes' });
     const [, init] = fetchSpy.mock.calls[0];
-    const h = init!.headers as Record<string, string>;
-    expect(h['content-type']).toBe('application/json');
+    expect(new Headers(init!.headers).get('content-type')).toBe('application/json');
     expect(init!.body).toBe(JSON.stringify({ signature: 'yes' }));
   });
 
@@ -279,6 +280,28 @@ describe('HoneyBookClient.request', () => {
     await client2.request('GET', '/api/v2/users/uid_24');
     const secondCallHeaders = fetchSpy.mock.calls[2]![1]!.headers as Record<string, string>;
     expect(secondCallHeaders['hb-api-client-version']).toBe('9999');
+  });
+
+  it('retries the version refresh only once, then reports the API error with its raw body', async () => {
+    const wrongVersion =
+      '{"error":true,"error_type":"HBWrongAPIVersionError","error_data":{"server_api_version":9999}}';
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response(wrongVersion, { status: 400 }));
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    const err = await client.request('GET', '/api/v2/users/uid_24').catch((e: unknown) => e);
+    expect(isHoneyBookApiError(err)).toBe(true);
+    expect((err as { status: number }).status).toBe(400);
+    expect((err as { body: string }).body).toBe(wrongVersion);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a non-200 2xx whose body is not JSON with its own status', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>cached</html>', { status: 203 }));
+    const client = new HoneyBookClient(MOCK_SESSION, 2578);
+    const err = await client.request('GET', '/api/v2/foo').catch((e: unknown) => e);
+    expect(isHoneyBookApiError(err)).toBe(true);
+    expect((err as Error).message).toMatch(/not JSON \(GET \/api\/v2\/foo, status 203\)/);
   });
 
   it('retries once after a 429 with a 2s backoff', async () => {

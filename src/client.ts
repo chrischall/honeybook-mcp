@@ -9,6 +9,9 @@ import {
   currentCallSignal,
   detectEdgeBlock,
   EdgeBlockedError,
+  createApiClient,
+  RequestTimeoutError,
+  type RawApiResponse,
 } from '@chrischall/mcp-utils';
 
 export const API_BASE = 'https://api.honeybook.com';
@@ -247,88 +250,108 @@ export interface HbApiCaller {
 }
 
 /**
+ * The exhausted-429 hook's way of asking {@link hbApiRequest} for its one
+ * 2-second retry. The shared client's own 429 retry is off: it re-sends a 429
+ * before looking at the body, and a CDN/WAF refusal page served as a 429 must
+ * throw at once (chrischall/mcp-host#1015), not be retried.
+ */
+class RateLimitRetry extends Error {}
+
+/**
  * One authenticated request to api.honeybook.com, shared by every credential
  * kind. See {@link HbApiCaller} for why the identity is a parameter.
+ *
+ * The transport is mcp-utils' `createApiClient` (fleet-audit#1380): the
+ * timeout covering the body read, the caller's cancellation, the CDN/WAF
+ * refusal check on every status, and ONE `hb-api-duplicate-calls-prevention-uuid`
+ * per logical request, re-sent on every retry below so HoneyBook's own
+ * duplicate-call prevention can recognise a replay (a fresh id per attempt
+ * would let a retried POST create a second pending task). What is HoneyBook's
+ * own lives in the hooks: the 404-disguised dead credential, the
+ * `HBWrongAPIVersionError` refresh-and-retry, and {@link HoneyBookApiError}
+ * carrying the raw body the flow client branches on.
  */
 export async function hbApiRequest<T>(
   caller: HbApiCaller,
   method: HbMethod,
   path: string,
-  body?: unknown,
-  isVersionRetry = false,
-  isRateRetry = false,
-  /**
-   * One id per LOGICAL request, reused by the 429 and version retries below so
-   * HoneyBook's own duplicate-call prevention can recognise a replay. A fresh
-   * id per attempt would let a retried POST create a second pending task.
-   */
-  dedupeId: string = crypto.randomUUID()
+  body?: unknown
 ): Promise<T> {
   assertNoPathTraversal(path);
-  const headers: Record<string, string> = {
-    accept: 'application/json, text/plain, */*',
-    'hb-api-client-version': String(caller.getApiVersion()),
-    'hb-api-duplicate-calls-prevention-uuid': dedupeId,
-    ...caller.authHeaders(),
-  };
-  if (body !== undefined) headers['content-type'] = 'application/json';
-
-  // The status and the body are read under one timeout, so a server that sends
-  // headers and then stalls mid-body cannot hang the call either.
-  const { status, ok, text } = await withHbTimeout(`${method} ${path}`, async (signal) => {
-    const response = await fetch(`${API_BASE}${path}`, {
-      method,
-      headers,
-      signal,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
-    const text = await response.text();
-    // Read the body on EVERY status — a 401 and a 429 included. A CDN/WAF in
-    // front of api.honeybook.com answers with its own refusal page, and the
-    // page is the only thing that tells it apart from HoneyBook rejecting the
-    // session or rate-limiting us (chrischall/mcp-host#1015). Dropping it made
-    // a block read as "auth expired, re-run use_magic_link".
-    throwIfEdgeBlocked(response.status, text, response.headers, method, path);
-    return { status: response.status, ok: response.ok, text };
+  const what = `${method} ${path}`;
+  const dedupeId = crypto.randomUUID();
+  // Each retry happens at most once per logical request, in either order.
+  const state = { rateRetried: false, versionRetried: false };
+  const client = createApiClient({
+    baseUrl: API_BASE,
+    serviceName: 'HoneyBook',
+    // Re-read per attempt: a version retry sends the adopted version.
+    baseHeaders: () => ({
+      'hb-api-client-version': String(caller.getApiVersion()),
+      ...caller.authHeaders(),
+    }),
+    idempotencyHeader: 'hb-api-duplicate-calls-prevention-uuid',
+    timeout: httpTimeouts.requestMs,
+    // A POST timeout is HoneyBookTimeoutError (below), which the pending-task
+    // writer maps to its own "may or may not have landed" error.
+    writeOutcomeUnknown: false,
+    retry: { count: 0, delayMs: 0 },
+    onUnauthorized: () => caller.authExpiredError(),
+    onRateLimited: ({ status, edgeBlock }) => {
+      if (edgeBlock) return new EdgeBlockedError(status, edgeBlock.vendor, { service: 'HoneyBook', method, path });
+      return state.rateRetried ? new Error('Rate limited by HoneyBook API') : new RateLimitRetry();
+    },
+    onErrorResponse: async ({ status, body: text }) => {
+      // A revoked or stale credential does NOT come back as 401 — the API
+      // answers 404 with an HBUnauthorizedError body. Without this, an expired
+      // session surfaced as an opaque "HoneyBook error 404" instead of the
+      // re-capture instruction. Gate on the body so a genuinely missing
+      // resource stays a plain 404. Verified live for the flow path too: an
+      // unauthenticated GET of /api/v2/flow/<id>/active answers exactly this shape.
+      if (status === 404 && text.includes('HBUnauthorizedError')) return caller.authExpiredError();
+      if (text.includes('HBWrongAPIVersionError') && !state.versionRetried) {
+        state.versionRetried = true;
+        try {
+          const parsed = JSON.parse(text) as { error_data?: { server_api_version?: number } };
+          const fresh = parsed.error_data?.server_api_version ?? (await fetchApiVersion());
+          caller.setApiVersion(fresh);
+          moduleState.apiVersionPromise = Promise.resolve(fresh);
+        } catch {
+          caller.setApiVersion(await fetchApiVersion());
+        }
+        return 'retry';
+      }
+      return new HoneyBookApiError(formatApiError(status, method, path, text, { service: 'HoneyBook' }), {
+        status,
+        method,
+        path,
+        body: text,
+      });
+    },
   });
 
-  if (status === 401) throw caller.authExpiredError();
-
-  if (status === 429) {
-    if (!isRateRetry) {
-      await cancellableDelay(2000);
-      return hbApiRequest<T>(caller, method, path, body, isVersionRetry, true, dedupeId);
-    }
-    throw new Error('Rate limited by HoneyBook API');
-  }
-
-  if (!ok) {
-    // A revoked or stale credential does NOT come back as 401 — the API answers
-    // 404 with an HBUnauthorizedError body. Without this, an expired session
-    // surfaced as an opaque "HoneyBook error 404" instead of the re-capture
-    // instruction. Gate on the body so a genuinely missing resource stays a
-    // plain 404. Verified live for the flow path too: an unauthenticated GET of
-    // /api/v2/flow/<id>/active answers exactly this shape.
-    if (status === 404 && text.includes('HBUnauthorizedError')) {
-      throw caller.authExpiredError();
-    }
-    if (text.includes('HBWrongAPIVersionError') && !isVersionRetry) {
-      try {
-        const parsed = JSON.parse(text) as { error_data?: { server_api_version?: number } };
-        const fresh = parsed.error_data?.server_api_version ?? (await fetchApiVersion());
-        caller.setApiVersion(fresh);
-        moduleState.apiVersionPromise = Promise.resolve(fresh);
-      } catch {
-        caller.setApiVersion(await fetchApiVersion());
+  let res: RawApiResponse;
+  for (;;) {
+    try {
+      res = await client.fetchRaw(method, path, {
+        headers: { Accept: 'application/json, text/plain, */*' },
+        idempotencyKey: dedupeId,
+        ...(body !== undefined ? { body } : {}),
+      });
+      break;
+    } catch (err) {
+      if (err instanceof RateLimitRetry) {
+        state.rateRetried = true;
+        await cancellableDelay(2000);
+        continue;
       }
-      return hbApiRequest<T>(caller, method, path, body, true, isRateRetry, dedupeId);
+      if (err instanceof RequestTimeoutError) throw new HoneyBookTimeoutError(what, httpTimeouts.requestMs);
+      throw err;
     }
-    throw new HoneyBookApiError(
-      formatApiError(status, method, path, text, { service: 'HoneyBook' }),
-      { status, method, path, body: text }
-    );
   }
 
+  const { status } = res;
+  const text = new TextDecoder().decode(res.bytes);
   if (!text) return null as T;
   let parsed: unknown;
   try {
@@ -381,14 +404,8 @@ export class HoneyBookClient implements HbApiCaller {
     return headers;
   }
 
-  async request<T>(
-    method: HbMethod,
-    path: string,
-    body?: unknown,
-    isVersionRetry = false,
-    isRateRetry = false
-  ): Promise<T> {
-    return hbApiRequest<T>(this, method, path, body, isVersionRetry, isRateRetry);
+  async request<T>(method: HbMethod, path: string, body?: unknown): Promise<T> {
+    return hbApiRequest<T>(this, method, path, body);
   }
 
   /** The one "your session died, re-capture it" error, raised from both auth paths. */
