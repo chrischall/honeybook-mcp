@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.8](https://github.com/chrischall/honeybook-mcp/compare/v1.2.7...v1.2.8) (2026-10-17)
+
+
+### Refactor
+
+* **client:** build hbApiRequest on mcp-utils createApiClient ([#284](https://github.com/chrischall/honeybook-mcp/issues/284)) ([40e01ed](https://github.com/chrischall/honeybook-mcp/commit/40e01ed408d042c4f4b192025eb8bec2dd5a3fa7))
+
 ## [1.2.7](https://github.com/chrischall/honeybook-mcp/compare/v1.2.6...v1.2.7) (2026-10-16)
 
 
