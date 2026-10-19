@@ -3,6 +3,19 @@ name: HoneyBook
 slug: honeybook
 summary: >-
   HoneyBook client-portal MCP — view wedding-vendor contracts and invoices
+examples:
+  - prompt: >-
+      What payments are still due to my wedding photographer on HoneyBook, and
+      when is the next one?
+    note: Reads the workspace's payment schedule; does not pay anything.
+  - prompt: >-
+      List the contracts and invoices my florist has shared with me in
+      HoneyBook and tell me which ones still need my signature.
+    note: Read-only summary of shared files and their status.
+  - prompt: >-
+      Do I have any upcoming meetings or overdue tasks from my venue in
+      HoneyBook?
+    note: Uses the portal's Meetings feed and Tasks tab.
 #
 # Hosting note (a comment, not user-facing summary text): this is a
 # BROWSER-BRIDGE MCP — it reaches its site through the user's signed-in
