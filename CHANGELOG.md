@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.9](https://github.com/chrischall/honeybook-mcp/compare/v1.2.8...v1.2.9) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 18.0.6 to 18.0.8 in the production-dependencies group ([#288](https://github.com/chrischall/honeybook-mcp/issues/288)) ([2d8d0ee](https://github.com/chrischall/honeybook-mcp/commit/2d8d0ee974a8eb67fb02f71668357fb973d8d316))
+* **deps:** bump the production-dependencies group with 3 updates ([#293](https://github.com/chrischall/honeybook-mcp/issues/293)) ([f3c924e](https://github.com/chrischall/honeybook-mcp/commit/f3c924ee4b13fe29a736d2e6c8c1104e3caa5940))
+
+
+### Documentation
+
+* **mint:** add sample prompts for the public catalog ([#291](https://github.com/chrischall/honeybook-mcp/issues/291)) ([606aae6](https://github.com/chrischall/honeybook-mcp/commit/606aae61e13d6629d35cbfe4fb64f25789295779))
+
 ## [1.2.8](https://github.com/chrischall/honeybook-mcp/compare/v1.2.7...v1.2.8) (2026-10-17)
 
 
