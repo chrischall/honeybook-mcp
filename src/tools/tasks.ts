@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 type Raw = Record<string, unknown>;
 
@@ -85,6 +86,7 @@ export function registerTaskTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('whats-due', { aliases: ['tasks', 'to do', 'overdue'] }),
     },
     listTasks
   );

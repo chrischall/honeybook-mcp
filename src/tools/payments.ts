@@ -3,11 +3,57 @@ import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
+import { today } from './tasks.js';
+import type { HoneyBookDeps, ProjectDirectory } from './project-labels.js';
 
 type Raw = Record<string, unknown>;
 
 function num(v: unknown): number | undefined {
   return typeof v === 'number' ? v : undefined;
+}
+
+const BRIEF_MAX = 120;
+
+function text(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
+}
+
+/** A due date as `YYYY-MM-DD`, or undefined when there is none to read. */
+function isoDate(v: unknown): string | undefined {
+  const s = text(v);
+  if (!s) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? undefined : new Date(t).toISOString().slice(0, 10);
+}
+
+/**
+ * One payment as one line, `title — <ISO date | no date> — <status>`, at most
+ * 120 characters (the title is shortened). The title is the file it is on,
+ * the payment's own description and its amount; the status is `paid`,
+ * `pending` (HoneyBook is still settling it), `overdue` (unpaid past its due
+ * date, against `todayIso`) or `unpaid`.
+ */
+export function briefPaymentLine(file: Raw, payment: Raw, todayIso: string = today()): string {
+  const fileTitle = text(file.file_title);
+  const description = text(payment.count_description) ?? text(payment.description);
+  const amount = num(payment.amount) ?? num(payment.grand_total);
+  const currency = text(file.currency);
+  let title = [fileTitle, description].filter(Boolean).join(': ') || '(untitled)';
+  if (amount !== undefined) title += ` (${amount}${currency ? ` ${currency}` : ''})`;
+  const due = isoDate(payment.due_date);
+  const status = payment.is_paid
+    ? 'paid'
+    : payment.is_pending
+      ? 'pending'
+      : due !== undefined && due < todayIso
+        ? 'overdue'
+        : 'unpaid';
+  const tail = ` — ${due ?? 'no date'} — ${status}`;
+  const room = BRIEF_MAX - tail.length;
+  const shown = title.length > room ? `${title.slice(0, Math.max(room - 1, 0))}…` : title;
+  return `${shown}${tail}`;
 }
 
 /**
@@ -16,12 +62,28 @@ function num(v: unknown): number | undefined {
  * `payments_container`; the per-payment rows are trimmed to what a client
  * reads off the page (payout bookkeeping and reminder timestamps dropped).
  */
-export async function listPayments(args: { workspace_id: string; origin?: string }): Promise<ToolResult> {
-  const client = await getActiveClient(args.origin);
+export async function listPayments(
+  args: { workspace_id: string; origin?: string; view?: 'full' | 'brief' },
+  projects?: ProjectDirectory | null
+): Promise<ToolResult> {
+  // A project label (from the enum published at start) names its workspace
+  // and its portal; an explicit origin still wins.
+  const target = projects ? projects.resolve(args.workspace_id) : { workspace_id: args.workspace_id };
+  const workspaceId = target.workspace_id;
+  const client = await getActiveClient(args.origin ?? target.origin);
   const res = await client.request<{ workspace_files?: Raw[] } | null>(
     'GET',
-    apiPath`/api/v2/workspaces/${args.workspace_id}/payments`
+    apiPath`/api/v2/workspaces/${workspaceId}/payments`
   );
+  if (args.view === 'brief') {
+    const todayIso = today();
+    const lines = (res?.workspace_files ?? []).flatMap((f) => {
+      const container = (f.payments_container ?? null) as Raw | null;
+      const payments = Array.isArray(container?.payments) ? (container!.payments as Raw[]) : [];
+      return payments.map((p) => briefPaymentLine(f, p, todayIso));
+    });
+    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+  }
   // Totals are kept PER CURRENCY: each file names its own, and a workspace
   // can mix them, so one bare number would be in no currency at all.
   const totals: Record<string, { paid: number; unpaid: number }> = {};
@@ -58,10 +120,30 @@ export async function listPayments(args: { workspace_id: string; origin?: string
       payments,
     };
   });
-  return minifiedResult({ workspace_id: args.workspace_id, totals, files });
+  return minifiedResult({ workspace_id: workspaceId, totals, files });
 }
 
-export function registerPaymentTools(server: McpServer): void {
+const WORKSPACE_DESC = 'The workspace _id (from list_projects).';
+
+/**
+ * `workspace_id` publishes the project LABELS as a JSON Schema `enum` when the
+ * server could list them at start, via `.meta()` — so the runtime schema is
+ * still any string and the handler accepts a label or an id. With no listing
+ * the property is published plain: an empty `enum` is invalid JSON Schema.
+ */
+function workspaceIdArg(projects: ProjectDirectory | null | undefined) {
+  if (!projects) return z.string().describe(WORKSPACE_DESC);
+  return z
+    .string()
+    .describe(
+      'The project, by name as listed here. A workspace _id from list_projects is also accepted, ' +
+        'but this schema offers the names only.'
+    )
+    .meta({ enum: projects.labels });
+}
+
+export function registerPaymentTools(server: McpServer, deps: HoneyBookDeps = {}): void {
+  const projects = deps.projects ?? null;
   server.registerTool(
     'list_payments',
     {
@@ -70,13 +152,25 @@ export function registerPaymentTools(server: McpServer): void {
         'due date, paid/pending state, how it was paid and the invoice number, plus paid/unpaid totals per currency. ' +
         'To pay one, use pay_invoice.',
       inputSchema: z.object({
-        workspace_id: z.string().describe('The workspace _id (from list_projects).'),
+        workspace_id: workspaceIdArg(projects),
         origin: schemaOrigin.describe(
-          'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active.'
+          'Portal origin (e.g. https://<vendor>.hbportal.co). Optional when only one session is active, or when workspace_id is a listed project name.'
         ),
+        view: z
+          .enum(['full', 'brief'])
+          .optional()
+          .describe(
+            '"full" (default): the files, payments and per-currency totals. "brief": one line per payment — ' +
+              'file: description (amount) — due <ISO date or "no date"> — <paid|pending|overdue|unpaid>.'
+          ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('whats-due', {
+        canonical: true,
+        subject: 'workspace_id',
+        aliases: ['payments', 'payment due', 'what do i owe', 'deposit', 'balance due', 'installment', 'vendor bill'],
+      }),
     },
-    listPayments
+    (args) => listPayments(args, projects)
   );
 }

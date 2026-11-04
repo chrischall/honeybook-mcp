@@ -75,7 +75,7 @@ src/
     payments.ts          list_payments (/workspaces/<id>/payments, per-payment rows)
 ```
 
-Each tool module exports a `register*Tools(server)` function called from `src/index.ts`.
+Each tool module exports a `register*Tools(server, deps?)` function; `src/tools/index.ts` lists them (`registrars`) and `src/index.ts` runs that list.
 
 ## Auth flow
 
@@ -318,6 +318,17 @@ publishes to npm with provenance, and pushes to the MCP Registry.
   caller two overlapping dials with no rule for which wins. This is recorded as
   a deliberate fleet exception in `chrischall/workflows`
   `docs/fleet-conventions.md`.
+  `list_payments`' `view` is `full | brief` instead: `brief` is the mcp-host
+  context-groups answer shape (one line per payment), not a fleet rung, so it
+  is a plain zod enum rather than `viewParam`.
+- **Context-group hints.** Every tool but the healthcheck carries
+  `_meta.mint` (`src/tools/hints.ts` `moneyMeta`, group `money`);
+  `list_payments` is the one canonical read (what's due). Its `workspace_id`
+  publishes the project names as an enum, listed ONCE at start across every
+  portal session (`src/tools/project-labels.ts`, bounded at 5 s, no enum when
+  it fails or finds nothing). `tests/hints.test.ts` asserts the contract on
+  the served tool list — add a new tool to `src/tools/index.ts` and to its
+  intent table.
 - **Sessions persist across restarts**: `~/.honeybook-mcp/sessions.json` is
   re-loaded on startup; most-recent origin = last in insertion order.
 - **Two credential kinds, two stores, no fallback between them.** A portal

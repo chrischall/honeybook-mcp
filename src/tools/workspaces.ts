@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 export async function getWorkspace(args: {
   workspace_id: string;
@@ -31,6 +32,7 @@ export function registerWorkspaceTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup'),
     },
     getWorkspace
   );

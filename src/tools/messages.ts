@@ -24,6 +24,7 @@ import {
   isPendingTaskCreateTimeoutError,
 } from '../pending-tasks.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 export const FEED_KINDS = ['messages', 'activity', 'all'] as const;
 export type FeedKind = (typeof FEED_KINDS)[number];
@@ -347,6 +348,7 @@ export function registerMessageTools(server: McpServer): void {
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('whats-new', { aliases: ['messages', 'emails', 'vendor said', 'inbox'] }),
     },
     listMessages
   );
@@ -364,6 +366,7 @@ export function registerMessageTools(server: McpServer): void {
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup'),
     },
     getMessage
   );
@@ -393,6 +396,7 @@ export function registerMessageTools(server: McpServer): void {
         confirmToken: confirmTokenParam,
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+      _meta: moneyMeta('send', { aliases: ['message the vendor', 'reply', 'email the vendor'] }),
     },
     sendMessage
   );
@@ -410,6 +414,7 @@ export function registerMessageTools(server: McpServer): void {
       }),
       // Destructive by the inverse test: no tool here marks an item unseen again.
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      _meta: moneyMeta('change', { aliases: ['mark read', 'mark as read'] }),
     },
     markMessagesSeen
   );

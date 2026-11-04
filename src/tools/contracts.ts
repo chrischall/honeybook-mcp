@@ -10,6 +10,7 @@ import {
 import { apiPath, getActiveClient } from '../client.js';
 import { vendorPortalSubdomain } from '../sessions.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 interface ContractFile {
   _id: string;
@@ -94,6 +95,7 @@ export function registerContractTools(server: McpServer): void {
         confirmToken: confirmTokenParam,
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('other', { aliases: ['sign', 'contract', 'agreement'] }),
     },
     signContract
   );

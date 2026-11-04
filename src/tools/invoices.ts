@@ -10,6 +10,7 @@ import {
 import { apiPath, getActiveClient } from '../client.js';
 import { vendorPortalSubdomain } from '../sessions.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 interface InvoiceFile {
   _id: string;
@@ -91,6 +92,7 @@ export function registerInvoiceTools(server: McpServer): void {
         confirmToken: confirmTokenParam,
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('other', { aliases: ['pay', 'pay the vendor', 'invoice', 'deposit'] }),
     },
     payInvoice
   );

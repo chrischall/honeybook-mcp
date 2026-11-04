@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 export async function listNotes(args: { workspace_id: string; origin?: string }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
@@ -26,6 +27,7 @@ export function registerNoteTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup', { aliases: ['notes', 'meeting notes', 'recap'] }),
     },
     listNotes
   );

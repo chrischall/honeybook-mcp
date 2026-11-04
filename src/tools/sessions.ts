@@ -6,6 +6,7 @@ import { clearClientCache } from '../client.js';
 import { captureSessionViaFetchproxy } from '../auth.js';
 import { flowStore, isFlowLinkUrl } from '../flows.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 /**
  * Capture (or refresh) a HoneyBook portal session from a vendor's
@@ -94,6 +95,7 @@ export function registerSessionTools(server: McpServer): void {
           ),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      _meta: moneyMeta('other'),
     },
     useMagicLink
   );
@@ -104,6 +106,7 @@ export function registerSessionTools(server: McpServer): void {
       description:
         'List the HoneyBook credentials currently active in this MCP, split by kind: `portalSessions` (captured via use_magic_link — read workspaces, files, invoices, payment methods) and `flowCredentials` (captured via use_flow_link — weak auth scoped to ONE questionnaire). The two are not interchangeable. No API call.',
       annotations: { readOnlyHint: true, openWorldHint: false },
+      _meta: moneyMeta('lookup'),
     },
     listActiveSessions
   );

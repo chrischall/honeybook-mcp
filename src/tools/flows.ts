@@ -4,6 +4,7 @@ import { minifiedResult, resolveView, viewParam, viewResult } from '@chrischall/
 import { captureFlowCredentialViaFetchproxy } from '../flow-auth.js';
 import { fetchFlowMinimal, flowContextId, getActiveFlowClient } from '../flow-client.js';
 import type { CapturedFlowCredential, ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 /**
  * Capture (or refresh) the weak-auth credential a questionnaire ("flow") link
@@ -150,6 +151,7 @@ export function registerFlowTools(server: McpServer): void {
           ),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      _meta: moneyMeta('other'),
     },
     useFlowLink
   );
@@ -171,6 +173,7 @@ export function registerFlowTools(server: McpServer): void {
         }),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup'),
     },
     getFlow
   );
