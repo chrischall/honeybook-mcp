@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/chrischall/honeybook-mcp/compare/v1.3.0...v1.3.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **brief:** align the brief view with the fleet contract ([#299](https://github.com/chrischall/honeybook-mcp/issues/299)) ([af1ce57](https://github.com/chrischall/honeybook-mcp/commit/af1ce57544c5f77d56cd9a94251f413270d38f8d))
+
 ## [1.3.0](https://github.com/chrischall/honeybook-mcp/compare/v1.2.8...v1.3.0) (2026-11-04)
 
 
