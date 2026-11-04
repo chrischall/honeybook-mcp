@@ -263,6 +263,40 @@ describe('project labels on list_payments’ workspace_id', () => {
     }
   });
 
+  it('says the names are the schema contract while the server still resolves a raw id', async () => {
+    const dir = buildProjectDirectory(ROWS);
+    const property = (await served(dir)).find((t) => t.name === 'list_payments')!.inputSchema.properties!.workspace_id;
+    expect(property.enum).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(property.description).toBe(
+      'The project, by name as listed here. The server also resolves a workspace _id from list_projects, ' +
+        'but this schema offers the names only.'
+    );
+  });
+
+  it('the handler still accepts a raw workspace id when the enum is published', async () => {
+    const fakeClient = { request: vi.fn().mockResolvedValue({ workspace_files: [] }) };
+    const spy = vi
+      .spyOn(clientModule, 'getActiveClient')
+      .mockResolvedValue(fakeClient as unknown as clientModule.HoneyBookClient);
+    const dir = buildProjectDirectory(ROWS);
+    const h = await createTestHarness((server) => {
+      for (const register of registrars) register(server, { projects: dir });
+    });
+    try {
+      // A listed id reads on its own portal; an unlisted id passes through.
+      const listed = (await h.callTool('list_payments', { workspace_id: 'cccccccccccccccccccccccc' })) as { isError?: boolean };
+      expect(listed.isError).toBeFalsy();
+      expect(spy).toHaveBeenLastCalledWith('https://vendor-two.hbportal.co');
+      expect(fakeClient.request).toHaveBeenLastCalledWith('GET', '/api/v2/workspaces/cccccccccccccccccccccccc/payments');
+      const unlisted = (await h.callTool('list_payments', { workspace_id: 'dddddddddddddddddddddddd' })) as { isError?: boolean };
+      expect(unlisted.isError).toBeFalsy();
+      expect(fakeClient.request).toHaveBeenLastCalledWith('GET', '/api/v2/workspaces/dddddddddddddddddddddddd/payments');
+    } finally {
+      await h.close();
+      vi.restoreAllMocks();
+    }
+  });
+
   it('carries the id too when one vendor repeats a project name', () => {
     const o = 'https://vendor-one.hbportal.co';
     expect(
