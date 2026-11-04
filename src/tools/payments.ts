@@ -127,16 +127,24 @@ const WORKSPACE_DESC = 'The workspace _id (from list_projects).';
 
 /**
  * `workspace_id` publishes the project LABELS as a JSON Schema `enum` when the
- * server could list them at start, via `.meta()` — so the runtime schema is
- * still any string and the handler accepts a label or an id. With no listing
- * the property is published plain: an empty `enum` is invalid JSON Schema.
+ * server could list them at start, via `.meta()`. With no listing the property
+ * is published plain: an empty `enum` is invalid JSON Schema.
+ *
+ * The enum holds the NAMES only, each project once — the gateway reads a
+ * top-level `enum` and nothing else, and adding the ids would make a host that
+ * fans out over the enum's values read every project twice. So the schema
+ * contract is the names, and that is what the description says. The server
+ * stays lenient underneath: the runtime schema is still any string, and the
+ * handler resolves a workspace _id from list_projects through
+ * `ProjectDirectory.resolve`, so a caller that does not validate against the
+ * schema may still send the raw id.
  */
 function workspaceIdArg(projects: ProjectDirectory | null | undefined) {
   if (!projects) return z.string().describe(WORKSPACE_DESC);
   return z
     .string()
     .describe(
-      'The project, by name as listed here. A workspace _id from list_projects is also accepted, ' +
+      'The project, by name as listed here. The server also resolves a workspace _id from list_projects, ' +
         'but this schema offers the names only.'
     )
     .meta({ enum: projects.labels });
