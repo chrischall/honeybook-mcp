@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.3.0](https://github.com/chrischall/honeybook-mcp/compare/v1.2.8...v1.3.0) (2026-11-04)
+
+
+### Features
+
+* context-group hints, a brief view and a project enum on list_payments ([#296](https://github.com/chrischall/honeybook-mcp/issues/296)) ([51732bb](https://github.com/chrischall/honeybook-mcp/commit/51732bbee4f35e55fec100529ad751fcd7461b0d))
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 18.0.6 to 18.0.8 in the production-dependencies group ([#288](https://github.com/chrischall/honeybook-mcp/issues/288)) ([2d8d0ee](https://github.com/chrischall/honeybook-mcp/commit/2d8d0ee974a8eb67fb02f71668357fb973d8d316))
+* **deps:** bump the production-dependencies group across 1 directory with 3 updates ([#295](https://github.com/chrischall/honeybook-mcp/issues/295)) ([673ce63](https://github.com/chrischall/honeybook-mcp/commit/673ce63e60edbb3db5d63a4c40e5336c8a89921a))
+* **deps:** bump the production-dependencies group with 3 updates ([#293](https://github.com/chrischall/honeybook-mcp/issues/293)) ([f3c924e](https://github.com/chrischall/honeybook-mcp/commit/f3c924ee4b13fe29a736d2e6c8c1104e3caa5940))
+* **schema:** say list_payments' workspace_id enum offers the project names only ([#298](https://github.com/chrischall/honeybook-mcp/issues/298)) ([17e249e](https://github.com/chrischall/honeybook-mcp/commit/17e249e8d91b38775f4b94207d62b1300f1974ad))
+
+
+### Documentation
+
+* **mint:** add sample prompts for the public catalog ([#291](https://github.com/chrischall/honeybook-mcp/issues/291)) ([606aae6](https://github.com/chrischall/honeybook-mcp/commit/606aae61e13d6629d35cbfe4fb64f25789295779))
+
 ## [1.2.8](https://github.com/chrischall/honeybook-mcp/compare/v1.2.7...v1.2.8) (2026-10-17)
 
 
