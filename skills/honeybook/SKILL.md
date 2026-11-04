@@ -116,7 +116,9 @@ is the project (`workspace_id`), whose schema lists your projects by name —
 listed once at start from every captured portal session, so a fresh install or
 a lapsed session publishes no names and the tool still takes a workspace id —
 and `view: "brief"` answers `<file>: <payment> (<amount>) — <ISO date | no date>
-— <paid|pending|overdue|unpaid>`. Nothing here is canonical for what's new or
+— <paid|pending|overdue|unpaid>` per payment, inside the untrusted-data
+envelope as `data: string[]` (the titles are the vendor's text), or the single
+note line `-- none` when there is no payment. Nothing here is canonical for what's new or
 what's on: `list_messages` (new) and `list_meetings` (on) carry those intents
 but need a workspace and are read on request. A compound ask looks like "what
 do I still owe the vendors, and anything due at school?" — the money group

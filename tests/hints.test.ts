@@ -176,7 +176,15 @@ describe('list_payments view: "brief"', () => {
       const res = (await h.callTool('list_payments', { workspace_id: 'ws_1', view: 'brief' })) as {
         content: Array<{ text: string }>;
       };
-      const lines = res.content[0].text.split('\n');
+      // File titles and payment descriptions are the vendor's text, so the
+      // lines ride the fleet's untrusted-data envelope, minified, note first.
+      const text = res.content[0].text;
+      expect(text).not.toContain('\n  ');
+      const body = JSON.parse(text) as { untrusted_content: boolean; note: string; data: string[] };
+      expect(Object.keys(body)).toEqual(['untrusted_content', 'note', 'data']);
+      expect(body.untrusted_content).toBe(true);
+      expect(body.note).toMatch(/vendor/);
+      const lines = body.data;
       expect(lines).toEqual([
         'Photography Proposal: 1 of 3 payments / Retainer (500 USD) — 2026-04-25 — paid',
         'Photography Proposal: 2 of 3 payments (750 USD) — 2026-06-01 — pending',
@@ -198,6 +206,31 @@ describe('list_payments view: "brief"', () => {
     expect(line).toMatch(BRIEF_LINE);
     expect(line.endsWith(' — 2026-01-02 — overdue')).toBe(true);
     expect(briefPaymentLine({}, {}, '2026-03-01')).toBe('(untitled) — no date — unpaid');
+  });
+
+  it('answers the single note line "-- none" inside the envelope when there is no payment', async () => {
+    fakeClient.request.mockResolvedValueOnce({ workspace_files: [PAYMENTS.workspace_files[0]] });
+    const h = await createTestHarness((server) => {
+      for (const register of registrars) register(server, { projects: null });
+    });
+    try {
+      const res = (await h.callTool('list_payments', { workspace_id: 'ws_1', view: 'brief' })) as {
+        content: Array<{ text: string }>;
+      };
+      const body = JSON.parse(res.content[0].text) as { untrusted_content: boolean; data: string[] };
+      expect(body.untrusted_content).toBe(true);
+      expect(body.data).toEqual(['-- none']);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it('escapes a title that starts with "-- " or "\\" with one leading backslash', () => {
+    expect(briefPaymentLine({ file_title: '-- none' }, {}, '2026-03-01')).toBe('\\-- none — no date — unpaid');
+    expect(briefPaymentLine({ file_title: '\\x' }, {}, '2026-03-01')).toBe('\\\\x — no date — unpaid');
+    const long = briefPaymentLine({ file_title: '-- ' + 'Y'.repeat(200) }, {}, '2026-03-01');
+    expect(long.startsWith('\\-- Y')).toBe(true);
+    expect(long.length).toBeLessThanOrEqual(120);
   });
 });
 
