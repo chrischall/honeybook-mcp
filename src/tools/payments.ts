@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
+import { minifiedResult, schemaOrigin, UNTRUSTED_CONTENT_RULE, untrustedEnvelope } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
 import { moneyMeta } from './hints.js';
@@ -14,6 +14,7 @@ function num(v: unknown): number | undefined {
 }
 
 const BRIEF_MAX = 120;
+const BRIEF_WHO_WROTE = 'File titles and payment descriptions are written by your vendor.';
 
 function text(v: unknown): string | undefined {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
@@ -33,7 +34,9 @@ function isoDate(v: unknown): string | undefined {
  * 120 characters (the title is shortened). The title is the file it is on,
  * the payment's own description and its amount; the status is `paid`,
  * `pending` (HoneyBook is still settling it), `overdue` (unpaid past its due
- * date, against `todayIso`) or `unpaid`.
+ * date, against `todayIso`) or `unpaid`. A title starting with `-- ` or `\` is
+ * escaped with one leading `\`, so a vendor's file title can never read as a
+ * note line (the gateway strips that one backslash after its note check).
  */
 export function briefPaymentLine(file: Raw, payment: Raw, todayIso: string = today()): string {
   const fileTitle = text(file.file_title);
@@ -42,6 +45,7 @@ export function briefPaymentLine(file: Raw, payment: Raw, todayIso: string = tod
   const currency = text(file.currency);
   let title = [fileTitle, description].filter(Boolean).join(': ') || '(untitled)';
   if (amount !== undefined) title += ` (${amount}${currency ? ` ${currency}` : ''})`;
+  if (title.startsWith('-- ') || title.startsWith('\\')) title = `\\${title}`;
   const due = isoDate(payment.due_date);
   const status = payment.is_paid
     ? 'paid'
@@ -82,7 +86,11 @@ export async function listPayments(
       const payments = Array.isArray(container?.payments) ? (container!.payments as Raw[]) : [];
       return payments.map((p) => briefPaymentLine(f, p, todayIso));
     });
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    // File titles and payment descriptions are the vendor's text, so the lines
+    // ride the fleet's untrusted-data envelope as `data: string[]`.
+    return minifiedResult(
+      untrustedEnvelope(lines.length > 0 ? lines : ['-- none'], { note: `${BRIEF_WHO_WROTE} ${UNTRUSTED_CONTENT_RULE}` })
+    );
   }
   // Totals are kept PER CURRENCY: each file names its own, and a workspace
   // can mix them, so one bare number would be in no currency at all.
@@ -169,7 +177,8 @@ export function registerPaymentTools(server: McpServer, deps: HoneyBookDeps = {}
           .optional()
           .describe(
             '"full" (default): the files, payments and per-currency totals. "brief": one line per payment — ' +
-              'file: description (amount) — due <ISO date or "no date"> — <paid|pending|overdue|unpaid>.'
+              'file: description (amount) — due <ISO date or "no date"> — <paid|pending|overdue|unpaid>, ' +
+              'inside the untrusted-data envelope as data: string[]; "-- none" when there is no payment.'
           ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
