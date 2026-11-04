@@ -29,7 +29,7 @@ MCP server for HoneyBook's client portal — contracts, invoices, questionnaires
 - `list_tasks` — Tasks assigned to you with today/this-week/overdue counts and task groups
 - `list_notes` — Notes the vendor shared (meeting notes, AI recaps)
 - `list_attachments` — Loose images, files and bookmarks (not contracts/invoices — those are workspace files)
-- `list_payments` — Every payment on every file in a workspace, with paid/unpaid totals
+- `list_payments(workspace_id, view?)` — Every payment on every file in a workspace, with paid/unpaid totals; `workspace_id` also takes a project name as listed in its schema; `view="brief"` answers one line per payment
 
 ## Response shape (`view`)
 
@@ -38,6 +38,10 @@ Only **two** tools here take the fleet's `view` parameter: `get_project` and
 get the cheap shape without asking for it. There is no `full` rung on either:
 `raw` already IS every field HoneyBook sent, so a third value would silently
 alias to one of the other two.
+
+`list_payments` takes a different `view`: `full` (the default, the payment
+schedule with totals) or `brief` (one plain-text line per payment). `brief` is
+the context-groups answer shape, not a fleet rung — see "In context groups".
 
 The two compact rungs are **not the same kind of thing**, and the difference
 decides which one you can trust to be complete:
@@ -103,6 +107,23 @@ shape legible.
 - **"When is my next Zoom with the planner?"** → `list_meetings`; the join link and password are in the row
 - **"What have I paid and what's left?"** → `list_payments` (`totals.paid` / `totals.unpaid`); to pay one, `pay_invoice`
 - **"Do I have anything to do?"** → `list_tasks` (`counts.overdue`, `counts.today`)
+
+## In context groups
+
+On an mcp-host that groups tools by context, this server is in the **money**
+group. Its one canonical read is `list_payments` for **what's due**: the subject
+is the project (`workspace_id`), whose schema lists your projects by name —
+listed once at start from every captured portal session, so a fresh install or
+a lapsed session publishes no names and the tool still takes a workspace id —
+and `view: "brief"` answers `<file>: <payment> (<amount>) — <ISO date | no date>
+— <paid|pending|overdue|unpaid>`. Nothing here is canonical for what's new or
+what's on: `list_messages` (new) and `list_meetings` (on) carry those intents
+but need a workspace and are read on request. A compound ask looks like "what
+do I still owe the vendors, and anything due at school?" — the money group
+answers the payments, the school group the rest. Reads go straight to
+api.honeybook.com from the saved session, so the browser only has to be open
+to capture one (`use_magic_link`); a missing or lapsed session is answered as
+"run `use_magic_link` again", not "needs your browser open".
 
 ## Notes
 

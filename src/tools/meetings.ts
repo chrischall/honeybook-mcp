@@ -4,6 +4,7 @@ import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { getActiveClient } from '../client.js';
 import { fetchWorkspaceFeed, compactCalendarItem, itemDate, type RawItem } from '../feed.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 /**
  * The portal has no meetings endpoint of its own: every scheduled /
@@ -59,6 +60,7 @@ export function registerMeetingTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('whats-on', { aliases: ['meetings', 'consultation', 'call with vendor', 'zoom'] }),
     },
     listMeetings
   );

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { minifiedResult, resolveView, schemaOrigin, viewParam, viewResult } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 type Raw = Record<string, unknown>;
 
@@ -124,6 +125,7 @@ export function registerProjectTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup', { aliases: ['projects', 'events', 'bookings', 'vendors'] }),
     },
     listProjects
   );
@@ -145,6 +147,7 @@ export function registerProjectTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup'),
     },
     getProject
   );

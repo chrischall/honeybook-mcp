@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 type Raw = Record<string, unknown>;
 
@@ -40,6 +41,7 @@ export function registerAttachmentTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup', { aliases: ['files', 'photos', 'attachments'] }),
     },
     listAttachments
   );

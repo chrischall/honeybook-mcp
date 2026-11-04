@@ -4,6 +4,7 @@ import { minifiedResult, schemaOrigin } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { HBListEnvelope, ToolResult } from '../types.js';
 import { FILE_TYPES } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 /**
  * Vendor-side sub-fields on `company` that a CLIENT never needs but that
@@ -355,6 +356,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup', { aliases: ['contracts', 'invoices', 'proposals', 'documents'] }),
     },
     listWorkspaceFiles
   );
@@ -376,6 +378,7 @@ export function registerWorkspaceFileTools(server: McpServer): void {
           ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup'),
     },
     getWorkspaceFile
   );

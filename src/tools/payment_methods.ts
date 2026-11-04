@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { resolveView, schemaOrigin, viewParam, viewResult } from '@chrischall/mcp-utils';
 import { apiPath, getActiveClient } from '../client.js';
 import type { ToolResult } from '../types.js';
+import { moneyMeta } from './hints.js';
 
 type Raw = Record<string, unknown>;
 
@@ -52,6 +53,7 @@ export function registerPaymentMethodTools(server: McpServer): void {
         ),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: moneyMeta('lookup', { aliases: ['card on file', 'saved card', 'payment method'] }),
     },
     listPaymentMethods
   );
