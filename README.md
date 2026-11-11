@@ -140,8 +140,8 @@ Tools that touch a vendor accept an optional `origin` argument (e.g. `https://ac
 | `list_projects`        | Your projects with a vendor + their workspace ids         | Auto       |
 | `get_project`          | Project details: date, location, people, custom fields    | Auto       |
 | `list_messages`        | Messages (or the activity log) in a workspace, newest first | Auto     |
-| `get_message`          | One message in full: body, attachments, delivery status   | Auto       |
-| `send_message`         | Send or reply through the portal (after you confirm)      | Confirm    |
+| `get_message`          | One message in full: body (text, Markdown or HTML), attachments, delivery status | Auto |
+| `send_message`         | Send or reply through the portal, in text, Markdown or HTML (after you confirm) | Confirm |
 | `mark_messages_seen`   | Mark feed items seen (reads never do this on their own)   | Auto       |
 | `list_meetings`        | Scheduled meetings with join links, latest time wins      | Auto       |
 | `list_tasks`           | Tasks the vendor assigned you, with counts                | Auto       |

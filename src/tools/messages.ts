@@ -7,6 +7,7 @@ import {
   requireConfirmationWithFallback,
   schemaOrigin,
 } from '@chrischall/mcp-utils';
+import { escapeHtml, renderMarkdown } from '@chrischall/mcp-utils/rich';
 import { apiPath, getActiveClient } from '../client.js';
 import {
   fetchWorkspaceFeed,
@@ -15,6 +16,8 @@ import {
   summarizeMessage,
   summarizeActivity,
   expandMessage,
+  BODY_FORMATS,
+  type BodyFormat,
   type RawItem,
   type WorkspaceFeed,
 } from '../feed.js';
@@ -102,7 +105,7 @@ function findItem(feed: WorkspaceFeed, id: string): RawItem {
 export async function getMessage(args: {
   workspace_id: string;
   message_id: string;
-  format?: 'text' | 'html';
+  format?: BodyFormat;
   origin?: string;
 }): Promise<ToolResult> {
   const client = await getActiveClient(args.origin);
@@ -118,10 +121,12 @@ export async function getMessage(args: {
 }
 
 /**
- * The composer sends HTML. Plain text is escaped and line breaks become
- * `<br>`; a body that uses a real HTML tag is treated as authored HTML. The
- * tag list is an allowlist on purpose: "<Ivy>" in a sentence is prose, not
- * markup.
+ * The composer sends HTML. A body is written as `format` says: "text" is
+ * escaped with line breaks as `<br>`; "markdown" is rendered (raw HTML in it
+ * escaped, links http(s)/mailto only); "html" is sanitised. With no format, a
+ * body that uses a real HTML tag is treated as authored HTML and anything else
+ * as text. The tag list is an allowlist on purpose: "<Ivy>" in a sentence is
+ * prose, not markup.
  *
  * Authored HTML is SANITIZED to that allowlist, not passed through
  * (fleet-audit#506): HoneyBook emails it under the user's name, and a body the
@@ -130,6 +135,10 @@ export async function getMessage(args: {
  * text; allowlisted tags lose every attribute except an http(s)/mailto `href`
  * on `<a>`. `<img>` is deliberately not allowlisted — a remote image in an
  * email is a read receipt.
+ *
+ * This stays local rather than /rich's `sanitiseHtml`: that is a READ
+ * sanitiser and removes unknown tags (and everything after an unclosed
+ * `<script`), which on a write would silently drop the caller's own words.
  */
 const ALLOWED_TAGS = new Set([
   'p', 'br', 'div', 'a', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'span',
@@ -166,13 +175,14 @@ export function sanitizeHtml(html: string): string {
   return out + escapeAngles(html.slice(last));
 }
 
-export function bodyToHtml(body: string): string {
-  if (HTML_TAG.test(body)) return sanitizeHtml(body);
-  return body
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\r?\n/g, '<br>');
+export const WRITE_FORMATS = ['text', 'markdown', 'html'] as const;
+export type WriteFormat = (typeof WRITE_FORMATS)[number];
+
+export function bodyToHtml(body: string, format?: WriteFormat): string {
+  const as = format ?? (HTML_TAG.test(body) ? 'html' : 'text');
+  if (as === 'markdown') return renderMarkdown(body, { headings: true, quotes: true });
+  if (as === 'html') return sanitizeHtml(body);
+  return escapeHtml(body).replace(/\r?\n/g, '<br>');
 }
 
 interface SendResult {
@@ -185,6 +195,7 @@ export async function sendMessage(
     body: string;
     subject?: string;
     reply_to_message_id?: string;
+    format?: WriteFormat;
     origin?: string;
     confirmToken?: string;
   },
@@ -219,7 +230,7 @@ export async function sendMessage(
   const taskData: Record<string, unknown> = {
     ws_id: args.workspace_id,
     subject,
-    html_body: bodyToHtml(args.body),
+    html_body: bodyToHtml(args.body, args.format),
     force: false,
     general_files: [],
     image_files: [],
@@ -357,12 +368,18 @@ export function registerMessageTools(server: McpServer): void {
     'get_message',
     {
       description:
-        'Read one message in full: body (plain text by default, or the original HTML), sender, recipients, ' +
+        'Read one message in full: body (HoneyBook\'s plain text by default, Markdown, or the original HTML), sender, recipients, ' +
         'attachments and per-recipient delivery status.',
       inputSchema: z.object({
         workspace_id: z.string().describe(WORKSPACE_DESC),
         message_id: z.string().describe('The message _id from list_messages.'),
-        format: z.enum(['text', 'html']).optional().describe('Body format. Default "text".'),
+        format: z
+          .enum(BODY_FORMATS)
+          .optional()
+          .describe(
+            'Body format: "text" (default, HoneyBook\'s plain text), "markdown" (keeps lists, paragraphs and links ' +
+              'with their address, which the plain text loses; tracking pixels and hidden text dropped) or "html" (the original, raw).'
+          ),
         origin: schemaOrigin.describe(ORIGIN_DESC),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
@@ -386,7 +403,19 @@ export function registerMessageTools(server: McpServer): void {
         workspace_id: z.string().describe(WORKSPACE_DESC),
         body: z
           .string()
-          .describe('Message text. Plain text is sent as-is (line breaks preserved). Simple HTML formatting (p, br, b, i, a href, lists, tables) is kept; other tags are shown as text and attributes other than an http(s)/mailto link are dropped.'),
+          .describe(
+            'Message text, written as `format` says. With no format, plain text is sent as-is (line breaks preserved) ' +
+              'and a body using HTML tags is read as HTML.'
+          ),
+        format: z
+          .enum(WRITE_FORMATS)
+          .optional()
+          .describe(
+            '"text" (sent as typed), "markdown" (**bold**, _italic_, lists, [links](https://…), `code`, # headings, ' +
+              '> quotes — sent as formatted HTML, and cheaper to write than HTML) or "html" (simple formatting kept: ' +
+              'p, br, b, i, a href, lists, tables; other tags shown as text, attributes other than an ' +
+              'http(s)/mailto link dropped). Omitted: "html" if the body uses an HTML tag, else "text".'
+          ),
         subject: z.string().optional().describe('Required for a new message; optional on a reply.'),
         reply_to_message_id: z
           .string()

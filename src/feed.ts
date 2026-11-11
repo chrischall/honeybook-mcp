@@ -1,3 +1,4 @@
+import { htmlToMarkdown, htmlToText } from '@chrischall/mcp-utils/rich';
 import { apiPath, type HoneyBookClient } from './client.js';
 import { VENDOR_SECRET_KEYS, scrubVendorSecrets } from './vendor-secrets.js';
 
@@ -107,15 +108,6 @@ export function collapseWhitespace(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-/** Collapse runs of spaces but keep paragraph breaks (at most one blank line). */
-export function collapseHorizontalWhitespace(s: string): string {
-  return s
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/ ?\n ?/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
 const PREVIEW_CHARS = 240;
 
 /** Compact card for a message item. Bodies are deliberately left out. */
@@ -156,44 +148,37 @@ export function summarizeMessage(item: RawItem, feed: WorkspaceFeed, meId: strin
   return out;
 }
 
+/** How get_message returns a body. */
+export const BODY_FORMATS = ['text', 'markdown', 'html'] as const;
+export type BodyFormat = (typeof BODY_FORMATS)[number];
+
+/**
+ * A message body in the format asked for. "text" is HoneyBook's own
+ * `plain_text`, and "html" the raw `html_body`, as they always were.
+ * "markdown" reads the HTML (lists, paragraphs and links with their address
+ * survive, which `plain_text` loses; tracking pixels, styles and hidden text
+ * go). `str` folds '' to undefined, so an empty field falls through to the
+ * other rather than returning an empty body next to a real one.
+ */
+function messageBody(data: RawItem | undefined, format: BodyFormat): string {
+  const html = str(data, 'html_body');
+  const plain = str(data, 'plain_text');
+  if (format === 'html') return html ?? plain ?? '';
+  if (format === 'markdown') return html !== undefined ? htmlToMarkdown(html) : (plain ?? '');
+  return plain ?? (html !== undefined ? htmlToText(html, { paragraphs: true }) : '');
+}
+
 /** Everything a person needs to read one message. */
-export function expandMessage(
-  item: RawItem,
-  feed: WorkspaceFeed,
-  meId: string,
-  format: 'text' | 'html'
-): RawItem {
+export function expandMessage(item: RawItem, feed: WorkspaceFeed, meId: string, format: BodyFormat): RawItem {
   const data = obj(item, 'data');
   const summary = summarizeMessage(item, feed, meId);
   delete summary.preview;
-  // `str` folds '' to undefined, so an empty plain_text falls through to the
-  // html_body rather than returning an empty body next to a real one.
-  const body =
-    format === 'html'
-      ? (str(data, 'html_body') ?? str(data, 'plain_text') ?? '')
-      : (str(data, 'plain_text') ?? htmlToText(str(data, 'html_body') ?? ''));
   const delivery = arr(item, 'email_tracking').map((t) => ({
     recipient: t.recipient_name,
     status: t.status,
     date: t.date ?? null,
   }));
-  return { ...summary, body_format: format, body: body.trim(), delivery };
-}
-
-/** Last-resort text for an item whose `plain_text` is missing. Paragraph breaks survive. */
-export function htmlToText(html: string): string {
-  return collapseHorizontalWhitespace(
-    html
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/(p|div|li|h\d|tr)>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-  );
+  return { ...summary, body_format: format, body: messageBody(data, format).trim(), delivery };
 }
 
 /**
