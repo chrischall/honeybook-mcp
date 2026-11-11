@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/chrischall/honeybook-mcp/compare/v1.3.1...v1.4.0) (2026-11-11)
+
+
+### Features
+
+* **messages:** read and write message bodies as Markdown ([#305](https://github.com/chrischall/honeybook-mcp/issues/305)) ([3ef335c](https://github.com/chrischall/honeybook-mcp/commit/3ef335c4d9a265f3dc5c0b5b5a19ccf85affd714))
+
+
+### Bug Fixes
+
+* **deps:** bump @chrischall/mcp-utils from 3.4.0 to 3.4.1 in the production-dependencies group ([#303](https://github.com/chrischall/honeybook-mcp/issues/303)) ([58f75bd](https://github.com/chrischall/honeybook-mcp/commit/58f75bd18212d4b6cec5c753c1a849912a95526a))
+
 ## [1.3.1](https://github.com/chrischall/honeybook-mcp/compare/v1.3.0...v1.3.1) (2026-11-04)
 
 
