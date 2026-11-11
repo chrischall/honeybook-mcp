@@ -22,8 +22,8 @@ MCP server for HoneyBook's client portal — contracts, invoices, questionnaires
 - `list_projects` — Your projects (HoneyBook "events") with a vendor, each with the `workspace_id` the tools below take
 - `get_project(project_id, view?)` — Project details: date, time, location, guests, custom fields, people (name/email/phone/role)
 - `list_messages` — Messages in a workspace (`kind=activity` for the activity log, `kind=all` for both): compact cards, newest first; never marks anything seen
-- `get_message` — One message in full (`format=text` default, or `html`) with attachments and delivery status
-- `send_message` — Send a new message (`subject` + `body`) or reply (`reply_to_message_id`, subject inherited) through the portal; asks the user to confirm first
+- `get_message` — One message in full (`format=text` default, `markdown` to keep lists and links, or the raw `html`) with attachments and delivery status
+- `send_message` — Send a new message (`subject` + `body`) or reply (`reply_to_message_id`, subject inherited) through the portal; `format=markdown` sends a Markdown body as formatted HTML; asks the user to confirm first
 - `mark_messages_seen` — Mark feed items seen, the way opening the Activity tab does
 - `list_meetings` — Meetings the vendor scheduled (consultations, Zoom calls): time, join link, password; rescheduled meetings show their latest time
 - `list_tasks` — Tasks assigned to you with today/this-week/overdue counts and task groups
