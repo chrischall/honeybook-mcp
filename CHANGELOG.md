@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/chrischall/honeybook-mcp/compare/v1.4.0...v1.4.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **deps:** bump @chrischall/mcp-utils from 3.8.1 to 3.9.0 in the production-dependencies group ([#309](https://github.com/chrischall/honeybook-mcp/issues/309)) ([d1e229e](https://github.com/chrischall/honeybook-mcp/commit/d1e229ee54b38c8457bc90616970c591d859e595))
+* **deps:** bump the production-dependencies group with 4 updates ([#306](https://github.com/chrischall/honeybook-mcp/issues/306)) ([55051da](https://github.com/chrischall/honeybook-mcp/commit/55051da0f3bcc17827474dc82e43d61c1e6d2a24))
+
 ## [1.4.0](https://github.com/chrischall/honeybook-mcp/compare/v1.3.1...v1.4.0) (2026-11-11)
 
 
